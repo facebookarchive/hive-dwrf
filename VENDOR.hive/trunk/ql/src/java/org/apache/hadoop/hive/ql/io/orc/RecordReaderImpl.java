@@ -611,10 +611,7 @@ class RecordReaderImpl implements RecordReader {
   }
 
   private static class StringTreeReader extends TreeReader {
-    private DynamicByteArray dictionaryBuffer = null;
-    private int dictionarySize;
-    private int[] dictionaryOffsets;
-    private RunLengthIntegerReader reader;
+    private TreeReader reader;
 
     StringTreeReader(int columnId) {
       super(columnId);
@@ -624,82 +621,193 @@ class RecordReaderImpl implements RecordReader {
     void startStripe(Map<StreamName, InStream> streams,
                      List<OrcProto.ColumnEncoding> encodings
                     ) throws IOException {
-      super.startStripe(streams, encodings);
-
-      // read the dictionary blob
-      dictionarySize = encodings.get(columnId).getDictionarySize();
-      StreamName name = new StreamName(columnId,
-          OrcProto.Stream.Kind.DICTIONARY_DATA);
-      InStream in = streams.get(name);
-      if (in.available() > 0) {
-        dictionaryBuffer = new DynamicByteArray(64, in.available());
-        dictionaryBuffer.readAll(in);
-      } else {
-        dictionaryBuffer = null;
+      // For each stripe, checks the encoding and initializes the appropriate reader
+      switch (encodings.get(columnId).getKind()) {
+        case DIRECT:
+          reader = new StringDirectTreeReader(columnId);
+          break;
+        case DICTIONARY:
+          reader = new StringDictionaryTreeReader(columnId);
+          break;
+        default:
+          throw new IllegalArgumentException("Unsupported encoding " +
+              encodings.get(columnId).getKind());
       }
-      in.close();
 
-      // read the lengths
-      name = new StreamName(columnId, OrcProto.Stream.Kind.LENGTH);
-      in = streams.get(name);
-      RunLengthIntegerReader lenReader = new RunLengthIntegerReader(in, false);
-      int offset = 0;
-      if (dictionaryOffsets == null ||
-          dictionaryOffsets.length < dictionarySize + 1) {
-        dictionaryOffsets = new int[dictionarySize + 1];
-      }
-      for(int i=0; i < dictionarySize; ++i) {
-        dictionaryOffsets[i] = offset;
-        offset += (int) lenReader.next();
-      }
-      dictionaryOffsets[dictionarySize] = offset;
-      in.close();
-
-      // set up the row reader
-      name = new StreamName(columnId, OrcProto.Stream.Kind.DATA);
-      reader = new RunLengthIntegerReader(streams.get(name), false);
+      reader.startStripe(streams, encodings);
     }
 
     @Override
     void seek(PositionProvider[] index) throws IOException {
-      super.seek(index);
-      reader.seek(index[columnId]);
+      reader.seek(index);
     }
 
     @Override
     Object next(Object previous) throws IOException {
-      super.next(previous);
-      Text result = null;
-      if (valuePresent) {
-        int entry = (int) reader.next();
-        if (previous == null) {
-          result = new Text();
-        } else {
-          result = (Text) previous;
-        }
-        int offset = dictionaryOffsets[entry];
-        int length;
-        // if it isn't the last entry, subtract the offsets otherwise use
-        // the buffer length.
-        if (entry < dictionaryOffsets.length - 1) {
-          length = dictionaryOffsets[entry + 1] - offset;
-        } else {
-          length = dictionaryBuffer.size() - offset;
-        }
-        // If the column is just empty strings, the size will be zero, so the buffer will be null,
-        // in that case just return result as it will default to empty
-        if (dictionaryBuffer != null) {
-          dictionaryBuffer.setText(result, offset, length);
-        } else {
-          result.clear();
-        }
-      }
-      return result;
+      return reader.next(previous);
     }
 
     @Override
     void skipRows(long items) throws IOException {
-      reader.skip(countNonNulls(items));
+      reader.skipRows(items);
+    }
+
+    private static class StringDirectTreeReader extends TreeReader {
+      private InStream stream;
+      private RunLengthIntegerReader lengths;
+
+      StringDirectTreeReader(int columnId) {
+        super(columnId);
+      }
+
+      @Override
+      void startStripe(Map<StreamName, InStream> streams,
+                       List<OrcProto.ColumnEncoding> encodings
+                      ) throws IOException {
+        super.startStripe(streams, encodings);
+        StreamName name = new StreamName(columnId,
+            OrcProto.Stream.Kind.DATA);
+        stream = streams.get(name);
+        lengths = new RunLengthIntegerReader(streams.get(new
+            StreamName(columnId, OrcProto.Stream.Kind.LENGTH)),
+            false);
+      }
+
+      @Override
+      void seek(PositionProvider[] index) throws IOException {
+        super.seek(index);
+        stream.seek(index[columnId]);
+        lengths.seek(index[columnId]);
+      }
+
+      @Override
+      Object next(Object previous) throws IOException {
+        super.next(previous);
+        Text result = null;
+        if (valuePresent) {
+          if (previous == null) {
+            result = new Text();
+          } else {
+            result = (Text) previous;
+          }
+          int len = (int) lengths.next();
+          int offset = 0;
+          byte[] bytes = new byte[len];
+          while (len > 0) {
+            int written = stream.read(bytes, offset, len);
+            if (written < 0) {
+              throw new EOFException("Can't finish byte read from " + stream);
+            }
+            len -= written;
+            offset += written;
+          }
+          result.set(bytes);
+        }
+        return result;
+      }
+
+      @Override
+      void skipRows(long items) throws IOException {
+        items = countNonNulls(items);
+        long lengthToSkip = 0;
+        for(int i=0; i < items; ++i) {
+          lengthToSkip += lengths.next();
+        }
+        stream.skip(lengthToSkip);
+      }
+    }
+
+    private static class StringDictionaryTreeReader extends TreeReader {
+      private DynamicByteArray dictionaryBuffer = null;
+      private int dictionarySize;
+      private int[] dictionaryOffsets;
+      private RunLengthIntegerReader reader;
+
+      StringDictionaryTreeReader(int columnId) {
+        super(columnId);
+      }
+
+      @Override
+      void startStripe(Map<StreamName, InStream> streams,
+                       List<OrcProto.ColumnEncoding> encodings
+                      ) throws IOException {
+        super.startStripe(streams, encodings);
+
+        // read the dictionary blob
+        dictionarySize = encodings.get(columnId).getDictionarySize();
+        StreamName name = new StreamName(columnId,
+            OrcProto.Stream.Kind.DICTIONARY_DATA);
+        InStream in = streams.get(name);
+        if (in.available() > 0) {
+          dictionaryBuffer = new DynamicByteArray(64, in.available());
+          dictionaryBuffer.readAll(in);
+        } else {
+          dictionaryBuffer = null;
+        }
+        in.close();
+
+        // read the lengths
+        name = new StreamName(columnId, OrcProto.Stream.Kind.LENGTH);
+        in = streams.get(name);
+        RunLengthIntegerReader lenReader = new RunLengthIntegerReader(in, false);
+        int offset = 0;
+        if (dictionaryOffsets == null ||
+            dictionaryOffsets.length < dictionarySize + 1) {
+          dictionaryOffsets = new int[dictionarySize + 1];
+        }
+        for(int i=0; i < dictionarySize; ++i) {
+          dictionaryOffsets[i] = offset;
+          offset += (int) lenReader.next();
+        }
+        dictionaryOffsets[dictionarySize] = offset;
+        in.close();
+
+        // set up the row reader
+        name = new StreamName(columnId, OrcProto.Stream.Kind.DATA);
+        reader = new RunLengthIntegerReader(streams.get(name), false);
+      }
+
+      @Override
+      void seek(PositionProvider[] index) throws IOException {
+        super.seek(index);
+        reader.seek(index[columnId]);
+      }
+
+      @Override
+      Object next(Object previous) throws IOException {
+        super.next(previous);
+        Text result = null;
+        if (valuePresent) {
+          int entry = (int) reader.next();
+          if (previous == null) {
+            result = new Text();
+          } else {
+            result = (Text) previous;
+          }
+          int offset = dictionaryOffsets[entry];
+          int length;
+          // if it isn't the last entry, subtract the offsets otherwise use
+          // the buffer length.
+          if (entry < dictionaryOffsets.length - 1) {
+            length = dictionaryOffsets[entry + 1] - offset;
+          } else {
+            length = dictionaryBuffer.size() - offset;
+          }
+          // If the column is just empty strings, the size will be zero, so the buffer will be null,
+          // in that case just return result as it will default to empty
+          if (dictionaryBuffer != null) {
+            dictionaryBuffer.setText(result, offset, length);
+          } else {
+            result.clear();
+          }
+        }
+        return result;
+      }
+
+      @Override
+      void skipRows(long items) throws IOException {
+        reader.skip(countNonNulls(items));
+      }
     }
   }
 

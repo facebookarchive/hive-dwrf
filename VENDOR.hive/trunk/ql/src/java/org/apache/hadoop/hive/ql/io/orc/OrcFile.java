@@ -18,11 +18,12 @@
 
 package org.apache.hadoop.hive.ql.io.orc;
 
+import java.io.IOException;
+
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-
-import java.io.IOException;
 
 /**
  * Contains factory methods to read or write ORC files.
@@ -70,12 +71,13 @@ public final class OrcFile {
    */
   public static Writer createWriter(FileSystem fs,
                                     Path path,
+                                    Configuration conf,
                                     ObjectInspector inspector,
                                     long stripeSize,
                                     CompressionKind compress,
                                     int bufferSize,
                                     int rowIndexStride) throws IOException {
-    return new WriterImpl(fs, path, inspector, stripeSize, compress,
+    return new WriterImpl(fs, path, conf, inspector, stripeSize, compress,
       bufferSize, rowIndexStride);
   }
 
