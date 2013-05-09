@@ -18,11 +18,20 @@
 
 package org.apache.hadoop.hive.ql.io.orc;
 
-import com.google.protobuf.ByteString;
-import com.google.protobuf.CodedOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.nio.ByteBuffer;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -41,15 +50,10 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.ShortObjectInspec
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.StringObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
 import org.apache.hadoop.io.BytesWritable;
+import org.apache.hadoop.io.Text;
 
-import java.io.IOException;
-import java.io.OutputStream;
-import java.nio.ByteBuffer;
-import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.TreeMap;
+import com.google.protobuf.ByteString;
+import com.google.protobuf.CodedOutputStream;
 
 /**
  * An ORC file writer. The file is divided into stripes, which is the natural
@@ -96,8 +100,11 @@ class WriterImpl implements Writer {
       OrcProto.RowIndex.newBuilder();
   private final boolean buildIndex;
 
+  private final Configuration conf;
+
   WriterImpl(FileSystem fs,
              Path path,
+             Configuration conf,
              ObjectInspector inspector,
              long stripeSize,
              CompressionKind compress,
@@ -105,13 +112,14 @@ class WriterImpl implements Writer {
              int rowIndexStride) throws IOException {
     this.fs = fs;
     this.path = path;
+    this.conf = conf;
     this.stripeSize = stripeSize;
     this.compress = compress;
     this.bufferSize = bufferSize;
     this.rowIndexStride = rowIndexStride;
     buildIndex = rowIndexStride > 0;
     codec = createCodec(compress);
-    treeWriter = createTreeWriter(inspector, streamFactory, false);
+    treeWriter = createTreeWriter(inspector, streamFactory, false, conf);
     if (buildIndex && rowIndexStride < MIN_ROW_INDEX_STRIDE) {
       throw new IllegalArgumentException("Row stride must be at least " +
           MIN_ROW_INDEX_STRIDE);
@@ -304,6 +312,7 @@ class WriterImpl implements Writer {
     private final OrcProto.RowIndex.Builder rowIndex;
     private final OrcProto.RowIndexEntry.Builder rowIndexEntry;
     private final PositionedOutputStream rowIndexStream;
+    private final Configuration conf;
 
     /**
      * Create a tree writer
@@ -315,9 +324,10 @@ class WriterImpl implements Writer {
      */
     TreeWriter(int columnId, ObjectInspector inspector,
                StreamFactory streamFactory,
-               boolean nullable) throws IOException {
+               boolean nullable, Configuration conf) throws IOException {
       this.id = columnId;
       this.inspector = inspector;
+      this.conf = conf;
       if (nullable) {
         isPresent = new BitFieldWriter(streamFactory.createStream(id,
             OrcProto.Stream.Kind.PRESENT), 1);
@@ -455,8 +465,8 @@ class WriterImpl implements Writer {
     BooleanTreeWriter(int columnId,
                       ObjectInspector inspector,
                       StreamFactory writer,
-                      boolean nullable) throws IOException {
-      super(columnId, inspector, writer, nullable);
+                      boolean nullable, Configuration conf) throws IOException {
+      super(columnId, inspector, writer, nullable, conf);
       PositionedOutputStream out = writer.createStream(id,
           OrcProto.Stream.Kind.DATA);
       this.writer = new BitFieldWriter(out, 1);
@@ -494,8 +504,8 @@ class WriterImpl implements Writer {
     ByteTreeWriter(int columnId,
                       ObjectInspector inspector,
                       StreamFactory writer,
-                      boolean nullable) throws IOException {
-      super(columnId, inspector, writer, nullable);
+                      boolean nullable, Configuration conf) throws IOException {
+      super(columnId, inspector, writer, nullable, conf);
       this.writer = new RunLengthByteWriter(writer.createStream(id,
           OrcProto.Stream.Kind.DATA));
       recordPosition(rowIndexPosition);
@@ -535,8 +545,8 @@ class WriterImpl implements Writer {
     IntegerTreeWriter(int columnId,
                       ObjectInspector inspector,
                       StreamFactory writer,
-                      boolean nullable) throws IOException {
-      super(columnId, inspector, writer, nullable);
+                      boolean nullable, Configuration conf) throws IOException {
+      super(columnId, inspector, writer, nullable, conf);
       PositionedOutputStream out = writer.createStream(id,
           OrcProto.Stream.Kind.DATA);
       this.writer = new RunLengthIntegerWriter(out, true);
@@ -595,8 +605,8 @@ class WriterImpl implements Writer {
     FloatTreeWriter(int columnId,
                       ObjectInspector inspector,
                       StreamFactory writer,
-                      boolean nullable) throws IOException {
-      super(columnId, inspector, writer, nullable);
+                      boolean nullable, Configuration conf) throws IOException {
+      super(columnId, inspector, writer, nullable, conf);
       this.stream = writer.createStream(id,
           OrcProto.Stream.Kind.DATA);
       recordPosition(rowIndexPosition);
@@ -633,8 +643,8 @@ class WriterImpl implements Writer {
     DoubleTreeWriter(int columnId,
                     ObjectInspector inspector,
                     StreamFactory writer,
-                    boolean nullable) throws IOException {
-      super(columnId, inspector, writer, nullable);
+                    boolean nullable, Configuration conf) throws IOException {
+      super(columnId, inspector, writer, nullable, conf);
       this.stream = writer.createStream(id,
           OrcProto.Stream.Kind.DATA);
       recordPosition(rowIndexPosition);
@@ -672,28 +682,42 @@ class WriterImpl implements Writer {
     private final RunLengthIntegerWriter countOutput;
     private final StringRedBlackTree dictionary = new StringRedBlackTree();
     private final DynamicIntArray rows = new DynamicIntArray();
+    private final PositionedOutputStream directStreamOutput;
+    private final RunLengthIntegerWriter directLengthOutput;
     private final List<OrcProto.RowIndexEntry> savedRowIndex =
         new ArrayList<OrcProto.RowIndexEntry>();
     private final boolean buildIndex;
     private final List<Long> rowIndexValueCount = new ArrayList<Long>();
+    // If the number of keys in a dictionary is greater than this fraction of the total number of
+    // non-null rows, turn off dictionary encoding
+    private final float dictionaryKeySizeThreshold;
+
+    private boolean useDictionaryEncoding = true;
 
     StringTreeWriter(int columnId,
                      ObjectInspector inspector,
                      StreamFactory writer,
-                     boolean nullable) throws IOException {
-      super(columnId, inspector, writer, nullable);
+                     boolean nullable, Configuration conf) throws IOException {
+      super(columnId, inspector, writer, nullable, conf);
       stringOutput = writer.createStream(id,
           OrcProto.Stream.Kind.DICTIONARY_DATA);
       lengthOutput = new RunLengthIntegerWriter(writer.createStream(id,
           OrcProto.Stream.Kind.LENGTH), false);
       rowOutput = new RunLengthIntegerWriter(writer.createStream(id,
           OrcProto.Stream.Kind.DATA), false);
+      directStreamOutput = writer.createStream(id,
+          OrcProto.Stream.Kind.DATA);
+      directLengthOutput = new RunLengthIntegerWriter(writer.createStream(id,
+          OrcProto.Stream.Kind.LENGTH), false);
       if (writer.buildIndex()) {
         countOutput = new RunLengthIntegerWriter(writer.createStream(id,
             OrcProto.Stream.Kind.DICTIONARY_COUNT), false);
       } else {
         countOutput = null;
       }
+      dictionaryKeySizeThreshold = conf.getFloat(
+          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_KEY_SIZE_THRESHOLD.varname,
+          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_KEY_SIZE_THRESHOLD.defaultFloatVal);
       recordPosition(rowIndexPosition);
       rowIndexValueCount.add(0L);
       buildIndex = writer.buildIndex();
@@ -713,25 +737,40 @@ class WriterImpl implements Writer {
     @Override
     void writeStripe(OrcProto.StripeFooter.Builder builder,
                      int requiredIndexEntries) throws IOException {
-      // Traverse the red-black tree writing out the bytes and lengths; and
-      // creating the map from the original order to the final sorted order.
+      // Set the flag indicating whether or not to use dictionary encoding based on whether
+      // or not the fraction of distinct keys over number of non-null rows is less than the
+      // configured threshold
+      if (rows.size() > 0 &&
+          (float)(dictionary.size()) / (float)rows.size() <= dictionaryKeySizeThreshold) {
+        useDictionaryEncoding = true;
+      } else {
+        useDictionaryEncoding = false;
+      }
+
       final int[] dumpOrder = new int[dictionary.size()];
-      dictionary.visit(new StringRedBlackTree.Visitor() {
-        private int currentId = 0;
-        @Override
-        public void visit(StringRedBlackTree.VisitorContext context
-                         ) throws IOException {
-          context.writeBytes(stringOutput);
-          lengthOutput.write(context.getLength());
-          dumpOrder[context.getOriginalPosition()] = currentId++;
-          if (countOutput != null) {
-            countOutput.write(context.getCount());
+
+      if (useDictionaryEncoding) {
+        // Traverse the red-black tree writing out the bytes and lengths; and
+        // creating the map from the original order to the final sorted order.
+        dictionary.visit(new StringRedBlackTree.Visitor() {
+          private int currentId = 0;
+          @Override
+          public void visit(StringRedBlackTree.VisitorContext context
+                           ) throws IOException {
+            context.writeBytes(stringOutput);
+            lengthOutput.write(context.getLength());
+            dumpOrder[context.getOriginalPosition()] = currentId++;
+            if (countOutput != null) {
+              countOutput.write(context.getCount());
+            }
           }
-        }
-      });
+        });
+      }
+
       int length = rows.size();
       int rowIndexEntry = 0;
       OrcProto.RowIndex.Builder rowIndex = getRowIndex();
+
       // need to build the first index entry out here, to handle the case of
       // not having any values.
       if (buildIndex) {
@@ -739,10 +778,12 @@ class WriterImpl implements Writer {
             rowIndexEntry < savedRowIndex.size()) {
           OrcProto.RowIndexEntry.Builder base =
               savedRowIndex.get(rowIndexEntry++).toBuilder();
-          rowOutput.getPosition(new RowIndexPositionRecorder(base));
+          recordOutputPosition(base);
           rowIndex.addEntry(base.build());
         }
       }
+
+      Text text = new Text();
       // write the values translated into the dump order.
       for(int i = 0; i < length; ++i) {
         // now that we are writing out the row values, we can finalize the
@@ -752,21 +793,33 @@ class WriterImpl implements Writer {
               rowIndexEntry < savedRowIndex.size()) {
             OrcProto.RowIndexEntry.Builder base =
                 savedRowIndex.get(rowIndexEntry++).toBuilder();
-            rowOutput.getPosition(new RowIndexPositionRecorder(base));
+            recordOutputPosition(base);
             rowIndex.addEntry(base.build());
           }
         }
-        rowOutput.write(dumpOrder[rows.get(i)]);
+        if (useDictionaryEncoding) {
+          rowOutput.write(dumpOrder[rows.get(i)]);
+        } else {
+          dictionary.getText(text, rows.get(i));
+          directStreamOutput.write(text.getBytes(), 0, text.getLength());
+          directLengthOutput.write(text.getLength());
+        }
       }
       // we need to build the rowindex before calling super, since it
       // writes it out.
       super.writeStripe(builder, requiredIndexEntries);
-      stringOutput.flush();
-      lengthOutput.flush();
-      rowOutput.flush();
-      if (countOutput != null) {
-        countOutput.flush();
+      if (useDictionaryEncoding) {
+        stringOutput.flush();
+        lengthOutput.flush();
+        rowOutput.flush();
+        if (countOutput != null) {
+          countOutput.flush();
+        }
+      } else {
+        directStreamOutput.flush();
+        directLengthOutput.flush();
       }
+
       // reset all of the fields to be ready for the next stripe.
       dictionary.clear();
       rows.clear();
@@ -776,11 +829,28 @@ class WriterImpl implements Writer {
       rowIndexValueCount.add(0L);
     }
 
+    // Calls getPosition on the row output stream if dictionary encoding is used, and the direct
+    // output stream if direct encoding is used
+    private void recordOutputPosition(OrcProto.RowIndexEntry.Builder base) throws IOException {
+      if (useDictionaryEncoding) {
+        rowOutput.getPosition(new RowIndexPositionRecorder(base));
+      } else {
+        directStreamOutput.getPosition(new RowIndexPositionRecorder(base));
+        directLengthOutput.getPosition(new RowIndexPositionRecorder(base));
+      }
+    }
+
     @Override
     OrcProto.ColumnEncoding getEncoding() {
-      return OrcProto.ColumnEncoding.newBuilder().setKind(
-          OrcProto.ColumnEncoding.Kind.DICTIONARY).
-          setDictionarySize(dictionary.size()).build();
+      // Returns the encoding used for the last call to writeStripe
+      if (useDictionaryEncoding) {
+        return OrcProto.ColumnEncoding.newBuilder().setKind(
+            OrcProto.ColumnEncoding.Kind.DICTIONARY).
+            setDictionarySize(dictionary.size()).build();
+      } else {
+        return OrcProto.ColumnEncoding.newBuilder().setKind(
+            OrcProto.ColumnEncoding.Kind.DIRECT).build();
+      }
     }
 
     /**
@@ -790,6 +860,7 @@ class WriterImpl implements Writer {
      * and augments them with the final information as the stripe is written.
      * @throws IOException
      */
+    @Override
     void createRowIndexEntry() throws IOException {
       getFileStatistics().merge(indexStatistics);
       OrcProto.RowIndexEntry.Builder rowIndexEntry = getRowIndexEntry();
@@ -814,8 +885,8 @@ class WriterImpl implements Writer {
     BinaryTreeWriter(int columnId,
                      ObjectInspector inspector,
                      StreamFactory writer,
-                     boolean nullable) throws IOException {
-      super(columnId, inspector, writer, nullable);
+                     boolean nullable, Configuration conf) throws IOException {
+      super(columnId, inspector, writer, nullable, conf);
       this.stream = writer.createStream(id,
           OrcProto.Stream.Kind.DATA);
       this.length = new RunLengthIntegerWriter(writer.createStream(id,
@@ -862,8 +933,8 @@ class WriterImpl implements Writer {
     TimestampTreeWriter(int columnId,
                      ObjectInspector inspector,
                      StreamFactory writer,
-                     boolean nullable) throws IOException {
-      super(columnId, inspector, writer, nullable);
+                     boolean nullable, Configuration conf) throws IOException {
+      super(columnId, inspector, writer, nullable, conf);
       this.seconds = new RunLengthIntegerWriter(writer.createStream(id,
           OrcProto.Stream.Kind.DATA), true);
       this.nanos = new RunLengthIntegerWriter(writer.createStream(id,
@@ -921,15 +992,15 @@ class WriterImpl implements Writer {
     StructTreeWriter(int columnId,
                      ObjectInspector inspector,
                      StreamFactory writer,
-                     boolean nullable) throws IOException {
-      super(columnId, inspector, writer, nullable);
+                     boolean nullable, Configuration conf) throws IOException {
+      super(columnId, inspector, writer, nullable, conf);
       StructObjectInspector structObjectInspector =
         (StructObjectInspector) inspector;
       fields = structObjectInspector.getAllStructFieldRefs();
       childrenWriters = new TreeWriter[fields.size()];
       for(int i=0; i < childrenWriters.length; ++i) {
         childrenWriters[i] = createTreeWriter(
-          fields.get(i).getFieldObjectInspector(), writer, true);
+          fields.get(i).getFieldObjectInspector(), writer, true, conf);
       }
       recordPosition(rowIndexPosition);
     }
@@ -964,13 +1035,13 @@ class WriterImpl implements Writer {
     ListTreeWriter(int columnId,
                    ObjectInspector inspector,
                    StreamFactory writer,
-                   boolean nullable) throws IOException {
-      super(columnId, inspector, writer, nullable);
+                   boolean nullable, Configuration conf) throws IOException {
+      super(columnId, inspector, writer, nullable, conf);
       ListObjectInspector listObjectInspector = (ListObjectInspector) inspector;
       childrenWriters = new TreeWriter[1];
       childrenWriters[0] =
         createTreeWriter(listObjectInspector.getListElementObjectInspector(),
-          writer, true);
+          writer, true, conf);
       lengths =
         new RunLengthIntegerWriter(writer.createStream(columnId,
             OrcProto.Stream.Kind.LENGTH), false);
@@ -1014,14 +1085,14 @@ class WriterImpl implements Writer {
     MapTreeWriter(int columnId,
                   ObjectInspector inspector,
                   StreamFactory writer,
-                  boolean nullable) throws IOException {
-      super(columnId, inspector, writer, nullable);
+                  boolean nullable, Configuration conf) throws IOException {
+      super(columnId, inspector, writer, nullable, conf);
       MapObjectInspector insp = (MapObjectInspector) inspector;
       childrenWriters = new TreeWriter[2];
       childrenWriters[0] =
-        createTreeWriter(insp.getMapKeyObjectInspector(), writer, true);
+        createTreeWriter(insp.getMapKeyObjectInspector(), writer, true, conf);
       childrenWriters[1] =
-        createTreeWriter(insp.getMapValueObjectInspector(), writer, true);
+        createTreeWriter(insp.getMapValueObjectInspector(), writer, true, conf);
       lengths =
         new RunLengthIntegerWriter(writer.createStream(columnId,
             OrcProto.Stream.Kind.LENGTH), false);
@@ -1069,13 +1140,13 @@ class WriterImpl implements Writer {
     UnionTreeWriter(int columnId,
                   ObjectInspector inspector,
                   StreamFactory writer,
-                  boolean nullable) throws IOException {
-      super(columnId, inspector, writer, nullable);
+                  boolean nullable, Configuration conf) throws IOException {
+      super(columnId, inspector, writer, nullable, conf);
       UnionObjectInspector insp = (UnionObjectInspector) inspector;
       List<ObjectInspector> choices = insp.getObjectInspectors();
       childrenWriters = new TreeWriter[choices.size()];
       for(int i=0; i < childrenWriters.length; ++i) {
-        childrenWriters[i] = createTreeWriter(choices.get(i), writer, true);
+        childrenWriters[i] = createTreeWriter(choices.get(i), writer, true, conf);
       }
       tags =
         new RunLengthByteWriter(writer.createStream(columnId,
@@ -1114,53 +1185,53 @@ class WriterImpl implements Writer {
 
   private static TreeWriter createTreeWriter(ObjectInspector inspector,
                                              StreamFactory streamFactory,
-                                             boolean nullable
+                                             boolean nullable, Configuration conf
                                             ) throws IOException {
     switch (inspector.getCategory()) {
       case PRIMITIVE:
         switch (((PrimitiveObjectInspector) inspector).getPrimitiveCategory()) {
           case BOOLEAN:
             return new BooleanTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable);
+                inspector, streamFactory, nullable, conf);
           case BYTE:
             return new ByteTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable);
+                inspector, streamFactory, nullable, conf);
           case SHORT:
           case INT:
           case LONG:
             return new IntegerTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable);
+                inspector, streamFactory, nullable, conf);
           case FLOAT:
             return new FloatTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable);
+                inspector, streamFactory, nullable, conf);
           case DOUBLE:
             return new DoubleTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable);
+                inspector, streamFactory, nullable, conf);
           case STRING:
             return new StringTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable);
+                inspector, streamFactory, nullable, conf);
           case BINARY:
             return new BinaryTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable);
+                inspector, streamFactory, nullable, conf);
           case TIMESTAMP:
             return new TimestampTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable);
+                inspector, streamFactory, nullable, conf);
           default:
             throw new IllegalArgumentException("Bad primitive category " +
               ((PrimitiveObjectInspector) inspector).getPrimitiveCategory());
         }
       case STRUCT:
         return new StructTreeWriter(streamFactory.getNextColumnId(), inspector,
-            streamFactory, nullable);
+            streamFactory, nullable, conf);
       case MAP:
         return new MapTreeWriter(streamFactory.getNextColumnId(), inspector,
-            streamFactory, nullable);
+            streamFactory, nullable, conf);
       case LIST:
         return new ListTreeWriter(streamFactory.getNextColumnId(), inspector,
-            streamFactory, nullable);
+            streamFactory, nullable, conf);
       case UNION:
         return new UnionTreeWriter(streamFactory.getNextColumnId(), inspector,
-            streamFactory, nullable);
+            streamFactory, nullable, conf);
       default:
         throw new IllegalArgumentException("Bad category: " +
           inspector.getCategory());

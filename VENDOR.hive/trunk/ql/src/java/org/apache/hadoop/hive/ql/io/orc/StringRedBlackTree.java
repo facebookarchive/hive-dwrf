@@ -17,10 +17,10 @@
  */
 package org.apache.hadoop.hive.ql.io.orc;
 
-import org.apache.hadoop.io.Text;
-
 import java.io.IOException;
 import java.io.OutputStream;
+
+import org.apache.hadoop.io.Text;
 
 /**
  * A red-black tree that stores strings. The strings are stored as UTF-8 bytes
@@ -113,16 +113,16 @@ class StringRedBlackTree extends RedBlackTree {
     }
 
     public Text getText() {
-      byteArray.setText(text, keySizes.get(originalPosition * 2), getLength());
+      StringRedBlackTree.this.getText(text, originalPosition);
       return text;
     }
 
     public void writeBytes(OutputStream out) throws IOException {
-      byteArray.write(out, keySizes.get(originalPosition * 2), getLength());
+      byteArray.write(out, StringRedBlackTree.this.getOffset(originalPosition), getLength());
     }
 
     public int getLength() {
-      return keySizes.get(originalPosition * 2 + 1);
+      return StringRedBlackTree.this.getLength(originalPosition);
     }
 
     public int getCount() {
@@ -142,7 +142,7 @@ class StringRedBlackTree extends RedBlackTree {
 
   /**
    * Visit all of the nodes in the tree in sorted order.
-   * @param visitor the action to be applied to each ndoe
+   * @param visitor the action to be applied to each node
    * @throws IOException
    */
   public void visit(Visitor visitor) throws IOException {
@@ -156,6 +156,18 @@ class StringRedBlackTree extends RedBlackTree {
     super.clear();
     byteArray.clear();
     keySizes.clear();
+  }
+
+  public void getText(Text result, int originalPosition) {
+    byteArray.setText(result, getOffset(originalPosition), getLength(originalPosition));
+  }
+
+  private int getOffset(int originalPosition) {
+    return keySizes.get(originalPosition * 2);
+  }
+
+  private int getLength(int originalPosition) {
+    return keySizes.get(originalPosition * 2 + 1);
   }
 
   /**
