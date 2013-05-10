@@ -17,15 +17,19 @@
  */
 
 package org.apache.hadoop.hive.ql.io.orc;
-
-import static org.junit.Assert.assertEquals;
-import static org.junit.Assert.assertNull;
+import org.junit.Test;
+import org.junit.Before;
+import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertNull;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Random;
 
 import org.apache.hadoop.conf.Configuration;
@@ -34,8 +38,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
-import org.junit.Before;
-import org.junit.Test;
 
 public class TestFileDump {
 
@@ -105,8 +107,10 @@ public class TestFileDump {
         "Heaven,", "we", "were", "all", "going", "direct", "the", "other",
         "way"};
     for(int i=0; i < 21000; ++i) {
-      writer.addRow(new MyRecord(r1.nextInt(), r1.nextLong(),
-          words[r1.nextInt(words.length)]));
+      int curNum = r1.nextInt(words.length);
+
+      writer.addRow(new MyRecord(curNum, (long)curNum + (long) Integer.MAX_VALUE,
+          words[curNum]));
     }
     writer.close();
     PrintStream origOut = System.out;
@@ -123,18 +127,12 @@ public class TestFileDump {
     checkOutput(resourceDir + outputFilename, workDir + outputFilename);
   }
 
-  // Test that if the fraction of rows that have distinct strings is greater than the configured
-  // threshold dictionary encoding is turned off.  If dictionary encoding is turned off the length
-  // of the dictionary stream for the column will be 0 in the ORC file dump.
-  @Test
-  public void testDictionaryThreshold() throws Exception {
+  private void testDictionary(Configuration conf, String expectedOutputFilename) throws Exception {
     ObjectInspector inspector;
     synchronized (TestOrcFile.class) {
       inspector = ObjectInspectorFactory.getReflectionObjectInspector
           (MyRecord.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
-    Configuration conf = new Configuration();
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_KEY_SIZE_THRESHOLD.varname, 0.49f);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         100000, CompressionKind.ZLIB, 10000, 10000);
     Random r1 = new Random(1);
@@ -150,21 +148,37 @@ public class TestFileDump {
         "Heaven,", "we", "were", "all", "going", "direct", "the", "other",
         "way"};
     int nextInt = 0;
-    for(int i=0; i < 21000; ++i) {
+    int nextNumIdx = 0;
+    int numRows = 21000;
+    List<Integer> intVals = new ArrayList<Integer>(words.length);
+    List<Long> longVals = new ArrayList<Long>(words.length);
+
+    int prevInt = 0;
+    long prevLong = 0;
+    for (int i=0; i < numRows; i++) {
+      intVals.add(i);
+      longVals.add((long)i + (long)Integer.MAX_VALUE);
+
+    }
+    Collections.shuffle(intVals, r1);
+    Collections.shuffle(longVals, r1);
+
+    for(int i=0; i < numRows; ++i) {
       // Write out the same string twice, this guarantees the fraction of rows with
       // distinct strings is 0.5
       if (i % 2 == 0) {
         nextInt = r1.nextInt(words.length);
+        nextNumIdx = i;
         // Append the value of i to the word, this guarantees when an index or word is repeated
         // the actual string is unique.
         words[nextInt] += "-" + i;
       }
-      writer.addRow(new MyRecord(r1.nextInt(), r1.nextLong(),
+      writer.addRow(new MyRecord(intVals.get(nextNumIdx), longVals.get(nextNumIdx),
           words[nextInt]));
     }
     writer.close();
     PrintStream origOut = System.out;
-    String outputFilename = File.separator + "orc-file-dump-dictionary-threshold.out";
+    String outputFilename = File.separator + expectedOutputFilename;
     FileOutputStream myOut = new FileOutputStream(workDir + outputFilename);
 
     // replace stdout and run command
@@ -175,4 +189,36 @@ public class TestFileDump {
 
     checkOutput(resourceDir + outputFilename, workDir + outputFilename);
   }
+
+  // Test that if the fraction of rows that have distinct strings is greater than the configured
+  // threshold dictionary encoding is turned off.  If dictionary encoding is turned off the length
+  // of the dictionary stream for the column will be 0 in the ORC file dump.
+  @Test
+  public void testDictionaryThreshold() throws Exception {
+    Configuration conf = new Configuration();
+    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname, 0.49f);
+    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD.varname, 0.49f);
+    testDictionary(conf, "orc-file-dump-dictionary-threshold.out");
+  }
+
+  @Test
+  public void testUnsortedDictionary() throws Exception {
+    Configuration conf = new Configuration();
+    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname, 0.49f);
+    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD.varname, 0.49f);
+    conf.setBoolean(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.varname, false);
+    testDictionary(conf, "orc-file-dump-dictionary-threshold-unsorted.out");
+
+  }
+  
+
+  @Test
+  public void testUnsortedDictionary2() throws Exception {
+    Configuration conf = new Configuration();
+    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname, 0.51f);
+    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD.varname, 0.51f);
+    conf.setBoolean(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.varname, false);
+    testDictionary(conf, "orc-file-dump-dictionary-threshold-unsorted2.out");
+  }
+
 }

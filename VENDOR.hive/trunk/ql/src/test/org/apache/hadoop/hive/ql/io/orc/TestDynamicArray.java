@@ -84,4 +84,27 @@ public class TestDynamicArray {
     }
     assertEquals("{6,15,68,3,3}", dia.toString());
   }
+
+  @Test
+  public void testLongArray() throws Exception {
+    DynamicLongArray dia = new DynamicLongArray(10);
+    for(int i=0; i < 10000; ++i) {
+      dia.add((long)(2*i) + (long)Integer.MAX_VALUE);
+    }
+    assertEquals(10000, dia.size());
+    for(int i=0; i < 10000; ++i) {
+      assertEquals((long)(2*i) + (long)Integer.MAX_VALUE, dia.get(i));
+    }
+    dia.clear();
+    assertEquals(0, dia.size());
+    dia.add(3);
+    dia.add(12);
+    dia.add(65);
+    assertEquals("{3,12,65}", dia.toString());
+    for(int i=0; i < 5; ++i) {
+      dia.increment(i, 3);
+    }
+    assertEquals("{6,15,68,3,3}", dia.toString());
+    
+  }
 }

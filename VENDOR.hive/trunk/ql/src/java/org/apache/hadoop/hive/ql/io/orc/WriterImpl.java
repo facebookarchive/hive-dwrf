@@ -537,66 +537,197 @@ class WriterImpl implements Writer {
   }
 
   private static class IntegerTreeWriter extends TreeWriter {
-    private final RunLengthIntegerWriter writer;
-    private final ShortObjectInspector shortInspector;
-    private final IntObjectInspector intInspector;
-    private final LongObjectInspector longInspector;
+    private final PositionedOutputStream output;
+    private final RunLengthIntegerWriter lengthOutput;
+    private final DynamicIntArray rows = new DynamicIntArray();
+    private final List<OrcProto.RowIndexEntry> savedRowIndex =
+        new ArrayList<OrcProto.RowIndexEntry>();
+    private final boolean buildIndex;
+    private final List<Long> rowIndexValueCount = new ArrayList<Long>();
+    private final float dictionaryKeySizeThreshold;
+
+    private final IntDictionaryEncoder dictionary;
+    private boolean useDictionaryEncoding = true;
+    private final StreamFactory writer;
 
     IntegerTreeWriter(int columnId,
                       ObjectInspector inspector,
-                      StreamFactory writer,
+                      StreamFactory writerFactory,
                       boolean nullable, Configuration conf) throws IOException {
-      super(columnId, inspector, writer, nullable, conf);
-      PositionedOutputStream out = writer.createStream(id,
-          OrcProto.Stream.Kind.DATA);
-      this.writer = new RunLengthIntegerWriter(out, true);
-      if (inspector instanceof IntObjectInspector) {
-        intInspector = (IntObjectInspector) inspector;
-        shortInspector = null;
-        longInspector = null;
-      } else {
-        intInspector = null;
-        if (inspector instanceof LongObjectInspector) {
-          longInspector = (LongObjectInspector) inspector;
-          shortInspector = null;
-        } else {
-          shortInspector = (ShortObjectInspector) inspector;
-          longInspector = null;
-        }
-      }
+      super(columnId, inspector, writerFactory, nullable, conf);
+      writer = writerFactory;
+      final boolean sortKeys = conf.getBoolean(
+          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.varname,
+          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.defaultBoolVal);
+
+      dictionary = new IntDictionaryEncoder(sortKeys);
+      output = writer.createStream(id,
+          OrcProto.Stream.Kind.DICTIONARY_DATA);
+      lengthOutput = new RunLengthIntegerWriter(writer.createStream(id, OrcProto.Stream.Kind.LENGTH), false);
+
+      dictionaryKeySizeThreshold = conf.getFloat(
+          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD.varname,
+          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD.defaultFloatVal);
       recordPosition(rowIndexPosition);
+      rowIndexValueCount.add(0L);
+      buildIndex = writer.buildIndex();
     }
 
     @Override
     void write(Object obj) throws IOException {
       super.write(obj);
       if (obj != null) {
-        long val;
-        if (intInspector != null) {
-          val = intInspector.get(obj);
-        } else if (longInspector != null) {
-          val = longInspector.get(obj);
-        } else {
-          val = shortInspector.get(obj);
+        switch (inspector.getCategory()) {
+          case PRIMITIVE:
+            switch (((PrimitiveObjectInspector) inspector).getPrimitiveCategory()) {
+              case SHORT:
+              case INT:
+              case LONG:
+                long val;
+                if (inspector instanceof IntObjectInspector) {
+                  val = ((IntObjectInspector) inspector).get(obj);
+                } else if (inspector instanceof LongObjectInspector) {
+                  val = ((LongObjectInspector) inspector).get(obj);
+                } else {
+                  val = ((ShortObjectInspector) inspector).get(obj);
+                }
+                rows.add(((IntDictionaryEncoder)dictionary).add(val));
+                indexStatistics.updateInteger(val);
+                break;
+
+              default:
+                throw new IllegalArgumentException("Bad Category: Dictionary Encoding not available for " +
+                    ((PrimitiveObjectInspector) inspector).getPrimitiveCategory());
+
+            }
+            break;
+          default:
+            throw new IllegalArgumentException("Bad Category: DictionaryEncoding not available for " + inspector.getCategory());
         }
-        indexStatistics.updateInteger(val);
-        writer.write(val);
       }
     }
 
     @Override
     void writeStripe(OrcProto.StripeFooter.Builder builder,
                      int requiredIndexEntries) throws IOException {
+      final PositionedOutputStream rowOutput;
+      if (rows.size() > 0 &&
+          (float)(dictionary.size()) / (float)rows.size() <= dictionaryKeySizeThreshold) {
+        useDictionaryEncoding = true;
+        rowOutput =
+          new RunLengthIntegerWriter(writer.createStream(id,
+          OrcProto.Stream.Kind.DATA), false);
+      } else {
+        useDictionaryEncoding = false;
+        rowOutput = writer.createStream(id,
+          OrcProto.Stream.Kind.DATA);
+      }
+
+      final int[] dumpOrder;
+      if (useDictionaryEncoding) {
+        // Traverse the dictionary keys writing out the bytes and lengths; and
+        // creating the map from the original order to the final sorted order.
+        dumpOrder = new int[dictionary.size()];
+        dictionary.visit(new IntDictionaryEncoder.Visitor<Long>() {
+          int currentId = 0;
+          public void visit(IntDictionaryEncoder.VisitorContext<Long> context) throws IOException {
+            context.writeBytes(output);
+            dumpOrder[context.getOriginalPosition()] = currentId++;
+          }
+        });
+      } else {
+        dumpOrder = null;
+      }
+
+      int length = rows.size();
+      int rowIndexEntry = 0;
+      OrcProto.RowIndex.Builder rowIndex = getRowIndex();
+      // need to build the first index entry out here, to handle the case of
+      // not having any values.
+      if (buildIndex) {
+        while (0 == rowIndexValueCount.get(rowIndexEntry) &&
+            rowIndexEntry < savedRowIndex.size()) {
+          OrcProto.RowIndexEntry.Builder base =
+              savedRowIndex.get(rowIndexEntry++).toBuilder();
+          rowOutput.getPosition(new RowIndexPositionRecorder(base));
+          rowIndex.addEntry(base.build());
+        }
+      }
+      // write the values translated into the dump order.
+      for(int i = 0; i <= length; ++i) {
+        // now that we are writing out the row values, we can finalize the
+        // row index
+        if (buildIndex) {
+          while (i == rowIndexValueCount.get(rowIndexEntry) &&
+              rowIndexEntry < savedRowIndex.size()) {
+            OrcProto.RowIndexEntry.Builder base =
+                savedRowIndex.get(rowIndexEntry++).toBuilder();
+            rowOutput.getPosition(new RowIndexPositionRecorder(base));
+            rowIndex.addEntry(base.build());
+          }
+        }
+
+        if (i < length) {
+          if (useDictionaryEncoding && dumpOrder != null) {
+            rowOutput.write(dumpOrder[rows.get(i)]);
+          } else {
+            SerializationUtils.writeVslong(rowOutput,
+                dictionary.getValue(rows.get(i)));
+          }
+        }
+      }
+      // we need to build the rowindex before calling super, since it
+      // writes it out.
       super.writeStripe(builder, requiredIndexEntries);
-      writer.flush();
+      if (useDictionaryEncoding) {
+        output.flush();
+        lengthOutput.flush();
+      }
+      rowOutput.flush();
+      dictionary.clear();
+      rows.clear();
+      savedRowIndex.clear();
+      rowIndexValueCount.clear();
       recordPosition(rowIndexPosition);
+      rowIndexValueCount.add(0L);
     }
 
     @Override
-    void recordPosition(PositionRecorder recorder) throws IOException {
-      super.recordPosition(recorder);
-      writer.getPosition(recorder);
+    OrcProto.ColumnEncoding getEncoding() {
+      if (useDictionaryEncoding) {
+        return OrcProto.ColumnEncoding.newBuilder().setKind(
+            OrcProto.ColumnEncoding.Kind.DICTIONARY).
+            setDictionarySize(dictionary.size()).build();
+      } else {
+        return OrcProto.ColumnEncoding.newBuilder().setKind(
+            OrcProto.ColumnEncoding.Kind.DIRECT).build();
+      }
     }
+
+    /**
+     * This method doesn't call the super method, because unlike most of the
+     * other TreeWriters, this one can't record the position in the streams
+     * until the stripe is being flushed. Therefore it saves all of the entries
+     * and augments them with the final information as the stripe is written.
+     * @throws IOException
+     */
+    @Override
+    void createRowIndexEntry() throws IOException {
+      getFileStatistics().merge(indexStatistics);
+      OrcProto.RowIndexEntry.Builder rowIndexEntry = getRowIndexEntry();
+      rowIndexEntry.setStatistics(indexStatistics.serialize());
+      indexStatistics.reset();
+      savedRowIndex.add(rowIndexEntry.build());
+      rowIndexEntry.clear();
+      recordPosition(rowIndexPosition);
+      rowIndexValueCount.add(Long.valueOf(rows.size()));
+    }
+
+    @Override
+    long estimateMemory() {
+      return rows.size() * 4 + dictionary.getByteSize();
+    }
+
   }
 
   private static class FloatTreeWriter extends TreeWriter {
@@ -678,35 +809,30 @@ class WriterImpl implements Writer {
   private static class StringTreeWriter extends TreeWriter {
     private final PositionedOutputStream stringOutput;
     private final RunLengthIntegerWriter lengthOutput;
-    private final RunLengthIntegerWriter rowOutput;
     private final RunLengthIntegerWriter countOutput;
     private final StringRedBlackTree dictionary = new StringRedBlackTree();
     private final DynamicIntArray rows = new DynamicIntArray();
-    private final PositionedOutputStream directStreamOutput;
     private final RunLengthIntegerWriter directLengthOutput;
     private final List<OrcProto.RowIndexEntry> savedRowIndex =
         new ArrayList<OrcProto.RowIndexEntry>();
     private final boolean buildIndex;
     private final List<Long> rowIndexValueCount = new ArrayList<Long>();
+    private final StreamFactory writer;
     // If the number of keys in a dictionary is greater than this fraction of the total number of
     // non-null rows, turn off dictionary encoding
     private final float dictionaryKeySizeThreshold;
-
     private boolean useDictionaryEncoding = true;
 
     StringTreeWriter(int columnId,
                      ObjectInspector inspector,
-                     StreamFactory writer,
+                     StreamFactory writerFactory,
                      boolean nullable, Configuration conf) throws IOException {
-      super(columnId, inspector, writer, nullable, conf);
+      super(columnId, inspector, writerFactory, nullable, conf);
+      writer = writerFactory;
       stringOutput = writer.createStream(id,
           OrcProto.Stream.Kind.DICTIONARY_DATA);
       lengthOutput = new RunLengthIntegerWriter(writer.createStream(id,
           OrcProto.Stream.Kind.LENGTH), false);
-      rowOutput = new RunLengthIntegerWriter(writer.createStream(id,
-          OrcProto.Stream.Kind.DATA), false);
-      directStreamOutput = writer.createStream(id,
-          OrcProto.Stream.Kind.DATA);
       directLengthOutput = new RunLengthIntegerWriter(writer.createStream(id,
           OrcProto.Stream.Kind.LENGTH), false);
       if (writer.buildIndex()) {
@@ -716,8 +842,8 @@ class WriterImpl implements Writer {
         countOutput = null;
       }
       dictionaryKeySizeThreshold = conf.getFloat(
-          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_KEY_SIZE_THRESHOLD.varname,
-          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_KEY_SIZE_THRESHOLD.defaultFloatVal);
+          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname,
+          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.defaultFloatVal);
       recordPosition(rowIndexPosition);
       rowIndexValueCount.add(0L);
       buildIndex = writer.buildIndex();
@@ -737,14 +863,19 @@ class WriterImpl implements Writer {
     @Override
     void writeStripe(OrcProto.StripeFooter.Builder builder,
                      int requiredIndexEntries) throws IOException {
+      final PositionedOutputStream rowOutput;
       // Set the flag indicating whether or not to use dictionary encoding based on whether
       // or not the fraction of distinct keys over number of non-null rows is less than the
       // configured threshold
       if (rows.size() > 0 &&
           (float)(dictionary.size()) / (float)rows.size() <= dictionaryKeySizeThreshold) {
         useDictionaryEncoding = true;
+        rowOutput = new RunLengthIntegerWriter(writer.createStream(id,
+            OrcProto.Stream.Kind.DATA), false);
       } else {
         useDictionaryEncoding = false;
+        rowOutput = writer.createStream(id,
+            OrcProto.Stream.Kind.DATA);
       }
 
       final int[] dumpOrder = new int[dictionary.size()];
@@ -778,7 +909,7 @@ class WriterImpl implements Writer {
             rowIndexEntry < savedRowIndex.size()) {
           OrcProto.RowIndexEntry.Builder base =
               savedRowIndex.get(rowIndexEntry++).toBuilder();
-          recordOutputPosition(base);
+          recordOutputPosition(rowOutput, base);
           rowIndex.addEntry(base.build());
         }
       }
@@ -793,7 +924,7 @@ class WriterImpl implements Writer {
               rowIndexEntry < savedRowIndex.size()) {
             OrcProto.RowIndexEntry.Builder base =
                 savedRowIndex.get(rowIndexEntry++).toBuilder();
-            recordOutputPosition(base);
+            recordOutputPosition(rowOutput, base);
             rowIndex.addEntry(base.build());
           }
         }
@@ -801,22 +932,21 @@ class WriterImpl implements Writer {
           rowOutput.write(dumpOrder[rows.get(i)]);
         } else {
           dictionary.getText(text, rows.get(i));
-          directStreamOutput.write(text.getBytes(), 0, text.getLength());
+          rowOutput.write(text.getBytes(), 0, text.getLength());
           directLengthOutput.write(text.getLength());
         }
       }
       // we need to build the rowindex before calling super, since it
       // writes it out.
       super.writeStripe(builder, requiredIndexEntries);
+      rowOutput.flush();
       if (useDictionaryEncoding) {
         stringOutput.flush();
         lengthOutput.flush();
-        rowOutput.flush();
         if (countOutput != null) {
           countOutput.flush();
         }
       } else {
-        directStreamOutput.flush();
         directLengthOutput.flush();
       }
 
@@ -831,11 +961,9 @@ class WriterImpl implements Writer {
 
     // Calls getPosition on the row output stream if dictionary encoding is used, and the direct
     // output stream if direct encoding is used
-    private void recordOutputPosition(OrcProto.RowIndexEntry.Builder base) throws IOException {
-      if (useDictionaryEncoding) {
-        rowOutput.getPosition(new RowIndexPositionRecorder(base));
-      } else {
-        directStreamOutput.getPosition(new RowIndexPositionRecorder(base));
+    private void recordOutputPosition(PositionedOutputStream rowOutput, OrcProto.RowIndexEntry.Builder base) throws IOException {
+      rowOutput.getPosition(new RowIndexPositionRecorder(base));
+      if (!useDictionaryEncoding) {
         directLengthOutput.getPosition(new RowIndexPositionRecorder(base));
       }
     }
