@@ -38,6 +38,7 @@ import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.io.WritableComparable;
 
 class RecordReaderImpl implements RecordReader {
   private final FSDataInputStream file;
@@ -251,71 +252,9 @@ class RecordReaderImpl implements RecordReader {
     }
   }
 
-  private static class ShortTreeReader extends TreeReader{
-    private RunLengthIntegerReader reader = null;
-
-    ShortTreeReader(int columnId) {
+  private static class IntegerDictionaryTreeReader extends NumericDictionaryTreeReader {
+    IntegerDictionaryTreeReader (int columnId) {
       super(columnId);
-    }
-
-    @Override
-    void startStripe(Map<StreamName, InStream> streams,
-                     List<OrcProto.ColumnEncoding> encodings
-                    ) throws IOException {
-      super.startStripe(streams, encodings);
-      StreamName name = new StreamName(columnId,
-          OrcProto.Stream.Kind.DATA);
-      reader = new RunLengthIntegerReader(streams.get(name), true);
-    }
-
-    @Override
-    void seek(PositionProvider[] index) throws IOException {
-      super.seek(index);
-      reader.seek(index[columnId]);
-    }
-
-    @Override
-    Object next(Object previous) throws IOException {
-      super.next(previous);
-      ShortWritable result = null;
-      if (valuePresent) {
-        if (previous == null) {
-          result = new ShortWritable();
-        } else {
-          result = (ShortWritable) previous;
-        }
-        result.set((short) reader.next());
-      }
-      return result;
-    }
-
-    @Override
-    void skipRows(long items) throws IOException {
-      reader.skip(countNonNulls(items));
-    }
-  }
-
-  private static class IntTreeReader extends TreeReader{
-    private RunLengthIntegerReader reader = null;
-
-    IntTreeReader(int columnId) {
-      super(columnId);
-    }
-
-    @Override
-    void startStripe(Map<StreamName, InStream> streams,
-                     List<OrcProto.ColumnEncoding> encodings
-                    ) throws IOException {
-      super.startStripe(streams, encodings);
-      StreamName name = new StreamName(columnId,
-          OrcProto.Stream.Kind.DATA);
-      reader = new RunLengthIntegerReader(streams.get(name), true);
-    }
-
-    @Override
-    void seek(PositionProvider[] index) throws IOException {
-      super.seek(index);
-      reader.seek(index[columnId]);
     }
 
     @Override
@@ -328,38 +267,41 @@ class RecordReaderImpl implements RecordReader {
         } else {
           result = (IntWritable) previous;
         }
-        result.set((int) reader.next());
+        int key = (int) reader.next();
+        int resultVal = (int) dictionaryValues[key];
+        result.set((int) resultVal);
       }
       return result;
     }
-
-    @Override
-    void skipRows(long items) throws IOException {
-      reader.skip(countNonNulls(items));
-    }
   }
 
-  private static class LongTreeReader extends TreeReader{
-    private RunLengthIntegerReader reader = null;
-
-    LongTreeReader(int columnId) {
+  private static class ShortDictionaryTreeReader extends NumericDictionaryTreeReader {
+    ShortDictionaryTreeReader (int columnId) {
       super(columnId);
     }
 
     @Override
-    void startStripe(Map<StreamName, InStream> streams,
-                     List<OrcProto.ColumnEncoding> encodings
-                    ) throws IOException {
-      super.startStripe(streams, encodings);
-      StreamName name = new StreamName(columnId,
-          OrcProto.Stream.Kind.DATA);
-      reader = new RunLengthIntegerReader(streams.get(name), true);
+    Object next(Object previous) throws IOException {
+      super.next(previous);
+      ShortWritable result = null;
+      if (valuePresent) {
+        if (previous == null) {
+          result = new ShortWritable();
+        } else {
+          result = (ShortWritable) previous;
+        }
+        int key = (int) reader.next();
+        short resultVal = (short) dictionaryValues[key];
+        result.set((short) resultVal);
+      }
+      return result;
     }
+  }
 
-    @Override
-    void seek(PositionProvider[] index) throws IOException {
-      super.seek(index);
-      reader.seek(index[columnId]);
+  private static class LongDictionaryTreeReader extends NumericDictionaryTreeReader {
+
+    LongDictionaryTreeReader (int columnId) {
+      super(columnId);
     }
 
     @Override
@@ -372,14 +314,234 @@ class RecordReaderImpl implements RecordReader {
         } else {
           result = (LongWritable) previous;
         }
-        result.set(reader.next());
+        int key = (int) reader.next();
+        long resultVal = (long) dictionaryValues[key];
+        result.set((long) resultVal);
       }
       return result;
+    }
+  }
+
+  private static class NumericDictionaryTreeReader extends TreeReader {
+    protected long[] dictionaryValues;
+    protected int dictionarySize;
+    protected RunLengthIntegerReader reader;
+
+    NumericDictionaryTreeReader (int columnId) {
+      super(columnId);
+    }
+
+    @Override
+    void startStripe(Map<StreamName, InStream> streams,
+       List<OrcProto.ColumnEncoding> encodings
+       ) throws IOException {
+      super.startStripe(streams, encodings);
+
+      // read the dictionary blob
+      dictionarySize = encodings.get(columnId).getDictionarySize();
+      dictionaryValues = new long[dictionarySize];
+      StreamName name = new StreamName(columnId,
+          OrcProto.Stream.Kind.DICTIONARY_DATA);
+      InStream in = streams.get(name);
+      for(int i = 0; i < dictionarySize; ++i) {
+        dictionaryValues[i] = SerializationUtils.readVslong(in);
+      }
+      in.close();
+      // set up the row reader
+      name = new StreamName(columnId, OrcProto.Stream.Kind.DATA);
+      reader = new RunLengthIntegerReader(streams.get(name), false);
+
+    }
+
+    @Override
+    void seek(PositionProvider[] index) throws IOException {
+      super.seek(index);
+      reader.seek(index[columnId]);
     }
 
     @Override
     void skipRows(long items) throws IOException {
       reader.skip(countNonNulls(items));
+    }
+  }
+
+  private static class NumericDirectTreeReader extends TreeReader {
+    protected InStream input;
+
+    NumericDirectTreeReader(int columnId) {
+      super(columnId);
+    }
+
+    @Override
+    void startStripe(Map<StreamName, InStream> streams,
+                     List<OrcProto.ColumnEncoding> encodings
+                    ) throws IOException {
+      super.startStripe(streams, encodings);
+      StreamName name = new StreamName(columnId,
+          OrcProto.Stream.Kind.DATA);
+      input = streams.get(name);
+    }
+
+    @Override
+    void seek(PositionProvider[] index) throws IOException {
+      super.seek(index);
+      input.seek(index[columnId]);
+    }
+
+    @Override
+    void skipRows(long items) throws IOException {
+      input.skip(countNonNulls(items));
+    }
+  }
+
+  private static class IntegerDirectTreeReader extends NumericDirectTreeReader {
+    IntegerDirectTreeReader(int columnId) {
+      super(columnId);
+    }
+
+    @Override
+    Object next(Object previous) throws IOException {
+      super.next(previous);
+      IntWritable result = null;
+      if (valuePresent) {
+        if (previous == null) {
+          result = new IntWritable();
+        } else {
+          result = (IntWritable) previous;
+        }
+        result.set((int)SerializationUtils.readVslong(input));
+      }
+      return result;
+    }
+  }
+
+  private static class ShortDirectTreeReader extends NumericDirectTreeReader {
+    ShortDirectTreeReader(int columnId) {
+      super(columnId);
+    }
+
+    @Override
+    Object next(Object previous) throws IOException {
+      super.next(previous);
+      ShortWritable result = null;
+      if (valuePresent) {
+        if (previous == null) {
+          result = new ShortWritable();
+        } else {
+          result = (ShortWritable) previous;
+        }
+        result.set((short)SerializationUtils.readVslong(input));
+      }
+      return result;
+    }
+  }
+
+  private static class LongDirectTreeReader extends NumericDirectTreeReader {
+    LongDirectTreeReader(int columnId) {
+      super(columnId);
+    }
+
+    @Override
+    Object next(Object previous) throws IOException {
+      super.next(previous);
+      LongWritable result = null;
+      if (valuePresent) {
+        if (previous == null) {
+          result = new LongWritable();
+        } else {
+          result = (LongWritable) previous;
+        }
+        result.set((long)SerializationUtils.readVslong(input));
+      }
+      return result;
+    }
+  }
+
+  private static class IntegerTreeReader extends TreeReader {
+    protected TreeReader reader;
+    IntegerTreeReader(int columnId) {
+      super(columnId);
+    }
+
+    @Override
+    void startStripe(Map<StreamName, InStream> streams,
+                     List<OrcProto.ColumnEncoding> encodings
+                    ) throws IOException {
+      switch (encodings.get(columnId).getKind()) {
+        case DICTIONARY:
+          reader = new IntegerDictionaryTreeReader(columnId);
+          break;
+        case DIRECT:
+          reader = new IntegerDirectTreeReader(columnId);
+          break;
+        default:
+          throw new IllegalArgumentException("Unsupported encoding " +
+              encodings.get(columnId).getKind());
+      }
+      reader.startStripe(streams, encodings);
+    }
+
+    @Override
+    void seek(PositionProvider[] index) throws IOException {
+      reader.seek(index);
+    }
+
+    @Override
+    Object next(Object previous) throws IOException {
+      return reader.next(previous);
+    }
+
+    @Override
+    void skipRows(long items) throws IOException {
+      reader.skipRows(items);
+    }
+  }
+
+  private static class ShortTreeReader extends IntegerTreeReader {
+    ShortTreeReader(int columnId) {
+      super(columnId);
+    }
+
+    @Override
+    void startStripe(Map<StreamName, InStream> streams,
+                     List<OrcProto.ColumnEncoding> encodings
+                    ) throws IOException {
+      switch (encodings.get(columnId).getKind()) {
+        case DICTIONARY:
+          reader = new ShortDictionaryTreeReader(columnId);
+          break;
+        case DIRECT:
+          reader = new ShortDirectTreeReader(columnId);
+          break;
+        default:
+          throw new IllegalArgumentException("Unsupported encoding " +
+              encodings.get(columnId).getKind());
+      }
+      reader.startStripe(streams, encodings);
+    }
+  }
+
+  private static class LongTreeReader extends IntegerTreeReader {
+    LongTreeReader(int columnId) {
+      super(columnId);
+    }
+
+    @Override
+    void startStripe(Map<StreamName, InStream> streams,
+                     List<OrcProto.ColumnEncoding> encodings
+                    ) throws IOException {
+      switch (encodings.get(columnId).getKind()) {
+        case DICTIONARY:
+          reader = new LongDictionaryTreeReader(columnId);
+          break;
+        case DIRECT:
+          reader = new LongDirectTreeReader(columnId);
+          break;
+        default:
+          throw new IllegalArgumentException("Unsupported encoding " +
+              encodings.get(columnId).getKind());
+      }
+      reader.startStripe(streams, encodings);
     }
   }
 
@@ -1122,10 +1284,10 @@ class RecordReaderImpl implements RecordReader {
         return new FloatTreeReader(columnId);
       case SHORT:
         return new ShortTreeReader(columnId);
-      case INT:
-        return new IntTreeReader(columnId);
       case LONG:
         return new LongTreeReader(columnId);
+      case INT:
+        return new IntegerTreeReader(columnId);
       case STRING:
         return new StringTreeReader(columnId);
       case BINARY:
