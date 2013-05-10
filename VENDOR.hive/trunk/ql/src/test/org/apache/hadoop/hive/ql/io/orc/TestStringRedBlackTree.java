@@ -281,6 +281,7 @@ public class TestStringRedBlackTree {
     test1.testSeek();
     TestFileDump test2 = new TestFileDump();
     test2.testDump();
+    test2.testDictionaryThreshold();
     TestStreamName test3 = new TestStreamName();
     test3.test1();
     TestInputOutputFormat test4 = new TestInputOutputFormat();
