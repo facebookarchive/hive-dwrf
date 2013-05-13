@@ -809,8 +809,7 @@ class WriterImpl implements Writer {
   private static class StringTreeWriter extends TreeWriter {
     private final PositionedOutputStream stringOutput;
     private final RunLengthIntegerWriter lengthOutput;
-    private final RunLengthIntegerWriter countOutput;
-    private final StringRedBlackTree dictionary = new StringRedBlackTree();
+    private final StringDictionaryEncoder dictionary;
     private final DynamicIntArray rows = new DynamicIntArray();
     private final RunLengthIntegerWriter directLengthOutput;
     private final List<OrcProto.RowIndexEntry> savedRowIndex =
@@ -829,18 +828,17 @@ class WriterImpl implements Writer {
                      boolean nullable, Configuration conf) throws IOException {
       super(columnId, inspector, writerFactory, nullable, conf);
       writer = writerFactory;
+      final boolean sortKeys = conf.getBoolean(
+          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.varname,
+          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.defaultBoolVal);
+
+      dictionary = new StringDictionaryEncoder(sortKeys);
       stringOutput = writer.createStream(id,
           OrcProto.Stream.Kind.DICTIONARY_DATA);
       lengthOutput = new RunLengthIntegerWriter(writer.createStream(id,
           OrcProto.Stream.Kind.LENGTH), false);
       directLengthOutput = new RunLengthIntegerWriter(writer.createStream(id,
           OrcProto.Stream.Kind.LENGTH), false);
-      if (writer.buildIndex()) {
-        countOutput = new RunLengthIntegerWriter(writer.createStream(id,
-            OrcProto.Stream.Kind.DICTIONARY_COUNT), false);
-      } else {
-        countOutput = null;
-      }
       dictionaryKeySizeThreshold = conf.getFloat(
           HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname,
           HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.defaultFloatVal);
@@ -853,10 +851,10 @@ class WriterImpl implements Writer {
     void write(Object obj) throws IOException {
       super.write(obj);
       if (obj != null) {
-        String val = ((StringObjectInspector) inspector)
-          .getPrimitiveJavaObject(obj);
+        Text val = ((StringObjectInspector) inspector)
+          .getPrimitiveWritableObject(obj);
         rows.add(dictionary.add(val));
-        indexStatistics.updateString(val);
+        indexStatistics.updateString(val.toString());
       }
     }
 
@@ -883,17 +881,14 @@ class WriterImpl implements Writer {
       if (useDictionaryEncoding) {
         // Traverse the red-black tree writing out the bytes and lengths; and
         // creating the map from the original order to the final sorted order.
-        dictionary.visit(new StringRedBlackTree.Visitor() {
+        dictionary.visit(new StringDictionaryEncoder.Visitor<Text>() {
           private int currentId = 0;
           @Override
-          public void visit(StringRedBlackTree.VisitorContext context
+          public void visit(StringDictionaryEncoder.VisitorContext<Text> context
                            ) throws IOException {
             context.writeBytes(stringOutput);
             lengthOutput.write(context.getLength());
             dumpOrder[context.getOriginalPosition()] = currentId++;
-            if (countOutput != null) {
-              countOutput.write(context.getCount());
-            }
           }
         });
       }
@@ -943,9 +938,6 @@ class WriterImpl implements Writer {
       if (useDictionaryEncoding) {
         stringOutput.flush();
         lengthOutput.flush();
-        if (countOutput != null) {
-          countOutput.flush();
-        }
       } else {
         directLengthOutput.flush();
       }
