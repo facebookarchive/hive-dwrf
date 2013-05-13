@@ -18,6 +18,19 @@
 
 package org.apache.hadoop.hive.ql.io.orc;
 
+import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertNotNull;
+import static junit.framework.Assert.assertTrue;
+
+import java.io.File;
+import java.nio.ByteBuffer;
+import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Random;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -49,18 +62,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
-
-import java.io.File;
-import java.nio.ByteBuffer;
-import java.sql.Timestamp;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-
-import static junit.framework.Assert.*;
-import static junit.framework.Assert.assertEquals;
 
 /**
  * Tests for the top level reader/streamFactory of ORC files.
@@ -892,5 +893,69 @@ public class TestOrcFile {
         (short) intValues[i], (int) intValues[i], intValues[i],
         (float) doubleValues[i], doubleValues[i], byteValues[i],stringValues[i],
         new MiddleStruct(inner, inner2), list(), map(inner,inner2));
+  }
+
+  private static class MyMemoryManager extends MemoryManager {
+    final long totalSpace;
+    double rate;
+    Path path = null;
+    long lastAllocation = 0;
+
+    MyMemoryManager(Configuration conf, long totalSpace, double rate) {
+      super(conf);
+      this.totalSpace = totalSpace;
+      this.rate = rate;
+    }
+
+    @Override
+    void addWriter(Path path, long requestedAllocation,
+                   MemoryManager.Callback callback) {
+      this.path = path;
+      this.lastAllocation = requestedAllocation;
+    }
+
+    @Override
+    synchronized void removeWriter(Path path) {
+      this.path = null;
+      this.lastAllocation = 0;
+    }
+
+    @Override
+    long getTotalMemoryPool() {
+      return totalSpace;
+    }
+
+    @Override
+    double getAllocationScale() {
+      return rate;
+    }
+  }
+
+  @Test
+  public void testMemoryManagement() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (InnerStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    MyMemoryManager memory = new MyMemoryManager(conf, 10000, 0.1);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        50000, CompressionKind.NONE, 100, 0, memory);
+    assertEquals(testFilePath, memory.path);
+    for(int i=0; i < 2500; ++i) {
+      writer.addRow(new InnerStruct(i*300, Integer.toHexString(10*i)));
+    }
+    writer.close();
+    assertEquals(null, memory.path);
+    Reader reader = OrcFile.createReader(fs, testFilePath);
+    int i = 0;
+    for(StripeInformation stripe: reader.getStripes()) {
+      i += 1;
+      assertTrue("stripe " + i + " is too long at " + stripe.getDataLength(),
+          stripe.getDataLength() < 10000);
+    }
+    assertEquals(3, i);
+    assertEquals(2500, reader.getNumberOfRows());
   }
 }

@@ -64,7 +64,7 @@ import com.google.protobuf.CodedOutputStream;
  * sub-types. Each of the TreeWriters writes the column's data as a set of
  * streams.
  */
-class WriterImpl implements Writer {
+class WriterImpl implements Writer, MemoryManager.Callback {
 
   private static final int HDFS_BUFFER_SIZE = 256 * 1024;
   private static final int MIN_ROW_INDEX_STRIDE = 1000;
@@ -99,6 +99,7 @@ class WriterImpl implements Writer {
   private final OrcProto.RowIndex.Builder rowIndex =
       OrcProto.RowIndex.newBuilder();
   private final boolean buildIndex;
+  private final MemoryManager memoryManager;
 
   private final Configuration conf;
 
@@ -109,7 +110,8 @@ class WriterImpl implements Writer {
              long stripeSize,
              CompressionKind compress,
              int bufferSize,
-             int rowIndexStride) throws IOException {
+             int rowIndexStride,
+             MemoryManager memoryManager) throws IOException {
     this.fs = fs;
     this.path = path;
     this.conf = conf;
@@ -117,6 +119,7 @@ class WriterImpl implements Writer {
     this.compress = compress;
     this.bufferSize = bufferSize;
     this.rowIndexStride = rowIndexStride;
+    this.memoryManager = memoryManager;
     buildIndex = rowIndexStride > 0;
     codec = createCodec(compress);
     treeWriter = createTreeWriter(inspector, streamFactory, false, conf);
@@ -124,6 +127,8 @@ class WriterImpl implements Writer {
       throw new IllegalArgumentException("Row stride must be at least " +
           MIN_ROW_INDEX_STRIDE);
     }
+    // ensure that we are able to handle callbacks before we register ourselves
+    memoryManager.addWriter(path, stripeSize, this);
   }
 
   static CompressionCodec createCodec(CompressionKind kind) {
@@ -150,6 +155,13 @@ class WriterImpl implements Writer {
       default:
         throw new IllegalArgumentException("Unknown compression codec: " +
             kind);
+    }
+  }
+
+  @Override
+  public void checkMemory(double newScale) throws IOException {
+    if (estimateStripeSize() > Math.round(stripeSize * newScale)) {
+     flushStripe();
     }
   }
 
@@ -1591,8 +1603,8 @@ class WriterImpl implements Writer {
       }
     }
     // once every 1000 rows, check the size to see if we should spill
-    if (rowsInStripe % 1000 == 0 && estimateStripeSize() > stripeSize) {
-      flushStripe();
+    if (rowsInStripe % 1000 == 0) {
+      checkMemory(memoryManager.getAllocationScale());
     }
   }
 
@@ -1602,5 +1614,6 @@ class WriterImpl implements Writer {
     int footerLength = writeFooter(rawWriter.getPos());
     rawWriter.writeByte(writePostScript(footerLength));
     rawWriter.close();
+    memoryManager.removeWriter(path);
   }
 }
