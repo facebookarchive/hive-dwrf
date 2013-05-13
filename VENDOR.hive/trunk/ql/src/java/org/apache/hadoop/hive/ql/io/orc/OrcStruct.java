@@ -17,9 +17,20 @@
  */
 package org.apache.hadoop.hive.ql.io.orc;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.SettableListObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.SettableMapObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.SettableStructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
@@ -31,16 +42,9 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.UnionTypeInfo;
 import org.apache.hadoop.io.Writable;
 
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-
 final class OrcStruct implements Writable {
 
-  private final Object[] fields;
+  private Object[] fields;
 
   OrcStruct(int children) {
     fields = new Object[children];
@@ -52,6 +56,24 @@ final class OrcStruct implements Writable {
 
   void setFieldValue(int fieldIndex, Object value) {
     fields[fieldIndex] = value;
+  }
+
+  public int getNumFields() {
+    return fields.length;
+  }
+
+  /**
+   * Change the number of fields in the struct. No effect if the number of
+   * fields is the same. The old field values are copied to the new array.
+   * @param numFields the new number of fields
+   */
+  public void setNumFields(int numFields) {
+    if (fields.length != numFields) {
+      Object[] oldFields = fields;
+      fields = new Object[numFields];
+      System.arraycopy(oldFields, 0, fields, 0,
+          Math.min(oldFields.length, numFields));
+    }
   }
 
    @Override
@@ -140,7 +162,7 @@ final class OrcStruct implements Writable {
     }
   }
 
-  static class OrcStructInspector extends StructObjectInspector {
+  static class OrcStructInspector extends SettableStructObjectInspector {
     private final List<StructField> fields;
 
     OrcStructInspector(StructTypeInfo info) {
@@ -215,9 +237,52 @@ final class OrcStruct implements Writable {
     public Category getCategory() {
       return Category.STRUCT;
     }
+
+    @Override
+    public Object create() {
+      return new OrcStruct(0);
+    }
+
+    @Override
+    public Object setStructFieldData(Object struct, StructField field,
+                                     Object fieldValue) {
+      OrcStruct orcStruct = (OrcStruct) struct;
+      int offset = ((Field) field).offset;
+      // if the offset is bigger than our current number of fields, grow it
+      if (orcStruct.getNumFields() <= offset) {
+        orcStruct.setNumFields(offset+1);
+      }
+      orcStruct.setFieldValue(offset, fieldValue);
+      return struct;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (o == null || o.getClass() != getClass()) {
+        return false;
+      } else if (o == this) {
+        return true;
+      } else {
+        List<StructField> other = ((OrcStructInspector) o).fields;
+        if (other.size() != fields.size()) {
+          return false;
+        }
+        for(int i = 0; i < fields.size(); ++i) {
+          StructField left = other.get(i);
+          StructField right = fields.get(i);
+          if (!(left.getFieldName().equals(right.getFieldName()) &&
+                left.getFieldObjectInspector().equals
+                    (right.getFieldObjectInspector()))) {
+            return false;
+          }
+        }
+        return true;
+      }
+    }
   }
 
-  static class OrcMapObjectInspector implements MapObjectInspector {
+  static class OrcMapObjectInspector
+      implements MapObjectInspector, SettableMapObjectInspector {
     private final ObjectInspector key;
     private final ObjectInspector value;
 
@@ -267,9 +332,45 @@ final class OrcStruct implements Writable {
     public Category getCategory() {
       return Category.MAP;
     }
+
+    @Override
+    public Object create() {
+      return new HashMap<Object,Object>();
+    }
+
+    @Override
+    public Object put(Object map, Object key, Object value) {
+      ((Map) map).put(key, value);
+      return map;
+    }
+
+    @Override
+    public Object remove(Object map, Object key) {
+      ((Map) map).remove(key);
+      return map;
+    }
+
+    @Override
+    public Object clear(Object map) {
+      ((Map) map).clear();
+      return map;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (o == null || o.getClass() != getClass()) {
+        return false;
+      } else if (o == this) {
+        return true;
+      } else {
+        OrcMapObjectInspector other = (OrcMapObjectInspector) o;
+        return other.key.equals(key) && other.value.equals(value);
+      }
+    }
   }
 
-  static class OrcListObjectInspector implements ListObjectInspector {
+  static class OrcListObjectInspector
+      implements ListObjectInspector, SettableListObjectInspector {
     private final ObjectInspector child;
 
     OrcListObjectInspector(ListTypeInfo info) {
@@ -310,6 +411,43 @@ final class OrcStruct implements Writable {
     @Override
     public Category getCategory() {
       return Category.LIST;
+    }
+
+    @Override
+    public Object create(int size) {
+      ArrayList<Object> result = new ArrayList<Object>(size);
+      for(int i = 0; i < size; ++i) {
+        result.add(null);
+      }
+      return result;
+    }
+
+    @Override
+    public Object set(Object list, int index, Object element) {
+      List l = (List) list;
+      for(int i=l.size(); i < index+1; ++i) {
+        l.add(null);
+      }
+      l.set(index, element);
+      return list;
+    }
+
+    @Override
+    public Object resize(Object list, int newSize) {
+      ((ArrayList) list).ensureCapacity(newSize);
+      return list;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+      if (o == null || o.getClass() != getClass()) {
+        return false;
+      } else if (o == this) {
+        return true;
+      } else {
+        ObjectInspector other = ((OrcListObjectInspector) o).child;
+        return other.equals(child);
+      }
     }
   }
 
