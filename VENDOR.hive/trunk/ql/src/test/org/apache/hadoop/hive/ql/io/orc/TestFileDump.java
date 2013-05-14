@@ -17,8 +17,6 @@
  */
 
 package org.apache.hadoop.hive.ql.io.orc;
-import org.junit.Test;
-import org.junit.Before;
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertNull;
 
@@ -38,6 +36,8 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
+import org.junit.Before;
+import org.junit.Test;
 
 public class TestFileDump {
 
@@ -133,6 +133,8 @@ public class TestFileDump {
       inspector = ObjectInspectorFactory.getReflectionObjectInspector
           (MyRecord.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
+    // Turn off using the approximate entropy heuristic to turn off dictionary encoding
+    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD.varname, -1);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         100000, CompressionKind.ZLIB, 10000, 10000);
     Random r1 = new Random(1);
@@ -190,6 +192,42 @@ public class TestFileDump {
     checkOutput(resourceDir + outputFilename, workDir + outputFilename);
   }
 
+  //Test that if the number of distinct characters in distinct strings is less than the configured
+  // threshold dictionary encoding is turned off.  If dictionary encoding is turned off the length
+  // of the dictionary stream for the column will be 0 in the ORC file dump.
+  @Test
+  public void testEntropyThreshold() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (MyRecord.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    Configuration conf = new Configuration();
+    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD.varname, 1);
+    conf.setInt(HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD.varname, 11);
+    // Make sure having too few distinct values won't turn off dictionary encoding
+    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname, 1);
+    Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
+        100000, CompressionKind.ZLIB, 10000, 10000);
+    Random r1 = new Random(1);
+    for(int i=0; i < 21000; ++i) {
+      writer.addRow(new MyRecord(r1.nextInt(), r1.nextLong(),
+          Integer.toString(r1.nextInt())));
+    }
+    writer.close();
+    PrintStream origOut = System.out;
+    String outputFilename = File.separator + "orc-file-dump-entropy-threshold.out";
+    FileOutputStream myOut = new FileOutputStream(workDir + outputFilename);
+
+    // replace stdout and run command
+    System.setOut(new PrintStream(myOut));
+    FileDump.main(new String[]{testFilePath.toString()});
+    System.out.flush();
+    System.setOut(origOut);
+
+    checkOutput(resourceDir + outputFilename, workDir + outputFilename);
+  }
+
   // Test that if the fraction of rows that have distinct strings is greater than the configured
   // threshold dictionary encoding is turned off.  If dictionary encoding is turned off the length
   // of the dictionary stream for the column will be 0 in the ORC file dump.
@@ -210,7 +248,7 @@ public class TestFileDump {
     testDictionary(conf, "orc-file-dump-dictionary-threshold-unsorted.out");
 
   }
-  
+
 
   @Test
   public void testUnsortedDictionary2() throws Exception {
