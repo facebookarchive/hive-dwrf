@@ -1011,6 +1011,13 @@ class RecordReaderImpl implements RecordReader {
           result = new OrcStruct(fields.length);
         } else {
           result = (OrcStruct) previous;
+
+          // If the input format was initialized with a file with a
+          // different number of fields, the number of fields needs to
+          // be updated to the correct number
+          if (result.getNumFields() != fields.length) {
+            result.setNumFields(fields.length);
+          }
         }
         for(int i=0; i < fields.length; ++i) {
           if (fields[i] != null) {
