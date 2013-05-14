@@ -23,8 +23,11 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
+import java.util.Set;
 import java.util.TreeMap;
 
 import org.apache.hadoop.conf.Configuration;
@@ -832,6 +835,13 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     // If the number of keys in a dictionary is greater than this fraction of the total number of
     // non-null rows, turn off dictionary encoding
     private final float dictionaryKeySizeThreshold;
+    // If the number of keys in a dictionary is greater than this fraction of the total number of
+    // non-null rows, don't use the estimated entropy heuristic to turn off dictionary encoding
+    private final float entropyKeySizeThreshold;
+    private final int entropyMinSamples;
+    private final float entropyDictSampleFraction;
+    private final int entropyThreshold;
+
     private boolean useDictionaryEncoding = true;
 
     StringTreeWriter(int columnId,
@@ -854,6 +864,18 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       dictionaryKeySizeThreshold = conf.getFloat(
           HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname,
           HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.defaultFloatVal);
+      entropyKeySizeThreshold = conf.getFloat(
+          HiveConf.ConfVars.HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD.varname,
+          HiveConf.ConfVars.HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD.defaultFloatVal);
+      entropyMinSamples = conf.getInt(
+          HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_MIN_SAMPLES.varname,
+          HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_MIN_SAMPLES.defaultIntVal);
+      entropyDictSampleFraction = conf.getFloat(
+          HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_DICT_SAMPLE_FRACTION.varname,
+          HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_DICT_SAMPLE_FRACTION.defaultFloatVal);
+      entropyThreshold = conf.getInt(
+          HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD.varname,
+          HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD.defaultIntVal);
       recordPosition(rowIndexPosition);
       rowIndexValueCount.add(0L);
       buildIndex = writer.buildIndex();
@@ -870,20 +892,107 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       }
     }
 
+    private boolean isEntropyThresholdExceeded(Set<Character> chars, Text text, int index) {
+      dictionary.getText(text, index);
+      for (char character : text.toString().toCharArray()) {
+        chars.add(character);
+      }
+      return chars.size() > entropyThreshold;
+    }
+
+    private int[] getSampleIndecesForEntropy() {
+      int numSamples = Math.max(entropyMinSamples,
+          (int)(entropyDictSampleFraction * dictionary.size()));
+      int[] indeces = new int[dictionary.size()];
+      int[] samples = new int[numSamples];
+      Random rand = new Random();
+
+      // The goal of this loop is to select numSamples number of distinct indeces of
+      // dictionary
+      //
+      // The loop works as follows, start with an array of zeros
+      // On each iteration pick a random number in the range of 0 to size of the dictionary
+      // minus one minus the number of previous iterations, thus the effective size of the
+      // array is decreased by one with each iteration (not actually but logically)
+      // Look at the value of the array at that random index, if it is 0, the sample index is
+      // the random index because we've never looked at this position before, if it's
+      // nonzero, that value is the sample index
+      // Then take the value at the end of the logical size of the array (size of the
+      // dictionary minus one minus the number of iterations) if it's 0 put that index into
+      // the array at the random index, otherwise put the nonzero value
+      // Thus, by reducing the logical size of the array and moving the value at the end of
+      // the array we are removing indexes we have previously visited and making sure we do
+      // not lose any indexes
+      for (int i = 0; i < numSamples; i++) {
+        int index = rand.nextInt(dictionary.size() - i);
+        if (indeces[index] == 0) {
+          samples[i] = index;
+          } else {
+            samples[i] = indeces[index];
+        }
+        indeces[index] = indeces[dictionary.size() - i - 1] == 0 ?
+            dictionary.size() - i - 1 : indeces[dictionary.size() - i - 1];
+      }
+
+      return samples;
+    }
+
+    private boolean useDictionaryEncodingEntropyHeuristic() {
+      Set<Character> chars = new HashSet<Character>();
+      Text text = new Text();
+      if (dictionary.size() > entropyMinSamples) {
+
+        int[] samples = getSampleIndecesForEntropy();
+
+        for (int sampleIndex : samples) {
+          if (isEntropyThresholdExceeded(chars, text, sampleIndex)) {
+            return true;
+          }
+        }
+      } else {
+        for (int i = 0; i < dictionary.size(); i++) {
+          if (isEntropyThresholdExceeded(chars, text, i)) {
+            return true;
+          }
+        }
+      }
+
+      return false;
+    }
+
     @Override
     void writeStripe(OrcProto.StripeFooter.Builder builder,
                      int requiredIndexEntries) throws IOException {
       final PositionedOutputStream rowOutput;
       // Set the flag indicating whether or not to use dictionary encoding based on whether
       // or not the fraction of distinct keys over number of non-null rows is less than the
-      // configured threshold
-      if (rows.size() > 0 &&
-          (float)(dictionary.size()) / (float)rows.size() <= dictionaryKeySizeThreshold) {
+      // configured threshold, and whether or not the number of distinct characters in a sample
+      // of entries in the dictionary (the estimated entropy) exceeds the configured threshold
+      if (rows.size() > 0) {
         useDictionaryEncoding = true;
+        // The fraction of non-null values in this column that are repeats of values in the
+        // dictionary
+        float repeatedValuesFraction =
+          (float)(rows.size() - dictionary.size()) / (float)rows.size();
+
+        // If the number of repeated values is small enough, consider using the entropy heuristic
+        // If the number of repeated values is high, even in the presence of low entropy,
+        // dictionary encoding can provide benefits beyond just zlib
+        if (repeatedValuesFraction <= entropyKeySizeThreshold) {
+          useDictionaryEncoding = useDictionaryEncodingEntropyHeuristic();
+        }
+
+        // dictionaryKeySizeThreshold is the fraction of keys that are distinct beyond
+        // which dictionary encoding is turned off
+        // so 1 - dictionaryKeySizeThreshold is the number of repeated values below which
+        // dictionary encoding should be turned off
+        useDictionaryEncoding = useDictionaryEncoding && (repeatedValuesFraction > 1.0 - dictionaryKeySizeThreshold);
+      }
+
+      if (useDictionaryEncoding) {
         rowOutput = new RunLengthIntegerWriter(writer.createStream(id,
             OrcProto.Stream.Kind.DATA), false);
       } else {
-        useDictionaryEncoding = false;
         rowOutput = writer.createStream(id,
             OrcProto.Stream.Kind.DATA);
       }
