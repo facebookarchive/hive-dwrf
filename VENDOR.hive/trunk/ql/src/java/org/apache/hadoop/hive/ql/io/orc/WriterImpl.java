@@ -1018,21 +1018,9 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       int rowIndexEntry = 0;
       OrcProto.RowIndex.Builder rowIndex = getRowIndex();
 
-      // need to build the first index entry out here, to handle the case of
-      // not having any values.
-      if (buildIndex) {
-        while (0 == rowIndexValueCount.get(rowIndexEntry) &&
-            rowIndexEntry < savedRowIndex.size()) {
-          OrcProto.RowIndexEntry.Builder base =
-              savedRowIndex.get(rowIndexEntry++).toBuilder();
-          recordOutputPosition(rowOutput, base);
-          rowIndex.addEntry(base.build());
-        }
-      }
-
       Text text = new Text();
       // write the values translated into the dump order.
-      for(int i = 0; i < length; ++i) {
+      for(int i = 0; i <= length; ++i) {
         // now that we are writing out the row values, we can finalize the
         // row index
         if (buildIndex) {
@@ -1044,12 +1032,14 @@ class WriterImpl implements Writer, MemoryManager.Callback {
             rowIndex.addEntry(base.build());
           }
         }
-        if (useDictionaryEncoding) {
-          rowOutput.write(dumpOrder[rows.get(i)]);
-        } else {
-          dictionary.getText(text, rows.get(i));
-          rowOutput.write(text.getBytes(), 0, text.getLength());
-          directLengthOutput.write(text.getLength());
+        if (i !=  length) {
+          if (useDictionaryEncoding) {
+            rowOutput.write(dumpOrder[rows.get(i)]);
+          } else {
+            dictionary.getText(text, rows.get(i));
+            rowOutput.write(text.getBytes(), 0, text.getLength());
+            directLengthOutput.write(text.getLength());
+          }  
         }
       }
       // we need to build the rowindex before calling super, since it
