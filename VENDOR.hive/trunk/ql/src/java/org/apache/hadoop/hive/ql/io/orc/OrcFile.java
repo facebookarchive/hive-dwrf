@@ -18,12 +18,17 @@
 
 package org.apache.hadoop.hive.ql.io.orc;
 
+import java.io.DataInput;
+import java.io.DataOutput;
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.io.WritableComparable;
 
 /**
  * Contains factory methods to read or write ORC files.
@@ -43,6 +48,51 @@ public final class OrcFile {
 
   // unused
   private OrcFile() {}
+
+  public static class KeyWrapper implements WritableComparable<KeyWrapper> {
+    public StripeInformation key;
+    public Path inputPath;
+    public ObjectInspector objectInspector;
+    public CompressionKind compression;
+    public int compressionSize;
+    public int rowIndexStride;
+    public ColumnStatistics[] columnStats;
+    public Map<String, ByteBuffer> userMetadata;
+
+    @Override
+    public void readFields(DataInput in) throws IOException {
+      throw new RuntimeException("Not supported.");
+
+    }
+    @Override
+    public void write(DataOutput out) throws IOException {
+      throw new RuntimeException("Not supported.");
+
+    }
+    @Override
+    public int compareTo(KeyWrapper o) {
+      throw new RuntimeException("Not supported.");
+    }
+  }
+
+  public static class ValueWrapper implements WritableComparable<ValueWrapper> {
+    public byte[] value;
+
+    @Override
+    public void readFields(DataInput in) throws IOException {
+      throw new RuntimeException("Not supported.");
+    }
+
+    @Override
+    public void write(DataOutput out) throws IOException {
+      throw new RuntimeException("Not supported.");
+    }
+
+    @Override
+    public int compareTo(ValueWrapper o) {
+      throw new RuntimeException("Not supported.");
+    }
+  }
 
   /**
    * Create an ORC file reader.
