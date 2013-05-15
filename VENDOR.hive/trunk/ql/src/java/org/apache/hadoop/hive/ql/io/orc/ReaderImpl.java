@@ -18,18 +18,19 @@
 
 package org.apache.hadoop.hive.ql.io.orc;
 
-import com.google.protobuf.CodedInputStream;
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+
+import com.google.protobuf.CodedInputStream;
 
 final class ReaderImpl implements Reader {
 
@@ -242,6 +243,11 @@ final class ReaderImpl implements Reader {
     return new RecordReaderImpl(this.getStripes(), fileSystem,  path, offset,
       length, footer.getTypesList(), codec, bufferSize,
       include, footer.getRowIndexStride());
+  }
+
+  @Override
+  public StripeReader stripes(long offset, long length) throws IOException {
+    return new StripeReader(this.getStripes(), fileSystem, path, offset, length);
   }
 
 }

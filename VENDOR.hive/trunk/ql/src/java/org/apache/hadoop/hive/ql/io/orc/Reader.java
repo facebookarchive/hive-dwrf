@@ -18,11 +18,11 @@
 
 package org.apache.hadoop.hive.ql.io.orc;
 
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
+
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 
 /**
  * The interface for reading ORC files.
@@ -121,5 +121,15 @@ public interface Reader {
    */
   RecordReader rows(long offset, long length,
                     boolean[] include) throws IOException;
+
+  /**
+   * Create a StripeReader that will start reading at the first stripe after
+   * offset up to the stripe that starts at offset + length.
+   * @param offset a byte offset in the file
+   * @param length a number of bytes in the file
+   * @return a new StripeReader that will read the specified stripes.
+   * @throws IOException
+   */
+  StripeReader stripes(long offset, long length) throws IOException;
 
 }
