@@ -123,7 +123,7 @@ public class TestStringDictionaryEncoder {
     }
     checkContent(dict, expectedUniqueValues, expectedOrder);
     dict.clear();
-    assertEquals(0, dict.getByteSize());
+    assertEquals(0, dict.getSizeInBytes());
     assertEquals(0, dict.size());
   }
 
