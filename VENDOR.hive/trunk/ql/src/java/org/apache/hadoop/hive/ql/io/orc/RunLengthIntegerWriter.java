@@ -143,7 +143,7 @@ class RunLengthIntegerWriter extends PositionedOutputStream {
   }
 
   @Override
-  long getSize() {
-    return output.getSize();
+  long getBufferSize() {
+    return output.getBufferSize();
   }
 }

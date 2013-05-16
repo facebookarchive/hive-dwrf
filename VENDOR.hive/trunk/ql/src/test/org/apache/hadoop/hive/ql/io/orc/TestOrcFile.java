@@ -24,6 +24,7 @@ import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertTrue;
 
 import java.io.File;
+import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.util.ArrayList;
@@ -628,7 +629,7 @@ public class TestOrcFile {
     // let's add a lot of constant rows to test the rle
     row.setFieldValue(0, null);
     union.set((byte) 0, new IntWritable(1732050807));
-    for(int i=0; i < 1000; ++i) {
+    for(int i=0; i < 5000; ++i) {
       writer.addRow(row);
     }
     union.set((byte) 0, new IntWritable(0));
@@ -640,7 +641,7 @@ public class TestOrcFile {
     writer.close();
     Reader reader = OrcFile.createReader(fs, testFilePath);
     assertEquals(false, reader.getMetadataKeys().iterator().hasNext());
-    assertEquals(1309, reader.getNumberOfRows());
+    assertEquals(5309, reader.getNumberOfRows());
     int stripeCount = 0;
     int rowCount = 0;
     long currentOffset = -1;
@@ -705,7 +706,7 @@ public class TestOrcFile {
         assertEquals(new Text(new Integer(i*i).toString()), union.getObject());
       }
     }
-    for(int i=0; i < 1000; ++i) {
+    for(int i=0; i < 5000; ++i) {
       row = (OrcStruct) rows.next(row);
       assertEquals(new IntWritable(1732050807), union.getObject());
     }
@@ -1115,6 +1116,8 @@ public class TestOrcFile {
     double rate;
     Path path = null;
     long lastAllocation = 0;
+    int rows = 0;
+    MemoryManager.Callback callback;
 
     MyMemoryManager(Configuration conf, long totalSpace, double rate) {
       super(conf);
@@ -1127,6 +1130,7 @@ public class TestOrcFile {
                    MemoryManager.Callback callback) {
       this.path = path;
       this.lastAllocation = requestedAllocation;
+      this.callback = callback;
     }
 
     @Override
@@ -1143,6 +1147,13 @@ public class TestOrcFile {
     @Override
     double getAllocationScale() {
       return rate;
+    }
+
+    @Override
+    void addedRow() throws IOException {
+      if (++rows % 100 == 0) {
+        callback.checkMemory(rate);
+      }
     }
   }
 
@@ -1168,9 +1179,9 @@ public class TestOrcFile {
     for(StripeInformation stripe: reader.getStripes()) {
       i += 1;
       assertTrue("stripe " + i + " is too long at " + stripe.getDataLength(),
-          stripe.getDataLength() < 10000);
+          stripe.getDataLength() < 5000);
     }
-    assertEquals(3, i);
+    assertEquals(25, i);
     assertEquals(2500, reader.getNumberOfRows());
   }
 }
