@@ -97,6 +97,7 @@ message StripeInformation {
   optional uint64 dataLength = 3;
   optional uint64 footerLength = 4;
   optional uint64 numberOfRows = 5;
+  optional uint64 rawDataSize = 6;
 }
 
 message UserMetadataItem {
@@ -113,6 +114,7 @@ message Footer {
   optional uint64 numberOfRows = 6;
   repeated ColumnStatistics statistics = 7;
   optional uint32 rowIndexStride = 8;
+  optional uint64 rawDataSize = 9;
 }
 
 enum CompressionKind {

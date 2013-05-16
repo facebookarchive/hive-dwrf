@@ -6448,6 +6448,10 @@ public final class OrcProto {
     // optional uint64 numberOfRows = 5;
     boolean hasNumberOfRows();
     long getNumberOfRows();
+    
+    // optional uint64 rawDataSize = 6;
+    boolean hasRawDataSize();
+    long getRawDataSize();
   }
   public static final class StripeInformation extends
       com.google.protobuf.GeneratedMessage
@@ -6528,12 +6532,23 @@ public final class OrcProto {
       return numberOfRows_;
     }
     
+    // optional uint64 rawDataSize = 6;
+    public static final int RAWDATASIZE_FIELD_NUMBER = 6;
+    private long rawDataSize_;
+    public boolean hasRawDataSize() {
+      return ((bitField0_ & 0x00000020) == 0x00000020);
+    }
+    public long getRawDataSize() {
+      return rawDataSize_;
+    }
+    
     private void initFields() {
       offset_ = 0L;
       indexLength_ = 0L;
       dataLength_ = 0L;
       footerLength_ = 0L;
       numberOfRows_ = 0L;
+      rawDataSize_ = 0L;
     }
     private byte memoizedIsInitialized = -1;
     public final boolean isInitialized() {
@@ -6561,6 +6576,9 @@ public final class OrcProto {
       }
       if (((bitField0_ & 0x00000010) == 0x00000010)) {
         output.writeUInt64(5, numberOfRows_);
+      }
+      if (((bitField0_ & 0x00000020) == 0x00000020)) {
+        output.writeUInt64(6, rawDataSize_);
       }
       getUnknownFields().writeTo(output);
     }
@@ -6590,6 +6608,10 @@ public final class OrcProto {
       if (((bitField0_ & 0x00000010) == 0x00000010)) {
         size += com.google.protobuf.CodedOutputStream
           .computeUInt64Size(5, numberOfRows_);
+      }
+      if (((bitField0_ & 0x00000020) == 0x00000020)) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt64Size(6, rawDataSize_);
       }
       size += getUnknownFields().getSerializedSize();
       memoizedSerializedSize = size;
@@ -6725,6 +6747,8 @@ public final class OrcProto {
         bitField0_ = (bitField0_ & ~0x00000008);
         numberOfRows_ = 0L;
         bitField0_ = (bitField0_ & ~0x00000010);
+        rawDataSize_ = 0L;
+        bitField0_ = (bitField0_ & ~0x00000020);
         return this;
       }
       
@@ -6783,6 +6807,10 @@ public final class OrcProto {
           to_bitField0_ |= 0x00000010;
         }
         result.numberOfRows_ = numberOfRows_;
+        if (((from_bitField0_ & 0x00000020) == 0x00000020)) {
+          to_bitField0_ |= 0x00000020;
+        }
+        result.rawDataSize_ = rawDataSize_;
         result.bitField0_ = to_bitField0_;
         onBuilt();
         return result;
@@ -6813,6 +6841,9 @@ public final class OrcProto {
         }
         if (other.hasNumberOfRows()) {
           setNumberOfRows(other.getNumberOfRows());
+        }
+        if (other.hasRawDataSize()) {
+          setRawDataSize(other.getRawDataSize());
         }
         this.mergeUnknownFields(other.getUnknownFields());
         return this;
@@ -6868,6 +6899,11 @@ public final class OrcProto {
             case 40: {
               bitField0_ |= 0x00000010;
               numberOfRows_ = input.readUInt64();
+              break;
+            }
+            case 48: {
+              bitField0_ |= 0x00000020;
+              rawDataSize_ = input.readUInt64();
               break;
             }
           }
@@ -6977,6 +7013,27 @@ public final class OrcProto {
       public Builder clearNumberOfRows() {
         bitField0_ = (bitField0_ & ~0x00000010);
         numberOfRows_ = 0L;
+        onChanged();
+        return this;
+      }
+      
+      // optional uint64 rawDataSize = 6;
+      private long rawDataSize_ ;
+      public boolean hasRawDataSize() {
+        return ((bitField0_ & 0x00000020) == 0x00000020);
+      }
+      public long getRawDataSize() {
+        return rawDataSize_;
+      }
+      public Builder setRawDataSize(long value) {
+        bitField0_ |= 0x00000020;
+        rawDataSize_ = value;
+        onChanged();
+        return this;
+      }
+      public Builder clearRawDataSize() {
+        bitField0_ = (bitField0_ & ~0x00000020);
+        rawDataSize_ = 0L;
         onChanged();
         return this;
       }
@@ -7501,6 +7558,10 @@ public final class OrcProto {
     // optional uint32 rowIndexStride = 8;
     boolean hasRowIndexStride();
     int getRowIndexStride();
+    
+    // optional uint64 rawDataSize = 9;
+    boolean hasRawDataSize();
+    long getRawDataSize();
   }
   public static final class Footer extends
       com.google.protobuf.GeneratedMessage
@@ -7655,6 +7716,16 @@ public final class OrcProto {
       return rowIndexStride_;
     }
     
+    // optional uint64 rawDataSize = 9;
+    public static final int RAWDATASIZE_FIELD_NUMBER = 9;
+    private long rawDataSize_;
+    public boolean hasRawDataSize() {
+      return ((bitField0_ & 0x00000010) == 0x00000010);
+    }
+    public long getRawDataSize() {
+      return rawDataSize_;
+    }
+    
     private void initFields() {
       headerLength_ = 0L;
       contentLength_ = 0L;
@@ -7664,6 +7735,7 @@ public final class OrcProto {
       numberOfRows_ = 0L;
       statistics_ = java.util.Collections.emptyList();
       rowIndexStride_ = 0;
+      rawDataSize_ = 0L;
     }
     private byte memoizedIsInitialized = -1;
     public final boolean isInitialized() {
@@ -7713,6 +7785,9 @@ public final class OrcProto {
       if (((bitField0_ & 0x00000008) == 0x00000008)) {
         output.writeUInt32(8, rowIndexStride_);
       }
+      if (((bitField0_ & 0x00000010) == 0x00000010)) {
+        output.writeUInt64(9, rawDataSize_);
+      }
       getUnknownFields().writeTo(output);
     }
     
@@ -7753,6 +7828,10 @@ public final class OrcProto {
       if (((bitField0_ & 0x00000008) == 0x00000008)) {
         size += com.google.protobuf.CodedOutputStream
           .computeUInt32Size(8, rowIndexStride_);
+      }
+      if (((bitField0_ & 0x00000010) == 0x00000010)) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt64Size(9, rawDataSize_);
       }
       size += getUnknownFields().getSerializedSize();
       memoizedSerializedSize = size;
@@ -7914,6 +7993,8 @@ public final class OrcProto {
         }
         rowIndexStride_ = 0;
         bitField0_ = (bitField0_ & ~0x00000080);
+        rawDataSize_ = 0L;
+        bitField0_ = (bitField0_ & ~0x00000100);
         return this;
       }
       
@@ -8004,6 +8085,10 @@ public final class OrcProto {
           to_bitField0_ |= 0x00000008;
         }
         result.rowIndexStride_ = rowIndexStride_;
+        if (((from_bitField0_ & 0x00000100) == 0x00000100)) {
+          to_bitField0_ |= 0x00000010;
+        }
+        result.rawDataSize_ = rawDataSize_;
         result.bitField0_ = to_bitField0_;
         onBuilt();
         return result;
@@ -8136,6 +8221,9 @@ public final class OrcProto {
         if (other.hasRowIndexStride()) {
           setRowIndexStride(other.getRowIndexStride());
         }
+        if (other.hasRawDataSize()) {
+          setRawDataSize(other.getRawDataSize());
+        }
         this.mergeUnknownFields(other.getUnknownFields());
         return this;
       }
@@ -8221,6 +8309,11 @@ public final class OrcProto {
             case 64: {
               bitField0_ |= 0x00000080;
               rowIndexStride_ = input.readUInt32();
+              break;
+            }
+            case 72: {
+              bitField0_ |= 0x00000100;
+              rawDataSize_ = input.readUInt64();
               break;
             }
           }
@@ -9057,6 +9150,27 @@ public final class OrcProto {
         return this;
       }
       
+      // optional uint64 rawDataSize = 9;
+      private long rawDataSize_ ;
+      public boolean hasRawDataSize() {
+        return ((bitField0_ & 0x00000100) == 0x00000100);
+      }
+      public long getRawDataSize() {
+        return rawDataSize_;
+      }
+      public Builder setRawDataSize(long value) {
+        bitField0_ |= 0x00000100;
+        rawDataSize_ = value;
+        onChanged();
+        return this;
+      }
+      public Builder clearRawDataSize() {
+        bitField0_ = (bitField0_ & ~0x00000100);
+        rawDataSize_ = 0L;
+        onChanged();
+        return this;
+      }
+      
       // @@protoc_insertion_point(builder_scope:org.apache.hadoop.hive.ql.io.orc.Footer)
     }
     
@@ -9653,25 +9767,26 @@ public final class OrcProto {
       "HORT\020\002\022\007\n\003INT\020\003\022\010\n\004LONG\020\004\022\t\n\005FLOAT\020\005\022\n\n\006" +
       "DOUBLE\020\006\022\n\n\006STRING\020\007\022\n\n\006BINARY\020\010\022\r\n\tTIME" +
       "STAMP\020\t\022\010\n\004LIST\020\n\022\007\n\003MAP\020\013\022\n\n\006STRUCT\020\014\022\t",
-      "\n\005UNION\020\r\"x\n\021StripeInformation\022\016\n\006offset" +
-      "\030\001 \001(\004\022\023\n\013indexLength\030\002 \001(\004\022\022\n\ndataLengt" +
-      "h\030\003 \001(\004\022\024\n\014footerLength\030\004 \001(\004\022\024\n\014numberO" +
-      "fRows\030\005 \001(\004\"/\n\020UserMetadataItem\022\014\n\004name\030" +
-      "\001 \002(\t\022\r\n\005value\030\002 \002(\014\"\356\002\n\006Footer\022\024\n\014heade" +
-      "rLength\030\001 \001(\004\022\025\n\rcontentLength\030\002 \001(\004\022D\n\007" +
-      "stripes\030\003 \003(\01323.org.apache.hadoop.hive.q" +
-      "l.io.orc.StripeInformation\0225\n\005types\030\004 \003(" +
-      "\0132&.org.apache.hadoop.hive.ql.io.orc.Typ" +
-      "e\022D\n\010metadata\030\005 \003(\01322.org.apache.hadoop.",
-      "hive.ql.io.orc.UserMetadataItem\022\024\n\014numbe" +
-      "rOfRows\030\006 \001(\004\022F\n\nstatistics\030\007 \003(\01322.org." +
-      "apache.hadoop.hive.ql.io.orc.ColumnStati" +
-      "stics\022\026\n\016rowIndexStride\030\010 \001(\r\"\210\001\n\nPostSc" +
-      "ript\022\024\n\014footerLength\030\001 \001(\004\022F\n\013compressio" +
-      "n\030\002 \001(\01621.org.apache.hadoop.hive.ql.io.o" +
-      "rc.CompressionKind\022\034\n\024compressionBlockSi" +
-      "ze\030\003 \001(\004*:\n\017CompressionKind\022\010\n\004NONE\020\000\022\010\n" +
-      "\004ZLIB\020\001\022\n\n\006SNAPPY\020\002\022\007\n\003LZO\020\003"
+      "\n\005UNION\020\r\"\215\001\n\021StripeInformation\022\016\n\006offse" +
+      "t\030\001 \001(\004\022\023\n\013indexLength\030\002 \001(\004\022\022\n\ndataLeng" +
+      "th\030\003 \001(\004\022\024\n\014footerLength\030\004 \001(\004\022\024\n\014number" +
+      "OfRows\030\005 \001(\004\022\023\n\013rawDataSize\030\006 \001(\004\"/\n\020Use" +
+      "rMetadataItem\022\014\n\004name\030\001 \002(\t\022\r\n\005value\030\002 \002" +
+      "(\014\"\203\003\n\006Footer\022\024\n\014headerLength\030\001 \001(\004\022\025\n\rc" +
+      "ontentLength\030\002 \001(\004\022D\n\007stripes\030\003 \003(\01323.or" +
+      "g.apache.hadoop.hive.ql.io.orc.StripeInf" +
+      "ormation\0225\n\005types\030\004 \003(\0132&.org.apache.had" +
+      "oop.hive.ql.io.orc.Type\022D\n\010metadata\030\005 \003(",
+      "\01322.org.apache.hadoop.hive.ql.io.orc.Use" +
+      "rMetadataItem\022\024\n\014numberOfRows\030\006 \001(\004\022F\n\ns" +
+      "tatistics\030\007 \003(\01322.org.apache.hadoop.hive" +
+      ".ql.io.orc.ColumnStatistics\022\026\n\016rowIndexS" +
+      "tride\030\010 \001(\r\022\023\n\013rawDataSize\030\t \001(\004\"\210\001\n\nPos" +
+      "tScript\022\024\n\014footerLength\030\001 \001(\004\022F\n\013compres" +
+      "sion\030\002 \001(\01621.org.apache.hadoop.hive.ql.i" +
+      "o.orc.CompressionKind\022\034\n\024compressionBloc" +
+      "kSize\030\003 \001(\004*:\n\017CompressionKind\022\010\n\004NONE\020\000" +
+      "\022\010\n\004ZLIB\020\001\022\n\n\006SNAPPY\020\002\022\007\n\003LZO\020\003"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
       new com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner() {
@@ -9771,7 +9886,7 @@ public final class OrcProto {
           internal_static_org_apache_hadoop_hive_ql_io_orc_StripeInformation_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_org_apache_hadoop_hive_ql_io_orc_StripeInformation_descriptor,
-              new java.lang.String[] { "Offset", "IndexLength", "DataLength", "FooterLength", "NumberOfRows", },
+              new java.lang.String[] { "Offset", "IndexLength", "DataLength", "FooterLength", "NumberOfRows", "RawDataSize", },
               org.apache.hadoop.hive.ql.io.orc.OrcProto.StripeInformation.class,
               org.apache.hadoop.hive.ql.io.orc.OrcProto.StripeInformation.Builder.class);
           internal_static_org_apache_hadoop_hive_ql_io_orc_UserMetadataItem_descriptor =
@@ -9787,7 +9902,7 @@ public final class OrcProto {
           internal_static_org_apache_hadoop_hive_ql_io_orc_Footer_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_org_apache_hadoop_hive_ql_io_orc_Footer_descriptor,
-              new java.lang.String[] { "HeaderLength", "ContentLength", "Stripes", "Types", "Metadata", "NumberOfRows", "Statistics", "RowIndexStride", },
+              new java.lang.String[] { "HeaderLength", "ContentLength", "Stripes", "Types", "Metadata", "NumberOfRows", "Statistics", "RowIndexStride", "RawDataSize", },
               org.apache.hadoop.hive.ql.io.orc.OrcProto.Footer.class,
               org.apache.hadoop.hive.ql.io.orc.OrcProto.Footer.Builder.class);
           internal_static_org_apache_hadoop_hive_ql_io_orc_PostScript_descriptor =
