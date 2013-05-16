@@ -57,11 +57,11 @@ class StringDictionaryEncoder extends DictionaryEncoder {
 
 	 @Override
 	 public int compare (int k1, int k2) {
-		 int k1Offset = keySizes.get(2 * k1);
-		 int k1Length = keySizes.get(2 * k1 + 1);
+		 int k1Offset = keySizes.get(k1);
+		 int k1Length = getEnd(k1) - k1Offset;
 
-		 int k2Offset = keySizes.get(2 * k2);
-		 int k2Length = keySizes.get(2 * k2 + 1);
+		 int k2Offset = keySizes.get(k2);
+		 int k2Length = getEnd(k2) - k2Offset;
 
 		 byteArray.setText(cmpKey, k1Offset, k1Length);
 
@@ -109,23 +109,36 @@ class StringDictionaryEncoder extends DictionaryEncoder {
       curKeyCompressed.offset = valRow;
       htDictionary.add(curKeyCompressed);
       keySizes.add(byteArray.add(newKey.getBytes(), 0, len));
-      keySizes.add(len);
       return valRow;
     }
   }
 
+  private int getEnd(int pos) {
+    if (pos + 1 == keySizes.size()) {
+      return byteArray.size();
+    }
+
+    return keySizes.get(pos + 1);
+  }
+
   @Override
   protected int compareValue(int position) {
+    int start = keySizes.get(position);
+    int end = getEnd(position);
     return byteArray.compare(newKey.getBytes(), 0, newKey.getLength(),
-      keySizes.get(2 * position), keySizes.get(2 * position + 1));
+        start, end - start);
   }
 
   private class VisitorContextImpl implements VisitorContext<Text> {
     private int originalPosition;
+    private int start;
+    private int end;
     private final Text text = new Text();
 
     public void setOriginalPosition(int pos) {
       originalPosition = pos;
+      start = keySizes.get(originalPosition);
+      end = getEnd(pos);
     }
 
     public int getOriginalPosition() {
@@ -133,16 +146,16 @@ class StringDictionaryEncoder extends DictionaryEncoder {
     }
 
     public Text getKey() {
-      byteArray.setText(text, keySizes.get(originalPosition * 2), getLength());
+      byteArray.setText(text, start, getLength());
       return text;
     }
 
     public void writeBytes(OutputStream out) throws IOException {
-        byteArray.write(out, keySizes.get(originalPosition * 2), getLength());
+        byteArray.write(out, start, getLength());
     }
 
     public int getLength() {
-      return keySizes.get(originalPosition * 2 + 1);
+      return end - start;
     }
 
   }
@@ -175,8 +188,9 @@ class StringDictionaryEncoder extends DictionaryEncoder {
   }
 
   public void getText(Text result, int originalPosition) {
-      byteArray.setText(result, keySizes.get(originalPosition * 2),
-          keySizes.get(originalPosition * 2 + 1));
+    int start = keySizes.get(originalPosition);
+    int end = getEnd(originalPosition);
+    byteArray.setText(result, start, end - start);
   }
 
   /**
@@ -202,17 +216,17 @@ class StringDictionaryEncoder extends DictionaryEncoder {
    * Calculate the approximate size in memory.
    * @return the number of bytes used in storing the tree.
    */
-  public long getByteSize() {
+  public long getSizeInBytes() {
     // one for dictionary keys
     long refSizes = (htDictionary.size() * 4);
 
-    // 2 int fields per element
+    // 2 int fields per element (TextCompressed object)
     long textCompressedSizes = numElements * 4 * 2;
 
     // bytes in the characters
-    // keySizes stores 2 ints per element (2 * 4 * numElements)
-    long totalSize =  getCharacterSize() + 2 * 4 * numElements;
-    totalSize += refSizes + textCompressedSizes;
+    // size of the int array storing the offsets
+    long totalSize =  getCharacterSize() + keySizes.getSizeInBytes();
+    totalSize += refSizes;
     return totalSize;
   }
 

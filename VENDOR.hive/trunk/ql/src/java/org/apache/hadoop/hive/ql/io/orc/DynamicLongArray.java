@@ -136,8 +136,8 @@ final class DynamicLongArray {
     return sb.toString();
   }
 
-  public long getAllocatedBytes() {
-    // 8 bytes per int
+  public long getSizeInBytes() {
+    // 8 bytes per long
     return initializedChunks * this.chunkSize * 8;
   }
 }

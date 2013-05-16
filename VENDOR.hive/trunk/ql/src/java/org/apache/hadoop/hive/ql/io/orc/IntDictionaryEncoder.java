@@ -145,9 +145,7 @@ class IntDictionaryEncoder extends DictionaryEncoder {
     // original positions stored as value in hashmap
     long posSizes = 4 * numElements;
 
-    // one for dictionary keys, one for array of keys
-    long keySizes = 2 * (keys.size() * 8) ;
-    return keySizes + posSizes;
+    return keys.getSizeInBytes() + posSizes;
   }
 
   /**
