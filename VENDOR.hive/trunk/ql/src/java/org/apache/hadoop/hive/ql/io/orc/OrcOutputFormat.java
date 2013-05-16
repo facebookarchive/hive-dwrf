@@ -23,6 +23,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
 import org.apache.hadoop.hive.ql.io.orc.OrcSerde.OrcSerdeRow;
+import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.io.NullWritable;
@@ -45,7 +46,7 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
 
   private static class OrcRecordWriter
       implements RecordWriter<NullWritable, OrcSerdeRow>,
-                 FileSinkOperator.RecordWriter {
+                 FileSinkOperator.StatsProvidingRecordWriter {
     private Writer writer = null;
     private final FileSystem fs;
     private final Path path;
@@ -54,6 +55,7 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
     private final int compressionSize;
     private final CompressionKind compress;
     private final int rowIndexStride;
+    private final SerDeStats stats;
 
     OrcRecordWriter(FileSystem fs, Path path, Configuration conf,
                     String stripeSize, String compress,
@@ -65,6 +67,7 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
       this.compress = CompressionKind.valueOf(compress);
       this.compressionSize = Integer.valueOf(compressionSize);
       this.rowIndexStride = Integer.valueOf(rowIndexStride);
+      this.stats = new SerDeStats();
     }
 
     @Override
@@ -106,6 +109,12 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
             stripeSize, compress, compressionSize, rowIndexStride);
       }
       writer.close();
+    }
+
+    @Override
+    public SerDeStats getStats() {
+      stats.setRawDataSize(writer.getRowRawDataSize());
+      return stats;
     }
   }
 

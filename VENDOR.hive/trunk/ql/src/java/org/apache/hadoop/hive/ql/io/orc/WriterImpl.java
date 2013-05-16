@@ -93,6 +93,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
   private long rowCount = 0;
   private long rowsInStripe = 0;
   private int rowsInIndex = 0;
+  private long rawDataSize = 0;
   private final List<OrcProto.StripeInformation> stripes =
     new ArrayList<OrcProto.StripeInformation>();
   private final Map<String, ByteString> userMetadata =
@@ -328,6 +329,8 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     private final OrcProto.RowIndexEntry.Builder rowIndexEntry;
     private final PositionedOutputStream rowIndexStream;
     private final Configuration conf;
+    protected long stripeRawDataSize = 0;
+    protected long rowRawDataSize = 0;
 
     /**
      * Create a tree writer
@@ -380,13 +383,30 @@ class WriterImpl implements Writer, MemoryManager.Callback {
      * @param obj
      * @throws IOException
      */
-    void write(Object obj) throws IOException {
+    abstract void write(Object obj) throws IOException;
+
+    void write(Object obj, long rawDataSize) throws IOException{
       if (obj != null) {
         indexStatistics.increment();
+        setRawDataSize(rawDataSize);
+      } else {
+        // Estimate the raw size of null as 1 byte
+        setRawDataSize(1);
       }
+
       if (isPresent != null) {
         isPresent.write(obj == null ? 0 : 1);
       }
+    }
+
+    /**
+     * Sets the row raw data size and updates the stripe raw data size
+     *
+     * @param rawDataSize
+     */
+    private void setRawDataSize(long rawDataSize) {
+      rowRawDataSize = rawDataSize;
+      stripeRawDataSize += rawDataSize;
     }
 
     /**
@@ -416,6 +436,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       }
       rowIndex.clear();
       rowIndexEntry.clear();
+      stripeRawDataSize = 0;
     }
 
     TreeWriter[] getChildrenWriters() {
@@ -472,6 +493,14 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       }
       return result;
     }
+
+    long getStripeRawDataSize() {
+      return stripeRawDataSize;
+    }
+
+    long getRowRawDataSize() {
+      return rowRawDataSize;
+    }
   }
 
   private static class BooleanTreeWriter extends TreeWriter {
@@ -490,7 +519,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      super.write(obj);
+      super.write(obj, 1);
       if (obj != null) {
         boolean val = ((BooleanObjectInspector) inspector).get(obj);
         indexStatistics.updateBoolean(val);
@@ -528,7 +557,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      super.write(obj);
+      super.write(obj, 1);
       if (obj != null) {
         byte val = ((ByteObjectInspector) inspector).get(obj);
         indexStatistics.updateInteger(val);
@@ -590,7 +619,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      super.write(obj);
+      long rawDataSize = 0;
       if (obj != null) {
         switch (inspector.getCategory()) {
           case PRIMITIVE:
@@ -601,10 +630,13 @@ class WriterImpl implements Writer, MemoryManager.Callback {
                 long val;
                 if (inspector instanceof IntObjectInspector) {
                   val = ((IntObjectInspector) inspector).get(obj);
+                  rawDataSize = 4;
                 } else if (inspector instanceof LongObjectInspector) {
                   val = ((LongObjectInspector) inspector).get(obj);
+                  rawDataSize = 8;
                 } else {
                   val = ((ShortObjectInspector) inspector).get(obj);
+                  rawDataSize = 2;
                 }
                 rows.add(((IntDictionaryEncoder)dictionary).add(val));
                 indexStatistics.updateInteger(val);
@@ -620,6 +652,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
             throw new IllegalArgumentException("Bad Category: DictionaryEncoding not available for " + inspector.getCategory());
         }
       }
+      super.write(obj, rawDataSize);
     }
 
     @Override
@@ -760,7 +793,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      super.write(obj);
+      super.write(obj, 4);
       if (obj != null) {
         float val = ((FloatObjectInspector) inspector).get(obj);
         indexStatistics.updateDouble(val);
@@ -798,7 +831,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      super.write(obj);
+      super.write(obj, 8);
       if (obj != null) {
         double val = ((DoubleObjectInspector) inspector).get(obj);
         indexStatistics.updateDouble(val);
@@ -883,13 +916,15 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      super.write(obj);
+      long rawDataSize = 0;
       if (obj != null) {
         Text val = ((StringObjectInspector) inspector)
           .getPrimitiveWritableObject(obj);
         rows.add(dictionary.add(val));
         indexStatistics.updateString(val.toString());
+        rawDataSize = val.getLength();
       }
+      super.write(obj, rawDataSize);
     }
 
     private boolean isEntropyThresholdExceeded(Set<Character> chars, Text text, int index) {
@@ -1127,13 +1162,17 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      super.write(obj);
+      long rawDataSize = 0;
       if (obj != null) {
         BytesWritable val =
             ((BinaryObjectInspector) inspector).getPrimitiveWritableObject(obj);
         stream.write(val.getBytes(), 0, val.getLength());
         length.write(val.getLength());
+
+        // Raw data size is the length of the BytesWritable, i.e. the number of bytes
+        rawDataSize = val.getLength();
       }
+      super.write(obj, rawDataSize);
     }
 
     @Override
@@ -1175,7 +1214,12 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      super.write(obj);
+      // Raw data size is:
+      //   the number of bytes needed to store the milliseconds since the epoch
+      //   (8 since it's a long)
+      //   +
+      //   the number of bytes needed to store the nanos field (4 since it's an int)
+      super.write(obj, 12);
       if (obj != null) {
         Timestamp val =
             ((TimestampObjectInspector) inspector).
@@ -1238,15 +1282,17 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      super.write(obj);
+      long rawDataSize = 0;
       if (obj != null) {
         StructObjectInspector insp = (StructObjectInspector) inspector;
         for(int i = 0; i < fields.size(); ++i) {
           StructField field = fields.get(i);
           TreeWriter writer = childrenWriters[i];
           writer.write(insp.getStructFieldData(obj, field));
+          rawDataSize += writer.getRowRawDataSize();
         }
       }
+      super.write(obj, rawDataSize);
     }
 
     @Override
@@ -1281,15 +1327,17 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      super.write(obj);
+      long rawDataSize = 0;
       if (obj != null) {
         ListObjectInspector insp = (ListObjectInspector) inspector;
         int len = insp.getListLength(obj);
         lengths.write(len);
         for(int i=0; i < len; ++i) {
           childrenWriters[0].write(insp.getListElement(obj, i));
+          rawDataSize += childrenWriters[0].getRowRawDataSize();
         }
       }
+      super.write(obj, rawDataSize);
     }
 
     @Override
@@ -1332,7 +1380,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      super.write(obj);
+      long rawDataSize = 0;
       if (obj != null) {
         MapObjectInspector insp = (MapObjectInspector) inspector;
         int len = insp.getMapSize(obj);
@@ -1343,8 +1391,11 @@ class WriterImpl implements Writer, MemoryManager.Callback {
         for(Map.Entry<?, ?> entry: valueMap.entrySet()) {
           childrenWriters[0].write(entry.getKey());
           childrenWriters[1].write(entry.getValue());
+          rawDataSize += childrenWriters[0].getRowRawDataSize();
+          rawDataSize += childrenWriters[1].getRowRawDataSize();
         }
       }
+      super.write(obj, rawDataSize);
     }
 
     @Override
@@ -1387,13 +1438,16 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      super.write(obj);
+      long rawDataSize = 0;
       if (obj != null) {
         UnionObjectInspector insp = (UnionObjectInspector) inspector;
         byte tag = insp.getTag(obj);
         tags.write(tag);
         childrenWriters[tag].write(insp.getField(obj));
+        // raw data size is size of tag (1) + size of value
+        rawDataSize = childrenWriters[tag].getRowRawDataSize() + 1;
       }
+      super.write(obj, rawDataSize);
     }
 
     @Override
@@ -1588,6 +1642,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
           (int) ((rowsInStripe + rowIndexStride - 1) / rowIndexStride);
       OrcProto.StripeFooter.Builder builder =
           OrcProto.StripeFooter.newBuilder();
+      long stripeRawDataSize = treeWriter.getStripeRawDataSize();
       treeWriter.writeStripe(builder, requiredIndexEntries);
       long start = rawWriter.getPos();
       long section = start;
@@ -1618,9 +1673,11 @@ class WriterImpl implements Writer, MemoryManager.Callback {
               .setIndexLength(indexEnd - start)
               .setDataLength(section - indexEnd)
               .setNumberOfRows(rowsInStripe)
-              .setFooterLength(end - section).build();
+              .setFooterLength(end - section)
+              .setRawDataSize(stripeRawDataSize).build();
       stripes.add(dirEntry);
       rowCount += rowsInStripe;
+      rawDataSize += stripeRawDataSize;
       rowsInStripe = 0;
     }
   }
@@ -1654,6 +1711,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     builder.setContentLength(bodyLength);
     builder.setHeaderLength(headerLength);
     builder.setNumberOfRows(rowCount);
+    builder.setRawDataSize(rawDataSize);
     builder.setRowIndexStride(rowIndexStride);
     // serialize the types
     writeTypes(builder, treeWriter);
@@ -1723,6 +1781,11 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     if (rowsInStripe % 1000 == 0) {
       checkMemory(memoryManager.getAllocationScale());
     }
+  }
+
+  @Override
+  public long getRowRawDataSize() {
+    return treeWriter.getRowRawDataSize();
   }
 
   @Override

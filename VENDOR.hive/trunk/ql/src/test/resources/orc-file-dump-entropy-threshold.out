@@ -2,6 +2,7 @@ Structure for TestFileDump.testDump.orc
 Rows: 21000
 Compression: ZLIB
 Compression size: 10000
+Raw data size: 461510
 Type: struct<i:int,l:bigint,s:string>
 
 Statistics:
@@ -11,7 +12,7 @@ Statistics:
   Column 3: count: 21000 min: -1000330164 max: 999398743
 
 Stripes:
-  Stripe: offset: 3 data: 37525 rows: 2000 tail: 90 index: 132
+  Stripe: offset: 3 data: 37525 rows: 2000 tail: 90 index: 132 raw_data: 43981
     Stream: column 0 section ROW_INDEX start: 3 length 10
     Stream: column 1 section ROW_INDEX start: 13 length 38
     Stream: column 2 section ROW_INDEX start: 51 length 42
@@ -32,7 +33,7 @@ Stripes:
     Encoding column 1: DIRECT
     Encoding column 2: DIRECT
     Encoding column 3: DIRECT
-  Stripe: offset: 37750 data: 37473 rows: 2000 tail: 91 index: 132
+  Stripe: offset: 37750 data: 37473 rows: 2000 tail: 91 index: 132 raw_data: 43917
     Stream: column 0 section ROW_INDEX start: 37750 length 10
     Stream: column 1 section ROW_INDEX start: 37760 length 38
     Stream: column 2 section ROW_INDEX start: 37798 length 42
@@ -53,7 +54,7 @@ Stripes:
     Encoding column 1: DIRECT
     Encoding column 2: DIRECT
     Encoding column 3: DIRECT
-  Stripe: offset: 75446 data: 37539 rows: 2000 tail: 91 index: 132
+  Stripe: offset: 75446 data: 37539 rows: 2000 tail: 91 index: 132 raw_data: 43932
     Stream: column 0 section ROW_INDEX start: 75446 length 10
     Stream: column 1 section ROW_INDEX start: 75456 length 38
     Stream: column 2 section ROW_INDEX start: 75494 length 42
@@ -74,7 +75,7 @@ Stripes:
     Encoding column 1: DIRECT
     Encoding column 2: DIRECT
     Encoding column 3: DIRECT
-  Stripe: offset: 113208 data: 37536 rows: 2000 tail: 90 index: 133
+  Stripe: offset: 113208 data: 37536 rows: 2000 tail: 90 index: 133 raw_data: 44003
     Stream: column 0 section ROW_INDEX start: 113208 length 10
     Stream: column 1 section ROW_INDEX start: 113218 length 39
     Stream: column 2 section ROW_INDEX start: 113257 length 42
@@ -95,7 +96,7 @@ Stripes:
     Encoding column 1: DIRECT
     Encoding column 2: DIRECT
     Encoding column 3: DIRECT
-  Stripe: offset: 150967 data: 37515 rows: 2000 tail: 92 index: 133
+  Stripe: offset: 150967 data: 37515 rows: 2000 tail: 92 index: 133 raw_data: 43923
     Stream: column 0 section ROW_INDEX start: 150967 length 10
     Stream: column 1 section ROW_INDEX start: 150977 length 39
     Stream: column 2 section ROW_INDEX start: 151016 length 42
@@ -116,7 +117,7 @@ Stripes:
     Encoding column 1: DIRECT
     Encoding column 2: DIRECT
     Encoding column 3: DIRECT
-  Stripe: offset: 188707 data: 37487 rows: 2000 tail: 91 index: 133
+  Stripe: offset: 188707 data: 37487 rows: 2000 tail: 91 index: 133 raw_data: 43931
     Stream: column 0 section ROW_INDEX start: 188707 length 10
     Stream: column 1 section ROW_INDEX start: 188717 length 39
     Stream: column 2 section ROW_INDEX start: 188756 length 42
@@ -137,7 +138,7 @@ Stripes:
     Encoding column 1: DIRECT
     Encoding column 2: DIRECT
     Encoding column 3: DIRECT
-  Stripe: offset: 226418 data: 37543 rows: 2000 tail: 91 index: 133
+  Stripe: offset: 226418 data: 37543 rows: 2000 tail: 91 index: 133 raw_data: 44019
     Stream: column 0 section ROW_INDEX start: 226418 length 10
     Stream: column 1 section ROW_INDEX start: 226428 length 39
     Stream: column 2 section ROW_INDEX start: 226467 length 42
@@ -158,7 +159,7 @@ Stripes:
     Encoding column 1: DIRECT
     Encoding column 2: DIRECT
     Encoding column 3: DIRECT
-  Stripe: offset: 264185 data: 37532 rows: 2000 tail: 91 index: 133
+  Stripe: offset: 264185 data: 37532 rows: 2000 tail: 91 index: 133 raw_data: 43971
     Stream: column 0 section ROW_INDEX start: 264185 length 10
     Stream: column 1 section ROW_INDEX start: 264195 length 39
     Stream: column 2 section ROW_INDEX start: 264234 length 42
@@ -179,7 +180,7 @@ Stripes:
     Encoding column 1: DIRECT
     Encoding column 2: DIRECT
     Encoding column 3: DIRECT
-  Stripe: offset: 301941 data: 37513 rows: 2000 tail: 90 index: 133
+  Stripe: offset: 301941 data: 37513 rows: 2000 tail: 90 index: 133 raw_data: 43933
     Stream: column 0 section ROW_INDEX start: 301941 length 10
     Stream: column 1 section ROW_INDEX start: 301951 length 39
     Stream: column 2 section ROW_INDEX start: 301990 length 42
@@ -200,7 +201,7 @@ Stripes:
     Encoding column 1: DIRECT
     Encoding column 2: DIRECT
     Encoding column 3: DIRECT
-  Stripe: offset: 339677 data: 37493 rows: 2000 tail: 93 index: 131
+  Stripe: offset: 339677 data: 37493 rows: 2000 tail: 93 index: 131 raw_data: 43935
     Stream: column 0 section ROW_INDEX start: 339677 length 10
     Stream: column 1 section ROW_INDEX start: 339687 length 38
     Stream: column 2 section ROW_INDEX start: 339725 length 42
@@ -221,7 +222,7 @@ Stripes:
     Encoding column 1: DIRECT
     Encoding column 2: DIRECT
     Encoding column 3: DIRECT
-  Stripe: offset: 377394 data: 18795 rows: 1000 tail: 88 index: 130
+  Stripe: offset: 377394 data: 18795 rows: 1000 tail: 88 index: 130 raw_data: 21965
     Stream: column 0 section ROW_INDEX start: 377394 length 10
     Stream: column 1 section ROW_INDEX start: 377404 length 39
     Stream: column 2 section ROW_INDEX start: 377443 length 42

@@ -38,6 +38,12 @@ public interface Reader {
   long getNumberOfRows();
 
   /**
+   * Get the raw size of the data in the file
+   * @return the raw size
+   */
+  long getRawDataSize();
+
+  /**
    * Get the user metadata keys.
    * @return the set of metadata keys
    */
