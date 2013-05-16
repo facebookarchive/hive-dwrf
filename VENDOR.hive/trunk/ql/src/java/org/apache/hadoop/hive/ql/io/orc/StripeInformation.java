@@ -50,4 +50,10 @@ public interface StripeInformation {
    * @return a count of the number of rows
    */
   long getNumberOfRows();
+
+  /**
+   * Get the raw size of the data in the stripe.
+   * @return the number of bytes of raw data
+   */
+  long getRawDataSize();
 }

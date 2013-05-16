@@ -78,16 +78,26 @@ final class ReaderImpl implements Reader {
     }
 
     @Override
+    public long getRawDataSize() {
+      return stripe.getRawDataSize();
+    }
+
+    @Override
     public String toString() {
       return "offset: " + getOffset() + " data: " + getDataLength() +
         " rows: " + getNumberOfRows() + " tail: " + getFooterLength() +
-        " index: " + getIndexLength();
+        " index: " + getIndexLength() + " raw_data: " + getRawDataSize();
     }
   }
 
   @Override
   public long getNumberOfRows() {
     return footer.getNumberOfRows();
+  }
+
+  @Override
+  public long getRawDataSize() {
+    return footer.getRawDataSize();
   }
 
   @Override

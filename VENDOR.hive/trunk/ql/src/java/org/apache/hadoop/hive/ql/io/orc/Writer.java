@@ -42,6 +42,11 @@ public interface Writer {
   void addRow(Object row) throws IOException;
 
   /**
+   * Get the raw data size of the last row added
+   */
+  long getRowRawDataSize();
+
+  /**
    * Flush all of the buffers and close the file. No methods on this writer
    * should be called afterwards.
    * @throws IOException

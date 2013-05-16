@@ -40,6 +40,7 @@ public final class FileDump {
       if (reader.getCompression() != CompressionKind.NONE) {
         System.out.println("Compression size: " + reader.getCompressionSize());
       }
+      System.out.println("Raw data size: " + reader.getRawDataSize());
       System.out.println("Type: " + reader.getObjectInspector().getTypeName());
       ColumnStatistics[] stats = reader.getStatistics();
       System.out.println("\nStatistics:");
