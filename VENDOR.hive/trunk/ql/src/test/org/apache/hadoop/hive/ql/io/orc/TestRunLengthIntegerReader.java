@@ -17,19 +17,19 @@
  */
 package org.apache.hadoop.hive.ql.io.orc;
 
-import org.junit.Test;
+import static junit.framework.Assert.assertEquals;
 
 import java.nio.ByteBuffer;
 import java.util.Random;
 
-import static junit.framework.Assert.assertEquals;
+import org.junit.Test;
 
 public class TestRunLengthIntegerReader {
 
   public void runSeekTest(CompressionCodec codec) throws Exception {
     TestInStream.OutputCollector collect = new TestInStream.OutputCollector();
     RunLengthIntegerWriter out = new RunLengthIntegerWriter(
-        new OutStream("test", 1000, codec, collect), true);
+        new OutStream("test", 1000, codec, collect), true, 4, true);
     TestInStream.PositionCollector[] positions =
         new TestInStream.PositionCollector[4096];
     Random random = new Random(99);
@@ -54,7 +54,7 @@ public class TestRunLengthIntegerReader {
     collect.buffer.setByteBuffer(inBuf, 0, collect.buffer.size());
     inBuf.flip();
     RunLengthIntegerReader in = new RunLengthIntegerReader(InStream.create
-        ("test", inBuf, codec, 1000), true);
+        ("test", inBuf, codec, 1000, true), true, 4);
     for(int i=0; i < 2048; ++i) {
       int x = (int) in.next();
       if (i < 1024) {
@@ -92,7 +92,7 @@ public class TestRunLengthIntegerReader {
   public void testSkips() throws Exception {
     TestInStream.OutputCollector collect = new TestInStream.OutputCollector();
     RunLengthIntegerWriter out = new RunLengthIntegerWriter(
-        new OutStream("test", 100, null, collect), true);
+        new OutStream("test", 100, null, collect), true, 4, true);
     for(int i=0; i < 2048; ++i) {
       if (i < 1024) {
         out.write(i);
@@ -105,7 +105,7 @@ public class TestRunLengthIntegerReader {
     collect.buffer.setByteBuffer(inBuf, 0, collect.buffer.size());
     inBuf.flip();
     RunLengthIntegerReader in = new RunLengthIntegerReader(InStream.create
-        ("test", inBuf, null, 100), true);
+        ("test", inBuf, null, 100, true), true, 4);
     for(int i=0; i < 2048; i += 10) {
       int x = (int) in.next();
       if (i < 1024) {

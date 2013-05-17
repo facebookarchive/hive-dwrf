@@ -18,33 +18,31 @@
 
 package org.apache.hadoop.hive.ql.io.orc;
 
-import org.apache.hadoop.io.DataOutputBuffer;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.Text;
-import org.junit.Test;
-
-import java.io.BufferedOutputStream;
-import java.io.ByteArrayInputStream;
-import java.io.InputStream;
-import java.io.IOException;
-import java.util.Random;
-
 import static junit.framework.Assert.assertEquals;
+
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+
+import org.apache.hadoop.io.DataOutputBuffer;
+import org.junit.Test;
 
 /**
  * Test the red-black tree with string keys.
  */
 public class TestIntDictionaryEncoder {
 
-  private IntDictionaryEncoder buildDictionaryEncoder(int[] values, boolean sortKeys) {
-    IntDictionaryEncoder dictEncoder = new IntDictionaryEncoder(sortKeys);
+  private IntDictionaryEncoder buildDictionaryEncoder(int[] values, boolean sortKeys,
+      boolean useVInts) {
+
+    IntDictionaryEncoder dictEncoder = new IntDictionaryEncoder(sortKeys, 4, useVInts);
     for(int value : values) {
       dictEncoder.add((long) value);
     }
     return dictEncoder;
   }
 
-  private void checkContent(IntDictionaryEncoder dictEncoder, int[] values, int[] order) 
+  private void checkContent(IntDictionaryEncoder dictEncoder, int[] values, int[] order)
       throws Exception {
     dictEncoder.visit(new TestVisitor(values, order));
 
@@ -52,7 +50,7 @@ public class TestIntDictionaryEncoder {
 
   @Test
   public void test1() throws Exception {
-    IntDictionaryEncoder dictEncoder = new IntDictionaryEncoder(false);
+    IntDictionaryEncoder dictEncoder = new IntDictionaryEncoder(false, 4, true);
 
     assertEquals(0, dictEncoder.getByteSize());
     assertEquals(0, dictEncoder.size());
@@ -83,8 +81,8 @@ public class TestIntDictionaryEncoder {
 
   @Test
   public void test2() throws Exception {
-    IntDictionaryEncoder[] encoders = new IntDictionaryEncoder[] { new IntDictionaryEncoder(),
-      new IntDictionaryEncoder(true) };
+    IntDictionaryEncoder[] encoders = new IntDictionaryEncoder[] { new IntDictionaryEncoder(4, true),
+      new IntDictionaryEncoder(true, 4 , true) };
 
     for (IntDictionaryEncoder dictEncoder : encoders) {
       assertEquals(0, dictEncoder.getByteSize());
@@ -101,7 +99,7 @@ public class TestIntDictionaryEncoder {
         assertEquals(addKPos[i], pos);
         assertEquals(sizes[i], dictEncoder.size());
       }
-    
+
       checkContent(dictEncoder, expectedOrderedUniqueValues, expectedOrder);
       dictEncoder.clear();
       assertEquals(0, dictEncoder.getByteSize());
