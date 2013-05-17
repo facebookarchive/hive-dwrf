@@ -23,6 +23,8 @@ import java.nio.ByteBuffer;
 
 abstract class InStream extends InputStream {
 
+  private final boolean useVInts;
+
   private static class UncompressedStream extends InStream {
     private final String name;
     private byte[] array;
@@ -30,7 +32,9 @@ abstract class InStream extends InputStream {
     private final int base;
     private final int limit;
 
-    public UncompressedStream(String name, ByteBuffer input) {
+    public UncompressedStream(String name, ByteBuffer input, boolean useVInts) {
+      super(useVInts);
+
       this.name = name;
       this.array = input.array();
       base = input.arrayOffset() + input.position();
@@ -92,8 +96,10 @@ abstract class InStream extends InputStream {
     private boolean isUncompressedOriginal;
 
     public CompressedStream(String name, ByteBuffer input,
-                            CompressionCodec codec, int bufferSize
-                           ) {
+                            CompressionCodec codec, int bufferSize,
+                            boolean useVInts) {
+      super(useVInts);
+
       this.array = input.array();
       this.name = name;
       this.codec = codec;
@@ -201,16 +207,30 @@ abstract class InStream extends InputStream {
     }
   }
 
+  protected InStream(boolean useVInts) {
+    this.useVInts = useVInts;
+  }
+
   public abstract void seek(PositionProvider index) throws IOException;
+
+  public static InStream create(String name, ByteBuffer input, CompressionCodec codec,
+      int bufferSize) throws IOException {
+
+    return create(name, input, codec, bufferSize, true);
+  }
 
   public static InStream create(String name,
                                 ByteBuffer input,
                                 CompressionCodec codec,
-                                int bufferSize) throws IOException {
+                                int bufferSize, boolean useVInts) throws IOException {
     if (codec == null) {
-      return new UncompressedStream(name, input);
+      return new UncompressedStream(name, input, useVInts);
     } else {
-      return new CompressedStream(name, input, codec, bufferSize);
+      return new CompressedStream(name, input, codec, bufferSize, useVInts);
     }
+  }
+
+  public boolean useVInts() {
+    return useVInts;
   }
 }

@@ -26,6 +26,8 @@ import java.io.IOException;
 class RunLengthIntegerReader {
   private final InStream input;
   private final boolean signed;
+  private final int numBytes;
+  private final boolean useVInts;
   private final long[] literals =
     new long[RunLengthIntegerWriter.MAX_LITERAL_SIZE];
   private int numLiterals = 0;
@@ -33,9 +35,12 @@ class RunLengthIntegerReader {
   private int used = 0;
   private boolean repeat = false;
 
-  RunLengthIntegerReader(InStream input, boolean signed) throws IOException {
+  RunLengthIntegerReader(InStream input, boolean signed, int numBytes)
+      throws IOException {
     this.input = input;
     this.signed = signed;
+    this.numBytes = numBytes;
+    this.useVInts = input.useVInts();
   }
 
   private void readValues() throws IOException {
@@ -52,21 +57,13 @@ class RunLengthIntegerReader {
       }
       // convert from 0 to 255 to -128 to 127 by converting to a signed byte
       delta = (byte) (0 + delta);
-      if (signed) {
-        literals[0] = SerializationUtils.readVslong(input);
-      } else {
-        literals[0] = SerializationUtils.readVulong(input);
-      }
+      literals[0] = SerializationUtils.readIntegerType(input, numBytes, signed, useVInts);
     } else {
       repeat = false;
       numLiterals = 0x100 - control;
       used = 0;
       for(int i=0; i < numLiterals; ++i) {
-        if (signed) {
-          literals[i] = SerializationUtils.readVslong(input);
-        } else {
-          literals[i] = SerializationUtils.readVulong(input);
-        }
+        literals[i] = SerializationUtils.readIntegerType(input, numBytes, signed, useVInts);
       }
     }
   }

@@ -3869,6 +3869,10 @@ public final class OrcProto {
     // optional uint64 length = 3;
     boolean hasLength();
     long getLength();
+    
+    // optional bool useVInts = 4 [default = true];
+    boolean hasUseVInts();
+    boolean getUseVInts();
   }
   public static final class Stream extends
       com.google.protobuf.GeneratedMessage
@@ -4013,10 +4017,21 @@ public final class OrcProto {
       return length_;
     }
     
+    // optional bool useVInts = 4 [default = true];
+    public static final int USEVINTS_FIELD_NUMBER = 4;
+    private boolean useVInts_;
+    public boolean hasUseVInts() {
+      return ((bitField0_ & 0x00000008) == 0x00000008);
+    }
+    public boolean getUseVInts() {
+      return useVInts_;
+    }
+    
     private void initFields() {
       kind_ = org.apache.hadoop.hive.ql.io.orc.OrcProto.Stream.Kind.PRESENT;
       column_ = 0;
       length_ = 0L;
+      useVInts_ = true;
     }
     private byte memoizedIsInitialized = -1;
     public final boolean isInitialized() {
@@ -4043,6 +4058,9 @@ public final class OrcProto {
       if (((bitField0_ & 0x00000004) == 0x00000004)) {
         output.writeUInt64(3, length_);
       }
+      if (((bitField0_ & 0x00000008) == 0x00000008)) {
+        output.writeBool(4, useVInts_);
+      }
       getUnknownFields().writeTo(output);
     }
     
@@ -4063,6 +4081,10 @@ public final class OrcProto {
       if (((bitField0_ & 0x00000004) == 0x00000004)) {
         size += com.google.protobuf.CodedOutputStream
           .computeUInt64Size(3, length_);
+      }
+      if (((bitField0_ & 0x00000008) == 0x00000008)) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeBoolSize(4, useVInts_);
       }
       size += getUnknownFields().getSerializedSize();
       memoizedSerializedSize = size;
@@ -4194,6 +4216,8 @@ public final class OrcProto {
         bitField0_ = (bitField0_ & ~0x00000002);
         length_ = 0L;
         bitField0_ = (bitField0_ & ~0x00000004);
+        useVInts_ = true;
+        bitField0_ = (bitField0_ & ~0x00000008);
         return this;
       }
       
@@ -4244,6 +4268,10 @@ public final class OrcProto {
           to_bitField0_ |= 0x00000004;
         }
         result.length_ = length_;
+        if (((from_bitField0_ & 0x00000008) == 0x00000008)) {
+          to_bitField0_ |= 0x00000008;
+        }
+        result.useVInts_ = useVInts_;
         result.bitField0_ = to_bitField0_;
         onBuilt();
         return result;
@@ -4268,6 +4296,9 @@ public final class OrcProto {
         }
         if (other.hasLength()) {
           setLength(other.getLength());
+        }
+        if (other.hasUseVInts()) {
+          setUseVInts(other.getUseVInts());
         }
         this.mergeUnknownFields(other.getUnknownFields());
         return this;
@@ -4323,6 +4354,11 @@ public final class OrcProto {
             case 24: {
               bitField0_ |= 0x00000004;
               length_ = input.readUInt64();
+              break;
+            }
+            case 32: {
+              bitField0_ |= 0x00000008;
+              useVInts_ = input.readBool();
               break;
             }
           }
@@ -4393,6 +4429,27 @@ public final class OrcProto {
       public Builder clearLength() {
         bitField0_ = (bitField0_ & ~0x00000004);
         length_ = 0L;
+        onChanged();
+        return this;
+      }
+      
+      // optional bool useVInts = 4 [default = true];
+      private boolean useVInts_ = true;
+      public boolean hasUseVInts() {
+        return ((bitField0_ & 0x00000008) == 0x00000008);
+      }
+      public boolean getUseVInts() {
+        return useVInts_;
+      }
+      public Builder setUseVInts(boolean value) {
+        bitField0_ |= 0x00000008;
+        useVInts_ = value;
+        onChanged();
+        return this;
+      }
+      public Builder clearUseVInts() {
+        bitField0_ = (bitField0_ & ~0x00000008);
+        useVInts_ = true;
         onChanged();
         return this;
       }
@@ -9747,46 +9804,47 @@ public final class OrcProto {
       "atistics\030\002 \001(\01322.org.apache.hadoop.hive." +
       "ql.io.orc.ColumnStatistics\"J\n\010RowIndex\022>" +
       "\n\005entry\030\001 \003(\0132/.org.apache.hadoop.hive.q",
-      "l.io.orc.RowIndexEntry\"\331\001\n\006Stream\022;\n\004kin" +
+      "l.io.orc.RowIndexEntry\"\361\001\n\006Stream\022;\n\004kin" +
       "d\030\001 \002(\0162-.org.apache.hadoop.hive.ql.io.o" +
       "rc.Stream.Kind\022\016\n\006column\030\002 \001(\r\022\016\n\006length" +
-      "\030\003 \001(\004\"r\n\004Kind\022\013\n\007PRESENT\020\000\022\010\n\004DATA\020\001\022\n\n" +
-      "\006LENGTH\020\002\022\023\n\017DICTIONARY_DATA\020\003\022\024\n\020DICTIO" +
-      "NARY_COUNT\020\004\022\r\n\tNANO_DATA\020\005\022\r\n\tROW_INDEX" +
-      "\020\006\"\221\001\n\016ColumnEncoding\022C\n\004kind\030\001 \002(\01625.or" +
-      "g.apache.hadoop.hive.ql.io.orc.ColumnEnc" +
-      "oding.Kind\022\026\n\016dictionarySize\030\002 \001(\r\"\"\n\004Ki" +
-      "nd\022\n\n\006DIRECT\020\000\022\016\n\nDICTIONARY\020\001\"\214\001\n\014Strip",
-      "eFooter\0229\n\007streams\030\001 \003(\0132(.org.apache.ha" +
-      "doop.hive.ql.io.orc.Stream\022A\n\007columns\030\002 " +
-      "\003(\01320.org.apache.hadoop.hive.ql.io.orc.C" +
-      "olumnEncoding\"\221\002\n\004Type\0229\n\004kind\030\001 \002(\0162+.o" +
-      "rg.apache.hadoop.hive.ql.io.orc.Type.Kin" +
-      "d\022\024\n\010subtypes\030\002 \003(\rB\002\020\001\022\022\n\nfieldNames\030\003 " +
-      "\003(\t\"\243\001\n\004Kind\022\013\n\007BOOLEAN\020\000\022\010\n\004BYTE\020\001\022\t\n\005S" +
-      "HORT\020\002\022\007\n\003INT\020\003\022\010\n\004LONG\020\004\022\t\n\005FLOAT\020\005\022\n\n\006" +
-      "DOUBLE\020\006\022\n\n\006STRING\020\007\022\n\n\006BINARY\020\010\022\r\n\tTIME" +
-      "STAMP\020\t\022\010\n\004LIST\020\n\022\007\n\003MAP\020\013\022\n\n\006STRUCT\020\014\022\t",
-      "\n\005UNION\020\r\"\215\001\n\021StripeInformation\022\016\n\006offse" +
-      "t\030\001 \001(\004\022\023\n\013indexLength\030\002 \001(\004\022\022\n\ndataLeng" +
-      "th\030\003 \001(\004\022\024\n\014footerLength\030\004 \001(\004\022\024\n\014number" +
-      "OfRows\030\005 \001(\004\022\023\n\013rawDataSize\030\006 \001(\004\"/\n\020Use" +
-      "rMetadataItem\022\014\n\004name\030\001 \002(\t\022\r\n\005value\030\002 \002" +
-      "(\014\"\203\003\n\006Footer\022\024\n\014headerLength\030\001 \001(\004\022\025\n\rc" +
-      "ontentLength\030\002 \001(\004\022D\n\007stripes\030\003 \003(\01323.or" +
-      "g.apache.hadoop.hive.ql.io.orc.StripeInf" +
-      "ormation\0225\n\005types\030\004 \003(\0132&.org.apache.had" +
-      "oop.hive.ql.io.orc.Type\022D\n\010metadata\030\005 \003(",
-      "\01322.org.apache.hadoop.hive.ql.io.orc.Use" +
-      "rMetadataItem\022\024\n\014numberOfRows\030\006 \001(\004\022F\n\ns" +
-      "tatistics\030\007 \003(\01322.org.apache.hadoop.hive" +
-      ".ql.io.orc.ColumnStatistics\022\026\n\016rowIndexS" +
-      "tride\030\010 \001(\r\022\023\n\013rawDataSize\030\t \001(\004\"\210\001\n\nPos" +
-      "tScript\022\024\n\014footerLength\030\001 \001(\004\022F\n\013compres" +
-      "sion\030\002 \001(\01621.org.apache.hadoop.hive.ql.i" +
-      "o.orc.CompressionKind\022\034\n\024compressionBloc" +
-      "kSize\030\003 \001(\004*:\n\017CompressionKind\022\010\n\004NONE\020\000" +
-      "\022\010\n\004ZLIB\020\001\022\n\n\006SNAPPY\020\002\022\007\n\003LZO\020\003"
+      "\030\003 \001(\004\022\026\n\010useVInts\030\004 \001(\010:\004true\"r\n\004Kind\022\013" +
+      "\n\007PRESENT\020\000\022\010\n\004DATA\020\001\022\n\n\006LENGTH\020\002\022\023\n\017DIC" +
+      "TIONARY_DATA\020\003\022\024\n\020DICTIONARY_COUNT\020\004\022\r\n\t" +
+      "NANO_DATA\020\005\022\r\n\tROW_INDEX\020\006\"\221\001\n\016ColumnEnc" +
+      "oding\022C\n\004kind\030\001 \002(\01625.org.apache.hadoop." +
+      "hive.ql.io.orc.ColumnEncoding.Kind\022\026\n\016di" +
+      "ctionarySize\030\002 \001(\r\"\"\n\004Kind\022\n\n\006DIRECT\020\000\022\016",
+      "\n\nDICTIONARY\020\001\"\214\001\n\014StripeFooter\0229\n\007strea" +
+      "ms\030\001 \003(\0132(.org.apache.hadoop.hive.ql.io." +
+      "orc.Stream\022A\n\007columns\030\002 \003(\01320.org.apache" +
+      ".hadoop.hive.ql.io.orc.ColumnEncoding\"\221\002" +
+      "\n\004Type\0229\n\004kind\030\001 \002(\0162+.org.apache.hadoop" +
+      ".hive.ql.io.orc.Type.Kind\022\024\n\010subtypes\030\002 " +
+      "\003(\rB\002\020\001\022\022\n\nfieldNames\030\003 \003(\t\"\243\001\n\004Kind\022\013\n\007" +
+      "BOOLEAN\020\000\022\010\n\004BYTE\020\001\022\t\n\005SHORT\020\002\022\007\n\003INT\020\003\022" +
+      "\010\n\004LONG\020\004\022\t\n\005FLOAT\020\005\022\n\n\006DOUBLE\020\006\022\n\n\006STRI" +
+      "NG\020\007\022\n\n\006BINARY\020\010\022\r\n\tTIMESTAMP\020\t\022\010\n\004LIST\020",
+      "\n\022\007\n\003MAP\020\013\022\n\n\006STRUCT\020\014\022\t\n\005UNION\020\r\"\215\001\n\021St" +
+      "ripeInformation\022\016\n\006offset\030\001 \001(\004\022\023\n\013index" +
+      "Length\030\002 \001(\004\022\022\n\ndataLength\030\003 \001(\004\022\024\n\014foot" +
+      "erLength\030\004 \001(\004\022\024\n\014numberOfRows\030\005 \001(\004\022\023\n\013" +
+      "rawDataSize\030\006 \001(\004\"/\n\020UserMetadataItem\022\014\n" +
+      "\004name\030\001 \002(\t\022\r\n\005value\030\002 \002(\014\"\203\003\n\006Footer\022\024\n" +
+      "\014headerLength\030\001 \001(\004\022\025\n\rcontentLength\030\002 \001" +
+      "(\004\022D\n\007stripes\030\003 \003(\01323.org.apache.hadoop." +
+      "hive.ql.io.orc.StripeInformation\0225\n\005type" +
+      "s\030\004 \003(\0132&.org.apache.hadoop.hive.ql.io.o",
+      "rc.Type\022D\n\010metadata\030\005 \003(\01322.org.apache.h" +
+      "adoop.hive.ql.io.orc.UserMetadataItem\022\024\n" +
+      "\014numberOfRows\030\006 \001(\004\022F\n\nstatistics\030\007 \003(\0132" +
+      "2.org.apache.hadoop.hive.ql.io.orc.Colum" +
+      "nStatistics\022\026\n\016rowIndexStride\030\010 \001(\r\022\023\n\013r" +
+      "awDataSize\030\t \001(\004\"\210\001\n\nPostScript\022\024\n\014foote" +
+      "rLength\030\001 \001(\004\022F\n\013compression\030\002 \001(\01621.org" +
+      ".apache.hadoop.hive.ql.io.orc.Compressio" +
+      "nKind\022\034\n\024compressionBlockSize\030\003 \001(\004*:\n\017C" +
+      "ompressionKind\022\010\n\004NONE\020\000\022\010\n\004ZLIB\020\001\022\n\n\006SN",
+      "APPY\020\002\022\007\n\003LZO\020\003"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
       new com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner() {
@@ -9854,7 +9912,7 @@ public final class OrcProto {
           internal_static_org_apache_hadoop_hive_ql_io_orc_Stream_fieldAccessorTable = new
             com.google.protobuf.GeneratedMessage.FieldAccessorTable(
               internal_static_org_apache_hadoop_hive_ql_io_orc_Stream_descriptor,
-              new java.lang.String[] { "Kind", "Column", "Length", },
+              new java.lang.String[] { "Kind", "Column", "Length", "UseVInts", },
               org.apache.hadoop.hive.ql.io.orc.OrcProto.Stream.class,
               org.apache.hadoop.hive.ql.io.orc.OrcProto.Stream.Builder.class);
           internal_static_org_apache_hadoop_hive_ql_io_orc_ColumnEncoding_descriptor =
