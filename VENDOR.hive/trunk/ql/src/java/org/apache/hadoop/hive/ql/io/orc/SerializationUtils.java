@@ -44,6 +44,12 @@ final class SerializationUtils {
     writeVulong(output, (value << 1) ^ (value >> 63));
   }
 
+  static void writeIntegerType(OutputStream output, long value, int numBytes) throws IOException {
+    for (int i = 0; i < numBytes; i++) {
+      output.write((int)(value & 0xff));
+      value >>>= 8;
+    }
+  }
 
   static long readVulong(InputStream in) throws IOException {
     long result = 0;
@@ -63,6 +69,49 @@ final class SerializationUtils {
   static long readVslong(InputStream in) throws IOException {
     long result = readVulong(in);
     return (result >>> 1) ^ -(result & 1);
+  }
+
+  static long readIntegerType(InputStream in, int numBytes) throws IOException {
+    long result = 0;
+    long b;
+    int offset = 0;
+    for (int i = 0; i < numBytes; i++) {
+      b = in.read();
+      if (b == -1) {
+        throw new EOFException("Reading Vulong past EOF");
+      }
+      result |= (0xff & b) << offset;
+      offset += 8;
+    }
+    return result;
+  }
+
+  static void writeIntegerType(OutputStream output, long value, int numBytes, boolean signed,
+      boolean useVInts) throws IOException {
+
+    if (useVInts) {
+      if (signed) {
+        writeVslong(output, value);
+      } else {
+        writeVulong(output, value);
+      }
+    } else {
+      writeIntegerType(output, value, numBytes);
+    }
+  }
+
+  static long readIntegerType(InputStream in, int numBytes, boolean signed, boolean useVInts)
+      throws IOException {
+
+    if (useVInts) {
+      if (signed) {
+        return readVslong(in);
+      } else {
+        return readVulong(in);
+      }
+    } else {
+      return readIntegerType(in, numBytes);
+    }
   }
 
   static float readFloat(InputStream in) throws IOException {

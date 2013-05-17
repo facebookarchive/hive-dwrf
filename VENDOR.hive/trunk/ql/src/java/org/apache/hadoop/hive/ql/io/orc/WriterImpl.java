@@ -80,6 +80,10 @@ class WriterImpl implements Writer, MemoryManager.Callback {
   private static final int HDFS_BUFFER_SIZE = 256 * 1024;
   private static final int MIN_ROW_INDEX_STRIDE = 1000;
 
+  static final int SHORT_BYTE_SIZE = 2;
+  static final int INT_BYTE_SIZE = 4;
+  static final int LONG_BYTE_SIZE = 8;
+
   private final FileSystem fs;
   private final Path path;
   private final long stripeSize;
@@ -112,6 +116,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       OrcProto.RowIndex.newBuilder();
   private final boolean buildIndex;
   private final MemoryManager memoryManager;
+  private final boolean useVInts;
 
   private final Configuration conf;
 
@@ -134,7 +139,9 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     this.memoryManager = memoryManager;
     buildIndex = rowIndexStride > 0;
     codec = createCodec(compress);
-    treeWriter = createTreeWriter(inspector, streamFactory, false, conf);
+    useVInts = conf.getBoolean(HiveConf.ConfVars.HIVE_ORC_USE_VINTS.varname,
+        HiveConf.ConfVars.HIVE_ORC_USE_VINTS.defaultBoolVal);
+    treeWriter = createTreeWriter(inspector, streamFactory, false, conf, useVInts);
     if (buildIndex && rowIndexStride < MIN_ROW_INDEX_STRIDE) {
       throw new IllegalArgumentException("Row stride must be at least " +
           MIN_ROW_INDEX_STRIDE);
@@ -356,6 +363,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     private final Configuration conf;
     protected long stripeRawDataSize = 0;
     protected long rowRawDataSize = 0;
+    protected final boolean useVInts;
 
     /**
      * Create a tree writer
@@ -367,10 +375,12 @@ class WriterImpl implements Writer, MemoryManager.Callback {
      */
     TreeWriter(int columnId, ObjectInspector inspector,
                StreamFactory streamFactory,
-               boolean nullable, Configuration conf) throws IOException {
+               boolean nullable, Configuration conf,
+               boolean useVInts) throws IOException {
       this.id = columnId;
       this.inspector = inspector;
       this.conf = conf;
+      this.useVInts = useVInts;
       if (nullable) {
         isPresent = new BitFieldWriter(streamFactory.createStream(id,
             OrcProto.Stream.Kind.PRESENT), 1);
@@ -534,8 +544,9 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     BooleanTreeWriter(int columnId,
                       ObjectInspector inspector,
                       StreamFactory writer,
-                      boolean nullable, Configuration conf) throws IOException {
-      super(columnId, inspector, writer, nullable, conf);
+                      boolean nullable, Configuration conf,
+                      boolean useVInts) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       PositionedOutputStream out = writer.createStream(id,
           OrcProto.Stream.Kind.DATA);
       this.writer = new BitFieldWriter(out, 1);
@@ -573,8 +584,9 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     ByteTreeWriter(int columnId,
                       ObjectInspector inspector,
                       StreamFactory writer,
-                      boolean nullable, Configuration conf) throws IOException {
-      super(columnId, inspector, writer, nullable, conf);
+                      boolean nullable, Configuration conf,
+                      boolean useVInts) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       this.writer = new RunLengthByteWriter(writer.createStream(id,
           OrcProto.Stream.Kind.DATA));
       recordPosition(rowIndexPosition);
@@ -618,21 +630,26 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     private final IntDictionaryEncoder dictionary;
     private boolean useDictionaryEncoding = true;
     private final StreamFactory writer;
+    private final int numBytes;
 
     IntegerTreeWriter(int columnId,
                       ObjectInspector inspector,
                       StreamFactory writerFactory,
-                      boolean nullable, Configuration conf) throws IOException {
-      super(columnId, inspector, writerFactory, nullable, conf);
+                      boolean nullable, Configuration conf,
+                      boolean useVInts, int numBytes) throws IOException {
+      super(columnId, inspector, writerFactory, nullable, conf, useVInts);
       writer = writerFactory;
       final boolean sortKeys = conf.getBoolean(
           HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.varname,
           HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.defaultBoolVal);
 
-      dictionary = new IntDictionaryEncoder(sortKeys);
+      this.numBytes = numBytes;
+
+      dictionary = new IntDictionaryEncoder(sortKeys, numBytes, useVInts);
       output = writer.createStream(id,
           OrcProto.Stream.Kind.DICTIONARY_DATA);
-      lengthOutput = new RunLengthIntegerWriter(writer.createStream(id, OrcProto.Stream.Kind.LENGTH), false);
+      lengthOutput = new RunLengthIntegerWriter(
+          writer.createStream(id, OrcProto.Stream.Kind.LENGTH), false, INT_BYTE_SIZE, useVInts);
 
       dictionaryKeySizeThreshold = conf.getFloat(
           HiveConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD.varname,
@@ -689,7 +706,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
         useDictionaryEncoding = true;
         rowOutput =
           new RunLengthIntegerWriter(writer.createStream(id,
-          OrcProto.Stream.Kind.DATA), false);
+          OrcProto.Stream.Kind.DATA), false, INT_BYTE_SIZE, useVInts);
       } else {
         useDictionaryEncoding = false;
         rowOutput = writer.createStream(id,
@@ -744,8 +761,8 @@ class WriterImpl implements Writer, MemoryManager.Callback {
           if (useDictionaryEncoding && dumpOrder != null) {
             rowOutput.write(dumpOrder[rows.get(i)]);
           } else {
-            SerializationUtils.writeVslong(rowOutput,
-                dictionary.getValue(rows.get(i)));
+            SerializationUtils.writeIntegerType(rowOutput,
+                dictionary.getValue(rows.get(i)), numBytes, true, useVInts);
           }
         }
       }
@@ -809,8 +826,9 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     FloatTreeWriter(int columnId,
                       ObjectInspector inspector,
                       StreamFactory writer,
-                      boolean nullable, Configuration conf) throws IOException {
-      super(columnId, inspector, writer, nullable, conf);
+                      boolean nullable, Configuration conf,
+                      boolean useVInts) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       this.stream = writer.createStream(id,
           OrcProto.Stream.Kind.DATA);
       recordPosition(rowIndexPosition);
@@ -847,8 +865,9 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     DoubleTreeWriter(int columnId,
                     ObjectInspector inspector,
                     StreamFactory writer,
-                    boolean nullable, Configuration conf) throws IOException {
-      super(columnId, inspector, writer, nullable, conf);
+                    boolean nullable, Configuration conf,
+                    boolean useVInts) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       this.stream = writer.createStream(id,
           OrcProto.Stream.Kind.DATA);
       recordPosition(rowIndexPosition);
@@ -905,8 +924,9 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     StringTreeWriter(int columnId,
                      ObjectInspector inspector,
                      StreamFactory writerFactory,
-                     boolean nullable, Configuration conf) throws IOException {
-      super(columnId, inspector, writerFactory, nullable, conf);
+                     boolean nullable, Configuration conf,
+                     boolean useVInts) throws IOException {
+      super(columnId, inspector, writerFactory, nullable, conf, useVInts);
       writer = writerFactory;
       final boolean sortKeys = conf.getBoolean(
           HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.varname,
@@ -916,9 +936,9 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       stringOutput = writer.createStream(id,
           OrcProto.Stream.Kind.DICTIONARY_DATA);
       lengthOutput = new RunLengthIntegerWriter(writer.createStream(id,
-          OrcProto.Stream.Kind.LENGTH), false);
+          OrcProto.Stream.Kind.LENGTH), false, INT_BYTE_SIZE, useVInts);
       directLengthOutput = new RunLengthIntegerWriter(writer.createStream(id,
-          OrcProto.Stream.Kind.LENGTH), false);
+          OrcProto.Stream.Kind.LENGTH), false, INT_BYTE_SIZE, useVInts);
       dictionaryKeySizeThreshold = conf.getFloat(
           HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname,
           HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.defaultFloatVal);
@@ -1051,7 +1071,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
       if (useDictionaryEncoding) {
         rowOutput = new RunLengthIntegerWriter(writer.createStream(id,
-            OrcProto.Stream.Kind.DATA), false);
+            OrcProto.Stream.Kind.DATA), false, INT_BYTE_SIZE, useVInts);
       } else {
         rowOutput = writer.createStream(id,
             OrcProto.Stream.Kind.DATA);
@@ -1099,7 +1119,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
             dictionary.getText(text, rows.get(i));
             rowOutput.write(text.getBytes(), 0, text.getLength());
             directLengthOutput.write(text.getLength());
-          }  
+          }
         }
       }
       // we need to build the rowindex before calling super, since it
@@ -1176,12 +1196,13 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     BinaryTreeWriter(int columnId,
                      ObjectInspector inspector,
                      StreamFactory writer,
-                     boolean nullable, Configuration conf) throws IOException {
-      super(columnId, inspector, writer, nullable, conf);
+                     boolean nullable, Configuration conf,
+                     boolean useVInts) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       this.stream = writer.createStream(id,
           OrcProto.Stream.Kind.DATA);
       this.length = new RunLengthIntegerWriter(writer.createStream(id,
-          OrcProto.Stream.Kind.LENGTH), false);
+          OrcProto.Stream.Kind.LENGTH), false, INT_BYTE_SIZE, useVInts);
       recordPosition(rowIndexPosition);
     }
 
@@ -1228,12 +1249,13 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     TimestampTreeWriter(int columnId,
                      ObjectInspector inspector,
                      StreamFactory writer,
-                     boolean nullable, Configuration conf) throws IOException {
-      super(columnId, inspector, writer, nullable, conf);
+                     boolean nullable, Configuration conf,
+                     boolean useVInts) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       this.seconds = new RunLengthIntegerWriter(writer.createStream(id,
-          OrcProto.Stream.Kind.DATA), true);
+          OrcProto.Stream.Kind.DATA), true, LONG_BYTE_SIZE, useVInts);
       this.nanos = new RunLengthIntegerWriter(writer.createStream(id,
-          OrcProto.Stream.Kind.NANO_DATA), false);
+          OrcProto.Stream.Kind.NANO_DATA), false, LONG_BYTE_SIZE, useVInts);
       recordPosition(rowIndexPosition);
     }
 
@@ -1292,15 +1314,16 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     StructTreeWriter(int columnId,
                      ObjectInspector inspector,
                      StreamFactory writer,
-                     boolean nullable, Configuration conf) throws IOException {
-      super(columnId, inspector, writer, nullable, conf);
+                     boolean nullable, Configuration conf,
+                     boolean useVInts) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       StructObjectInspector structObjectInspector =
         (StructObjectInspector) inspector;
       fields = structObjectInspector.getAllStructFieldRefs();
       childrenWriters = new TreeWriter[fields.size()];
       for(int i=0; i < childrenWriters.length; ++i) {
         childrenWriters[i] = createTreeWriter(
-          fields.get(i).getFieldObjectInspector(), writer, true, conf);
+          fields.get(i).getFieldObjectInspector(), writer, true, conf, useVInts);
       }
       recordPosition(rowIndexPosition);
     }
@@ -1337,16 +1360,17 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     ListTreeWriter(int columnId,
                    ObjectInspector inspector,
                    StreamFactory writer,
-                   boolean nullable, Configuration conf) throws IOException {
-      super(columnId, inspector, writer, nullable, conf);
+                   boolean nullable, Configuration conf,
+                   boolean useVInts) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       ListObjectInspector listObjectInspector = (ListObjectInspector) inspector;
       childrenWriters = new TreeWriter[1];
       childrenWriters[0] =
         createTreeWriter(listObjectInspector.getListElementObjectInspector(),
-          writer, true, conf);
+          writer, true, conf, useVInts);
       lengths =
         new RunLengthIntegerWriter(writer.createStream(columnId,
-            OrcProto.Stream.Kind.LENGTH), false);
+            OrcProto.Stream.Kind.LENGTH), false, INT_BYTE_SIZE, useVInts);
       recordPosition(rowIndexPosition);
     }
 
@@ -1389,17 +1413,18 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     MapTreeWriter(int columnId,
                   ObjectInspector inspector,
                   StreamFactory writer,
-                  boolean nullable, Configuration conf) throws IOException {
-      super(columnId, inspector, writer, nullable, conf);
+                  boolean nullable, Configuration conf,
+                  boolean useVInts) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       MapObjectInspector insp = (MapObjectInspector) inspector;
       childrenWriters = new TreeWriter[2];
       childrenWriters[0] =
-        createTreeWriter(insp.getMapKeyObjectInspector(), writer, true, conf);
+        createTreeWriter(insp.getMapKeyObjectInspector(), writer, true, conf, useVInts);
       childrenWriters[1] =
-        createTreeWriter(insp.getMapValueObjectInspector(), writer, true, conf);
+        createTreeWriter(insp.getMapValueObjectInspector(), writer, true, conf, useVInts);
       lengths =
         new RunLengthIntegerWriter(writer.createStream(columnId,
-            OrcProto.Stream.Kind.LENGTH), false);
+            OrcProto.Stream.Kind.LENGTH), false, INT_BYTE_SIZE, useVInts);
       recordPosition(rowIndexPosition);
     }
 
@@ -1447,13 +1472,14 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     UnionTreeWriter(int columnId,
                   ObjectInspector inspector,
                   StreamFactory writer,
-                  boolean nullable, Configuration conf) throws IOException {
-      super(columnId, inspector, writer, nullable, conf);
+                  boolean nullable, Configuration conf,
+                  boolean useVInts) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       UnionObjectInspector insp = (UnionObjectInspector) inspector;
       List<ObjectInspector> choices = insp.getObjectInspectors();
       childrenWriters = new TreeWriter[choices.size()];
       for(int i=0; i < childrenWriters.length; ++i) {
-        childrenWriters[i] = createTreeWriter(choices.get(i), writer, true, conf);
+        childrenWriters[i] = createTreeWriter(choices.get(i), writer, true, conf, useVInts);
       }
       tags =
         new RunLengthByteWriter(writer.createStream(columnId,
@@ -1495,53 +1521,57 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
   private static TreeWriter createTreeWriter(ObjectInspector inspector,
                                              StreamFactory streamFactory,
-                                             boolean nullable, Configuration conf
-                                            ) throws IOException {
+                                             boolean nullable, Configuration conf,
+                                             boolean useVInts) throws IOException {
     switch (inspector.getCategory()) {
       case PRIMITIVE:
         switch (((PrimitiveObjectInspector) inspector).getPrimitiveCategory()) {
           case BOOLEAN:
             return new BooleanTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable, conf);
+                inspector, streamFactory, nullable, conf, useVInts);
           case BYTE:
             return new ByteTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable, conf);
+                inspector, streamFactory, nullable, conf, useVInts);
           case SHORT:
+            return new IntegerTreeWriter(streamFactory.getNextColumnId(),
+                inspector, streamFactory, nullable, conf, useVInts , SHORT_BYTE_SIZE);
           case INT:
+            return new IntegerTreeWriter(streamFactory.getNextColumnId(),
+                inspector, streamFactory, nullable, conf, useVInts , INT_BYTE_SIZE);
           case LONG:
             return new IntegerTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable, conf);
+                inspector, streamFactory, nullable, conf, useVInts , LONG_BYTE_SIZE);
           case FLOAT:
             return new FloatTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable, conf);
+                inspector, streamFactory, nullable, conf, useVInts);
           case DOUBLE:
             return new DoubleTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable, conf);
+                inspector, streamFactory, nullable, conf, useVInts);
           case STRING:
             return new StringTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable, conf);
+                inspector, streamFactory, nullable, conf, useVInts);
           case BINARY:
             return new BinaryTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable, conf);
+                inspector, streamFactory, nullable, conf, useVInts);
           case TIMESTAMP:
             return new TimestampTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable, conf);
+                inspector, streamFactory, nullable, conf, useVInts);
           default:
             throw new IllegalArgumentException("Bad primitive category " +
               ((PrimitiveObjectInspector) inspector).getPrimitiveCategory());
         }
       case STRUCT:
         return new StructTreeWriter(streamFactory.getNextColumnId(), inspector,
-            streamFactory, nullable, conf);
+            streamFactory, nullable, conf, useVInts);
       case MAP:
         return new MapTreeWriter(streamFactory.getNextColumnId(), inspector,
-            streamFactory, nullable, conf);
+            streamFactory, nullable, conf, useVInts);
       case LIST:
         return new ListTreeWriter(streamFactory.getNextColumnId(), inspector,
-            streamFactory, nullable, conf);
+            streamFactory, nullable, conf, useVInts);
       case UNION:
         return new UnionTreeWriter(streamFactory.getNextColumnId(), inspector,
-            streamFactory, nullable, conf);
+            streamFactory, nullable, conf, useVInts);
       default:
         throw new IllegalArgumentException("Bad category: " +
           inspector.getCategory());
@@ -1682,7 +1712,8 @@ class WriterImpl implements Writer, MemoryManager.Callback {
         builder.addStreams(OrcProto.Stream.newBuilder()
             .setColumn(name.getColumn())
             .setKind(name.getKind())
-            .setLength(end-section));
+            .setLength(end-section)
+            .setUseVInts(useVInts));
         section = end;
         if (StreamName.Area.INDEX == name.getArea()) {
           indexEnd = end;
@@ -1722,7 +1753,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       TreeWriter writer, ColumnStatisticsImpl[] columnStats, int column) {
     if (columnStats != null) {
       writer.fileStatistics.merge(columnStats[column++]);
-    }    
+    }
     builder.addStatistics(writer.fileStatistics.serialize());
     for(TreeWriter child: writer.getChildrenWriters()) {
       column = writeFileStatistics(builder, child, columnStats, column);

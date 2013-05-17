@@ -38,7 +38,6 @@ import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.io.WritableComparable;
 
 class RecordReaderImpl implements RecordReader {
   private final FSDataInputStream file;
@@ -258,6 +257,11 @@ class RecordReaderImpl implements RecordReader {
     }
 
     @Override
+    protected int getNumBytes() {
+      return WriterImpl.INT_BYTE_SIZE;
+    }
+
+    @Override
     Object next(Object previous) throws IOException {
       super.next(previous);
       IntWritable result = null;
@@ -278,6 +282,11 @@ class RecordReaderImpl implements RecordReader {
   private static class ShortDictionaryTreeReader extends NumericDictionaryTreeReader {
     ShortDictionaryTreeReader (int columnId) {
       super(columnId);
+    }
+
+    @Override
+    protected int getNumBytes() {
+      return WriterImpl.SHORT_BYTE_SIZE;
     }
 
     @Override
@@ -305,6 +314,11 @@ class RecordReaderImpl implements RecordReader {
     }
 
     @Override
+    protected int getNumBytes() {
+      return WriterImpl.LONG_BYTE_SIZE;
+    }
+
+    @Override
     Object next(Object previous) throws IOException {
       super.next(previous);
       LongWritable result = null;
@@ -322,7 +336,7 @@ class RecordReaderImpl implements RecordReader {
     }
   }
 
-  private static class NumericDictionaryTreeReader extends TreeReader {
+  private static abstract class NumericDictionaryTreeReader extends TreeReader {
     protected long[] dictionaryValues;
     protected int dictionarySize;
     protected RunLengthIntegerReader reader;
@@ -330,6 +344,8 @@ class RecordReaderImpl implements RecordReader {
     NumericDictionaryTreeReader (int columnId) {
       super(columnId);
     }
+
+    protected abstract int getNumBytes();
 
     @Override
     void startStripe(Map<StreamName, InStream> streams,
@@ -344,12 +360,13 @@ class RecordReaderImpl implements RecordReader {
           OrcProto.Stream.Kind.DICTIONARY_DATA);
       InStream in = streams.get(name);
       for(int i = 0; i < dictionarySize; ++i) {
-        dictionaryValues[i] = SerializationUtils.readVslong(in);
+        dictionaryValues[i] = SerializationUtils.readIntegerType(in, WriterImpl.INT_BYTE_SIZE,
+            true, in.useVInts());
       }
       in.close();
       // set up the row reader
       name = new StreamName(columnId, OrcProto.Stream.Kind.DATA);
-      reader = new RunLengthIntegerReader(streams.get(name), false);
+      reader = new RunLengthIntegerReader(streams.get(name), false, getNumBytes());
 
     }
 
@@ -409,7 +426,8 @@ class RecordReaderImpl implements RecordReader {
         } else {
           result = (IntWritable) previous;
         }
-        result.set((int)SerializationUtils.readVslong(input));
+        result.set((int)SerializationUtils.readIntegerType(input, WriterImpl.INT_BYTE_SIZE,
+              true, input.useVInts()));
       }
       return result;
     }
@@ -430,7 +448,8 @@ class RecordReaderImpl implements RecordReader {
         } else {
           result = (ShortWritable) previous;
         }
-        result.set((short)SerializationUtils.readVslong(input));
+        result.set((short)SerializationUtils.readIntegerType(input, WriterImpl.SHORT_BYTE_SIZE,
+              true, input.useVInts()));
       }
       return result;
     }
@@ -451,7 +470,8 @@ class RecordReaderImpl implements RecordReader {
         } else {
           result = (LongWritable) previous;
         }
-        result.set((long)SerializationUtils.readVslong(input));
+        result.set((long)SerializationUtils.readIntegerType(input, WriterImpl.LONG_BYTE_SIZE,
+              true, input.useVInts()));
       }
       return result;
     }
@@ -656,7 +676,7 @@ class RecordReaderImpl implements RecordReader {
       stream = streams.get(name);
       lengths = new RunLengthIntegerReader(streams.get(new
           StreamName(columnId, OrcProto.Stream.Kind.LENGTH)),
-          false);
+          false, WriterImpl.INT_BYTE_SIZE);
     }
 
     @Override
@@ -716,9 +736,9 @@ class RecordReaderImpl implements RecordReader {
                     ) throws IOException {
       super.startStripe(streams, encodings);
       data = new RunLengthIntegerReader(streams.get(new StreamName(columnId,
-          OrcProto.Stream.Kind.DATA)), true);
+          OrcProto.Stream.Kind.DATA)), true, WriterImpl.LONG_BYTE_SIZE);
       nanos = new RunLengthIntegerReader(streams.get(new StreamName(columnId,
-          OrcProto.Stream.Kind.NANO_DATA)), false);
+          OrcProto.Stream.Kind.NANO_DATA)), false, WriterImpl.LONG_BYTE_SIZE);
     }
 
     @Override
@@ -832,7 +852,7 @@ class RecordReaderImpl implements RecordReader {
         stream = streams.get(name);
         lengths = new RunLengthIntegerReader(streams.get(new
             StreamName(columnId, OrcProto.Stream.Kind.LENGTH)),
-            false);
+            false, WriterImpl.INT_BYTE_SIZE);
       }
 
       @Override
@@ -911,7 +931,8 @@ class RecordReaderImpl implements RecordReader {
         // read the lengths
         name = new StreamName(columnId, OrcProto.Stream.Kind.LENGTH);
         in = streams.get(name);
-        RunLengthIntegerReader lenReader = new RunLengthIntegerReader(in, false);
+        RunLengthIntegerReader lenReader = new RunLengthIntegerReader(in, false,
+            WriterImpl.INT_BYTE_SIZE);
         int offset = 0;
         if (dictionaryOffsets == null ||
             dictionaryOffsets.length < dictionarySize + 1) {
@@ -926,7 +947,7 @@ class RecordReaderImpl implements RecordReader {
 
         // set up the row reader
         name = new StreamName(columnId, OrcProto.Stream.Kind.DATA);
-        reader = new RunLengthIntegerReader(streams.get(name), false);
+        reader = new RunLengthIntegerReader(streams.get(name), false, WriterImpl.INT_BYTE_SIZE);
       }
 
       @Override
@@ -1177,7 +1198,7 @@ class RecordReaderImpl implements RecordReader {
                     ) throws IOException {
       super.startStripe(streams, encodings);
       lengths = new RunLengthIntegerReader(streams.get(new StreamName(columnId,
-          OrcProto.Stream.Kind.LENGTH)), false);
+          OrcProto.Stream.Kind.LENGTH)), false, WriterImpl.INT_BYTE_SIZE);
       if (elementReader != null) {
         elementReader.startStripe(streams, encodings);
       }
@@ -1254,7 +1275,7 @@ class RecordReaderImpl implements RecordReader {
                     ) throws IOException {
       super.startStripe(streams, encodings);
       lengths = new RunLengthIntegerReader(streams.get(new StreamName(columnId,
-          OrcProto.Stream.Kind.LENGTH)), false);
+          OrcProto.Stream.Kind.LENGTH)), false, WriterImpl.INT_BYTE_SIZE);
       if (keyReader != null) {
         keyReader.startStripe(streams, encodings);
       }
@@ -1351,7 +1372,7 @@ class RecordReaderImpl implements RecordReader {
               section.getKind());
           streams.put(name,
               InStream.create(name.toString(), sectionBuffer, codec,
-                  bufferSize));
+                  bufferSize, section.getUseVInts()));
           sectionOffset += sectionLength;
         }
       }
@@ -1393,7 +1414,7 @@ class RecordReaderImpl implements RecordReader {
             this.streams.put(name,
                 InStream.create(name.toString(),
                     ByteBuffer.wrap(buffer, bytes,
-                        (int) section.getLength()), codec, bufferSize));
+                        (int) section.getLength()), codec, bufferSize, section.getUseVInts()));
             currentSection += 1;
             bytes += section.getLength();
           }
@@ -1483,7 +1504,7 @@ class RecordReaderImpl implements RecordReader {
           file.seek(offset);
           file.readFully(buffer);
           indexes[col] = OrcProto.RowIndex.parseFrom(InStream.create("index",
-              ByteBuffer.wrap(buffer), codec, bufferSize));
+              ByteBuffer.wrap(buffer), codec, bufferSize, stream.getUseVInts()));
         }
       }
       offset += stream.getLength();

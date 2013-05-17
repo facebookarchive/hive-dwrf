@@ -28,16 +28,22 @@ class IntDictionaryEncoder extends DictionaryEncoder {
 
   private long newKey;
   private int numElements = 0;
+  private final int numBytes;
+  private final boolean useVInts;
 
   protected final DynamicLongArray keys = new DynamicLongArray();
   protected final Long2IntOpenHashMap dictionary = new Long2IntOpenHashMap();
 
-  public IntDictionaryEncoder() {
+  public IntDictionaryEncoder(int numBytes, boolean useVInts) {
     super();
+    this.numBytes = numBytes;
+    this.useVInts = useVInts;
   }
 
-  public IntDictionaryEncoder(boolean sortKeys) {
+  public IntDictionaryEncoder(boolean sortKeys, int numBytes, boolean useVInts) {
     super(sortKeys);
+    this.numBytes = numBytes;
+    this.useVInts = useVInts;
   }
 
   public long getValue(int position) {
@@ -45,7 +51,7 @@ class IntDictionaryEncoder extends DictionaryEncoder {
   }
 
   /**
-   * 
+   *
    */
   public class LongPositionComparator implements IntComparator {
     @Override
@@ -130,9 +136,8 @@ class IntDictionaryEncoder extends DictionaryEncoder {
 
     public void writeBytes(OutputStream outputStream) throws IOException {
       long cur = keys.get(originalPosition);
-      SerializationUtils.writeVslong(outputStream, cur);
+      SerializationUtils.writeIntegerType(outputStream, cur, numBytes, true, useVInts);
     }
-
 
     // TODO: this should be different
     public int getLength() {

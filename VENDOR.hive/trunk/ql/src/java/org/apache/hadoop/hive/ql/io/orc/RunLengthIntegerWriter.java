@@ -38,11 +38,15 @@ class RunLengthIntegerWriter extends PositionedOutputStream {
   private long delta = 0;
   private boolean repeat = false;
   private int tailRunLength = 0;
+  private final int numBytes;
+  private final boolean useVInts;
 
   RunLengthIntegerWriter(PositionedOutputStream output,
-                         boolean signed) {
+                         boolean signed, int numBytes, boolean useVInts) {
     this.output = output;
     this.signed = signed;
+    this.numBytes = numBytes;
+    this.useVInts = useVInts;
   }
 
   private void writeValues() throws IOException {
@@ -50,19 +54,11 @@ class RunLengthIntegerWriter extends PositionedOutputStream {
       if (repeat) {
         output.write(numLiterals - MIN_REPEAT_SIZE);
         output.write((byte) delta);
-        if (signed) {
-          SerializationUtils.writeVslong(output, literals[0]);
-        } else {
-          SerializationUtils.writeVulong(output, literals[0]);
-        }
+        SerializationUtils.writeIntegerType(output, literals[0], numBytes, signed, useVInts);
       } else {
         output.write(-numLiterals);
         for(int i=0; i < numLiterals; ++i) {
-          if (signed) {
-            SerializationUtils.writeVslong(output, literals[i]);
-          } else {
-            SerializationUtils.writeVulong(output, literals[i]);
-          }
+          SerializationUtils.writeIntegerType(output, literals[i], numBytes, signed, useVInts);
         }
       }
       repeat = false;
