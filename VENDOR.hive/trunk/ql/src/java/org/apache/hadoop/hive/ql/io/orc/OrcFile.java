@@ -37,13 +37,9 @@ public final class OrcFile {
 
   public static final String MAGIC = "ORC";
   public static final String COMPRESSION = "orc.compress";
-  static final String DEFAULT_COMPRESSION = "ZLIB";
   public static final String COMPRESSION_BLOCK_SIZE = "orc.compress.size";
-  static final String DEFAULT_COMPRESSION_BLOCK_SIZE = "262144";
   public static final String STRIPE_SIZE = "orc.stripe.size";
-  static final String DEFAULT_STRIPE_SIZE = "268435456";
   public static final String ROW_INDEX_STRIDE = "orc.row.index.stride";
-  static final String DEFAULT_ROW_INDEX_STRIDE = "10000";
   public static final String ENABLE_INDEXES = "orc.create.index";
 
   // unused

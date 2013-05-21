@@ -69,7 +69,7 @@ public class OrcMergeMapper extends MergeMapper implements
         userMetadata = key.userMetadata;
         outWriter = (WriterImpl)OrcFile.createWriter(fs, outPath,
             new HiveConf(OrcMergeMapper.class), objectInspector,
-            Long.valueOf(OrcFile.DEFAULT_STRIPE_SIZE), // not needed
+            HiveConf.ConfVars.HIVE_ORC_STRIPE_SIZE.defaultLongVal, // not needed
             compression, compressionSize, rowIndexStride);
         for (Map.Entry<String, ByteBuffer> metadataEntry : userMetadata.entrySet()) {
           outWriter.addUserMetadata(metadataEntry.getKey(), metadataEntry.getValue());
