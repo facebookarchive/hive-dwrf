@@ -20,6 +20,7 @@ package org.apache.hadoop.hive.ql.io.orc;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
 import org.apache.hadoop.hive.ql.io.orc.OrcSerde.OrcSerdeRow;
@@ -58,15 +59,15 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
     private final SerDeStats stats;
 
     OrcRecordWriter(FileSystem fs, Path path, Configuration conf,
-                    String stripeSize, String compress,
-                    String compressionSize, String rowIndexStride) {
+                    long stripeSize, String compress,
+                    int compressionSize, int rowIndexStride) {
       this.fs = fs;
       this.path = path;
       this.conf = conf;
-      this.stripeSize = Long.valueOf(stripeSize);
+      this.stripeSize = stripeSize;
       this.compress = CompressionKind.valueOf(compress);
-      this.compressionSize = Integer.valueOf(compressionSize);
-      this.rowIndexStride = Integer.valueOf(rowIndexStride);
+      this.compressionSize = compressionSize;
+      this.rowIndexStride = rowIndexStride;
       this.stats = new SerDeStats();
     }
 
@@ -123,8 +124,10 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
       getRecordWriter(FileSystem fileSystem, JobConf conf, String name,
                       Progressable reporter) throws IOException {
     return new OrcRecordWriter(fileSystem,  new Path(name), conf,
-      OrcFile.DEFAULT_STRIPE_SIZE, OrcFile.DEFAULT_COMPRESSION,
-      OrcFile.DEFAULT_COMPRESSION_BLOCK_SIZE, OrcFile.DEFAULT_ROW_INDEX_STRIDE);
+      HiveConf.ConfVars.HIVE_ORC_STRIPE_SIZE.defaultLongVal,
+      HiveConf.ConfVars.HIVE_ORC_COMPRESSION.defaultVal,
+      HiveConf.ConfVars.HIVE_ORC_COMPRESSION_BLOCK_SIZE.defaultIntVal,
+      HiveConf.ConfVars.HIVE_ORC_ROW_INDEX_STRIDE.defaultIntVal);
   }
 
   @Override
@@ -135,19 +138,48 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
                          boolean isCompressed,
                          Properties tableProperties,
                          Progressable reporter) throws IOException {
-    String stripeSize = tableProperties.getProperty(OrcFile.STRIPE_SIZE,
-        OrcFile.DEFAULT_STRIPE_SIZE);
-    String compression = tableProperties.getProperty(OrcFile.COMPRESSION,
-        OrcFile.DEFAULT_COMPRESSION);
-    String compressionSize =
-      tableProperties.getProperty(OrcFile.COMPRESSION_BLOCK_SIZE,
-        OrcFile.DEFAULT_COMPRESSION_BLOCK_SIZE);
-    String rowIndexStride =
-        tableProperties.getProperty(OrcFile.ROW_INDEX_STRIDE,
-            OrcFile.DEFAULT_ROW_INDEX_STRIDE);
-    if ("false".equals(tableProperties.getProperty(OrcFile.ENABLE_INDEXES))) {
-      rowIndexStride = "0";
+    String stripeSizeStr = tableProperties.getProperty(OrcFile.STRIPE_SIZE);
+    long stripeSize;
+    if (stripeSizeStr != null) {
+      stripeSize = Long.valueOf(stripeSizeStr);
+    } else {
+      stripeSize = HiveConf.getLongVar(conf, HiveConf.ConfVars.HIVE_ORC_STRIPE_SIZE);
     }
+
+    String compression = tableProperties.getProperty(OrcFile.COMPRESSION);
+    if (compression == null) {
+      compression = HiveConf.getVar(conf, HiveConf.ConfVars.HIVE_ORC_COMPRESSION);
+    }
+
+    String compressionSizeStr = tableProperties.getProperty(OrcFile.COMPRESSION_BLOCK_SIZE);
+    int compressionSize;
+    if (compressionSizeStr != null) {
+      compressionSize = Integer.valueOf(compressionSizeStr);
+    } else {
+      compressionSize = HiveConf.getIntVar(conf,
+          HiveConf.ConfVars.HIVE_ORC_COMPRESSION_BLOCK_SIZE);
+    }
+
+    String rowIndexStrideStr = tableProperties.getProperty(OrcFile.ROW_INDEX_STRIDE);
+    int rowIndexStride;
+    if (rowIndexStrideStr != null) {
+      rowIndexStride = Integer.valueOf(rowIndexStrideStr);
+    } else {
+      rowIndexStride = HiveConf.getIntVar(conf, HiveConf.ConfVars.HIVE_ORC_ROW_INDEX_STRIDE);
+    }
+
+    String enableIndexesStr = tableProperties.getProperty(OrcFile.ENABLE_INDEXES);
+    boolean enableIndexes;
+    if (enableIndexesStr != null) {
+      enableIndexes = Boolean.valueOf(enableIndexesStr);
+    } else {
+      enableIndexes = HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_ORC_CREATE_INDEX);
+    }
+
+    if (!enableIndexes) {
+      rowIndexStride = 0;
+    }
+
     return new OrcRecordWriter(path.getFileSystem(conf), path, conf,
       stripeSize, compression, compressionSize, rowIndexStride);
   }
