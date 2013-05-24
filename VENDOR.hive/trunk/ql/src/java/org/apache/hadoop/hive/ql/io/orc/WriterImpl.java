@@ -117,6 +117,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
   private final boolean buildIndex;
   private final MemoryManager memoryManager;
   private final boolean useVInts;
+  private final int dfsBytesPerChecksum;
 
   private final Configuration conf;
 
@@ -142,6 +143,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     useVInts = conf.getBoolean(HiveConf.ConfVars.HIVE_ORC_USE_VINTS.varname,
         HiveConf.ConfVars.HIVE_ORC_USE_VINTS.defaultBoolVal);
     treeWriter = createTreeWriter(inspector, streamFactory, false, conf, useVInts);
+    dfsBytesPerChecksum = conf.getInt("io.bytes.per.checksum", 512);
     if (buildIndex && rowIndexStride < MIN_ROW_INDEX_STRIDE) {
       throw new IllegalArgumentException("Row stride must be at least " +
           MIN_ROW_INDEX_STRIDE);
@@ -1659,7 +1661,9 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     if (rawWriter == null) {
       rawWriter = fs.create(path, false, HDFS_BUFFER_SIZE,
         fs.getDefaultReplication(),
-          Math.min(stripeSize * 2L, Integer.MAX_VALUE));
+          // Use the largest value less than or equal to Integer.MAX_VALUE which is divisible
+          // by dfsBytesPerChecksum as an upper bound (otherwise HDFS will throw an exception)
+          Math.min(stripeSize * 2L, (Integer.MAX_VALUE / dfsBytesPerChecksum) * dfsBytesPerChecksum));
       rawWriter.writeBytes(OrcFile.MAGIC);
       headerLength = rawWriter.getPos();
       writer = new OutStream("metadata", bufferSize, codec,
