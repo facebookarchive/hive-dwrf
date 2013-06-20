@@ -36,6 +36,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.common.io.RawDatasizeConst;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
@@ -428,7 +429,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
         setRawDataSize(rawDataSize);
       } else {
         // Estimate the raw size of null as 1 byte
-        setRawDataSize(1);
+        setRawDataSize(RawDatasizeConst.NULL_SIZE);
       }
 
       if (isPresent != null) {
@@ -557,7 +558,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      super.write(obj, 1);
+      super.write(obj, RawDatasizeConst.BOOLEAN_SIZE);
       if (obj != null) {
         boolean val = ((BooleanObjectInspector) inspector).get(obj);
         indexStatistics.updateBoolean(val);
@@ -596,7 +597,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      super.write(obj, 1);
+      super.write(obj, RawDatasizeConst.BYTE_SIZE);
       if (obj != null) {
         byte val = ((ByteObjectInspector) inspector).get(obj);
         indexStatistics.updateInteger(val);
@@ -674,13 +675,13 @@ class WriterImpl implements Writer, MemoryManager.Callback {
                 long val;
                 if (inspector instanceof IntObjectInspector) {
                   val = ((IntObjectInspector) inspector).get(obj);
-                  rawDataSize = 4;
+                  rawDataSize = RawDatasizeConst.INT_SIZE;
                 } else if (inspector instanceof LongObjectInspector) {
                   val = ((LongObjectInspector) inspector).get(obj);
-                  rawDataSize = 8;
+                  rawDataSize = RawDatasizeConst.LONG_SIZE;
                 } else {
                   val = ((ShortObjectInspector) inspector).get(obj);
-                  rawDataSize = 2;
+                  rawDataSize = RawDatasizeConst.SHORT_SIZE;
                 }
                 rows.add(((IntDictionaryEncoder)dictionary).add(val));
                 indexStatistics.updateInteger(val);
@@ -838,7 +839,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      super.write(obj, 4);
+      super.write(obj, RawDatasizeConst.FLOAT_SIZE);
       if (obj != null) {
         float val = ((FloatObjectInspector) inspector).get(obj);
         indexStatistics.updateDouble(val);
@@ -877,7 +878,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      super.write(obj, 8);
+      super.write(obj, RawDatasizeConst.DOUBLE_SIZE);
       if (obj != null) {
         double val = ((DoubleObjectInspector) inspector).get(obj);
         indexStatistics.updateDouble(val);
@@ -1268,7 +1269,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       //   (8 since it's a long)
       //   +
       //   the number of bytes needed to store the nanos field (4 since it's an int)
-      super.write(obj, 12);
+      super.write(obj, RawDatasizeConst.TIMESTAMP_SIZE);
       if (obj != null) {
         Timestamp val =
             ((TimestampObjectInspector) inspector).
@@ -1498,7 +1499,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
         tags.write(tag);
         childrenWriters[tag].write(insp.getField(obj));
         // raw data size is size of tag (1) + size of value
-        rawDataSize = childrenWriters[tag].getRowRawDataSize() + 1;
+        rawDataSize = childrenWriters[tag].getRowRawDataSize() + RawDatasizeConst.UNION_TAG_SIZE;
       }
       super.write(obj, rawDataSize);
     }
