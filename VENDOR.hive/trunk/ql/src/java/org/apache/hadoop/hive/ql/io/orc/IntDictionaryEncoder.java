@@ -147,8 +147,11 @@ class IntDictionaryEncoder extends DictionaryEncoder {
 
   public long getByteSize() {
 
-    // original positions stored as value in hashmap
-    long posSizes = 4 * numElements;
+    // Long2IntOpenHashMap stores per element:
+    // key in long[] (8 bytes)
+    // value in int[] (4 bytes)
+    // whether each bucket was used or not in boolean [] (1 byte
+    long posSizes = (8 + 4 + 1) * numElements;
 
     return keys.getSizeInBytes() + posSizes;
   }
