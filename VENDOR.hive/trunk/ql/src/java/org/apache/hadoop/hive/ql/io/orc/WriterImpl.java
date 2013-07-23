@@ -666,25 +666,21 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     void write(Object obj) throws IOException {
       long rawDataSize = 0;
       if (obj != null) {
+        long val;
         switch (inspector.getCategory()) {
           case PRIMITIVE:
             switch (((PrimitiveObjectInspector) inspector).getPrimitiveCategory()) {
               case SHORT:
+                val = ((ShortObjectInspector) inspector).get(obj);
+                rawDataSize = RawDatasizeConst.SHORT_SIZE;
+                break;
               case INT:
+                val = ((IntObjectInspector) inspector).get(obj);
+                rawDataSize = RawDatasizeConst.INT_SIZE;
+                break;
               case LONG:
-                long val;
-                if (inspector instanceof IntObjectInspector) {
-                  val = ((IntObjectInspector) inspector).get(obj);
-                  rawDataSize = RawDatasizeConst.INT_SIZE;
-                } else if (inspector instanceof LongObjectInspector) {
-                  val = ((LongObjectInspector) inspector).get(obj);
-                  rawDataSize = RawDatasizeConst.LONG_SIZE;
-                } else {
-                  val = ((ShortObjectInspector) inspector).get(obj);
-                  rawDataSize = RawDatasizeConst.SHORT_SIZE;
-                }
-                rows.add(((IntDictionaryEncoder)dictionary).add(val));
-                indexStatistics.updateInteger(val);
+                val = ((LongObjectInspector) inspector).get(obj);
+                rawDataSize = RawDatasizeConst.LONG_SIZE;
                 break;
 
               default:
@@ -696,6 +692,8 @@ class WriterImpl implements Writer, MemoryManager.Callback {
           default:
             throw new IllegalArgumentException("Bad Category: DictionaryEncoding not available for " + inspector.getCategory());
         }
+        rows.add(((IntDictionaryEncoder)dictionary).add(val));
+        indexStatistics.updateInteger(val);
       }
       super.write(obj, rawDataSize);
     }
