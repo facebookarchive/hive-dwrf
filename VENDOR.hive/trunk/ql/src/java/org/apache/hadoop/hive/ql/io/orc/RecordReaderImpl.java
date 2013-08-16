@@ -921,7 +921,7 @@ class RecordReaderImpl implements RecordReader {
             OrcProto.Stream.Kind.DICTIONARY_DATA);
         InStream in = streams.get(name);
         if (in.available() > 0) {
-          dictionaryBuffer = new DynamicByteArray(64, in.available());
+          dictionaryBuffer = new DynamicByteArray(in.available());
           dictionaryBuffer.readAll(in);
         } else {
           dictionaryBuffer = null;

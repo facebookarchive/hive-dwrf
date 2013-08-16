@@ -17,53 +17,45 @@
  */
 package org.apache.hadoop.hive.ql.io.orc;
 
-import org.apache.hadoop.io.Text;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
+
+import org.apache.hadoop.hive.ql.io.slice.Slice;
+import org.apache.hadoop.hive.ql.io.slice.Slices;
+import org.apache.hadoop.io.Text;
 
 /**
  * A class that is a growable array of bytes. Growth is managed in terms of
  * chunks that are allocated when needed.
  */
 final class DynamicByteArray {
-  static final int DEFAULT_CHUNKSIZE = 32 * 1024;
-  static final int DEFAULT_NUM_CHUNKS = 128;
+  static final int DEFAULT_SIZE = 32 * 1024;
 
-  private final int chunkSize;        // our allocation sizes
-  private byte[][] data;              // the real data
-  private int length;                 // max set element index +1
-  private int initializedChunks = 0;  // the number of chunks created
+  private Slice data;                 // the real data
+  private int length = 0;
 
   public DynamicByteArray() {
-    this(DEFAULT_NUM_CHUNKS, DEFAULT_CHUNKSIZE);
+    this(DEFAULT_SIZE);
   }
 
-  public DynamicByteArray(int numChunks, int chunkSize) {
-    if (chunkSize == 0) {
+  public DynamicByteArray(int size) {
+    if (size == 0) {
       throw new IllegalArgumentException("bad chunksize");
     }
-    this.chunkSize = chunkSize;
-    data = new byte[numChunks][];
+    data = Slices.allocate(size);
   }
 
   /**
    * Ensure that the given index is valid.
    */
-  private void grow(int chunkIndex) {
-    if (chunkIndex >= initializedChunks) {
-      if (chunkIndex >= data.length) {
-        int newSize = Math.max(chunkIndex + 1, 2 * data.length);
-        byte[][] newChunk = new byte[newSize][];
-        System.arraycopy(data, 0, newChunk, 0, data.length);
-        data = newChunk;
-      }
-      for(int i=initializedChunks; i <= chunkIndex; ++i) {
-        data[i] = new byte[chunkSize];
-      }
-      initializedChunks = chunkIndex + 1;
+  private void grow(int index) {
+    if (index >= data.length()) {
+      int newSize = Math.max(index + DEFAULT_SIZE, 2 * data.length());
+      Slice newSlice = Slices.allocate(newSize);
+      newSlice.setBytes(0, data);
+      data = newSlice;
     }
   }
 
@@ -73,26 +65,20 @@ final class DynamicByteArray {
                                             " is outside of 0.." +
                                             (length - 1));
     }
-    int i = index / chunkSize;
-    int j = index % chunkSize;
-    return data[i][j];
+    return data.getByte(index);
   }
 
   public void set(int index, byte value) {
-    int i = index / chunkSize;
-    int j = index % chunkSize;
-    grow(i);
+    grow(index);
     if (index >= length) {
       length = index + 1;
     }
-    data[i][j] = value;
+    data.setByte(index, value);
   }
 
   public int add(byte value) {
-    int i = length / chunkSize;
-    int j = length % chunkSize;
-    grow(i);
-    data[i][j] = value;
+    grow(length);
+    data.setByte(length, value);
     int result = length;
     length += 1;
     return result;
@@ -106,18 +92,8 @@ final class DynamicByteArray {
    * @return the offset of the start of the value
    */
   public int add(byte[] value, int valueOffset, int valueLength) {
-    int i = length / chunkSize;
-    int j = length % chunkSize;
-    grow((length + valueLength) / chunkSize);
-    int remaining = valueLength;
-    while (remaining > 0) {
-      int size = Math.min(remaining, chunkSize - j);
-      System.arraycopy(value, valueOffset, data[i], j, size);
-      remaining -= size;
-      valueOffset += size;
-      i += 1;
-      j = 0;
-    }
+    grow(length + valueLength);
+    data.setBytes(length, value, valueOffset, valueLength);
     int result = length;
     length += valueLength;
     return result;
@@ -129,21 +105,14 @@ final class DynamicByteArray {
    * @throws IOException
    */
   public void readAll(InputStream in) throws IOException {
-    int currentChunk = length / chunkSize;
-    int currentOffset = length % chunkSize;
-    grow(currentChunk);
-    int currentLength = in.read(data[currentChunk], currentOffset,
-      chunkSize - currentOffset);
-    while (currentLength > 0) {
-      length += currentLength;
-      currentOffset = length % chunkSize;
-      if (currentOffset == 0) {
-        currentChunk = length / chunkSize;
-        grow(currentChunk);
+    int read = 0;
+    do {
+      grow(length);
+      read = data.setBytes(length, in, data.length() - length);
+      if (read > 0) {
+        length += read;
       }
-      currentLength = in.read(data[currentChunk], currentOffset,
-        chunkSize - currentOffset);
-    }
+    } while (read > 0);
   }
 
   /**
@@ -155,28 +124,9 @@ final class DynamicByteArray {
    * @param ourLength the number of bytes in our array
    * @return negative for less, 0 for equal, positive for greater
    */
-  public int compare(byte[] other, int otherOffset, int otherLength,
-                     int ourOffset, int ourLength) {
-    int currentChunk = ourOffset / chunkSize;
-    int currentOffset = ourOffset % chunkSize;
-    int maxLength = Math.min(otherLength, ourLength);
-    while (maxLength > 0 &&
-      other[otherOffset] == data[currentChunk][currentOffset]) {
-      otherOffset += 1;
-      currentOffset += 1;
-      if (currentOffset == chunkSize) {
-        currentChunk += 1;
-        currentOffset = 0;
-      }
-      maxLength -= 1;
-    }
-    if (maxLength == 0) {
-      return otherLength - ourLength;
-    }
-    int otherByte = 0xff & other[otherOffset];
-    int ourByte = 0xff & data[currentChunk][currentOffset];
-    return otherByte > ourByte ? 1 : -1;
-  }
+ public int compare(byte[] other, int otherOffset, int otherLength, int ourOffset, int ourLength) {
+   return 0 - data.compareTo(ourOffset, ourLength, other, otherOffset, otherLength);
+ }
 
   /**
    * Get the size of the array.
@@ -191,10 +141,7 @@ final class DynamicByteArray {
    */
   public void clear() {
     length = 0;
-    for(int i=0; i < data.length; ++i) {
-      data[i] = null;
-    }
-    initializedChunks = 0;
+    data = Slices.allocate(DEFAULT_SIZE);
   }
 
   /**
@@ -205,16 +152,7 @@ final class DynamicByteArray {
    */
   public void setText(Text result, int offset, int length) {
     result.clear();
-    int currentChunk = offset / chunkSize;
-    int currentOffset = offset % chunkSize;
-    int currentLength = Math.min(length, chunkSize - currentOffset);
-    while (length > 0) {
-      result.append(data[currentChunk], currentOffset, currentLength);
-      length -= currentLength;
-      currentChunk += 1;
-      currentOffset = 0;
-      currentLength = Math.min(length, chunkSize - currentOffset);
-    }
+    result.append(data.getBytes(), offset, length);
   }
 
   /**
@@ -226,17 +164,10 @@ final class DynamicByteArray {
    */
   public void write(OutputStream out, int offset,
                     int length) throws IOException {
-    int currentChunk = offset / chunkSize;
-    int currentOffset = offset % chunkSize;
-    while (length > 0) {
-      int currentLength = Math.min(length, chunkSize - currentOffset);
-      out.write(data[currentChunk], currentOffset, currentLength);
-      length -= currentLength;
-      currentChunk += 1;
-      currentOffset = 0;
-    }
+    data.getBytes(offset, out, length);
   }
 
+  @Override
   public String toString() {
     int i;
     StringBuilder sb = new StringBuilder(length * 3);
@@ -255,23 +186,14 @@ final class DynamicByteArray {
 
   public void setByteBuffer(ByteBuffer result, int offset, int length) {
     result.clear();
-    int currentChunk = offset / chunkSize;
-    int currentOffset = offset % chunkSize;
-    int currentLength = Math.min(length, chunkSize - currentOffset);
-    while (length > 0) {
-      result.put(data[currentChunk], currentOffset, currentLength);
-      length -= currentLength;
-      currentChunk += 1;
-      currentOffset = 0;
-      currentLength = Math.min(length, chunkSize - currentOffset);
-    }
+    result.put(data.getBytes(offset, length));
   }
 
   /**
    * Get the size of the buffers.
    */
   public long getSizeInBytes() {
-    return initializedChunks * chunkSize;
+    return data.length();
   }
 }
 

@@ -18,16 +18,14 @@
 
 package org.apache.hadoop.hive.ql.io.orc;
 
-import org.apache.hadoop.io.DataOutputBuffer;
-import org.apache.hadoop.io.IntWritable;
-import org.apache.hadoop.io.Text;
-import org.junit.Test;
+import static junit.framework.Assert.assertEquals;
+
+import java.io.IOException;
 import java.util.Arrays;
 
-import java.io.BufferedOutputStream;
-import java.io.IOException;
-
-import static junit.framework.Assert.assertEquals;
+import org.apache.hadoop.io.DataOutputBuffer;
+import org.apache.hadoop.io.Text;
+import org.junit.Test;
 
 /**
  * Test the red-black tree with string keys.
@@ -59,7 +57,7 @@ public class TestStringDictionaryEncoder {
     }
   }
 
-  private void checkContent(StringDictionaryEncoder dictEncoder, String[] values, int[] order) 
+  private void checkContent(StringDictionaryEncoder dictEncoder, String[] values, int[] order)
       throws Exception {
     dictEncoder.visit(new TestVisitor(values, order));
 
@@ -88,7 +86,7 @@ public class TestStringDictionaryEncoder {
     String [] expectedOrderedUniqueValues = {"alan", "arun", "ashutosh", "eric", "eric14", "greg",
       "o", "owen", "z", "ziggy"};
 
-    
+
     int [] expectedOrder = new int[]{2,5,1,4,6,3,7,0,9,8};
     for (int i=0; i < addKeys.length; i++) {
       int addPos = dict.add(new Text(addKeys[i]));
@@ -123,7 +121,7 @@ public class TestStringDictionaryEncoder {
     }
     checkContent(dict, expectedUniqueValues, expectedOrder);
     dict.clear();
-    assertEquals(0, dict.getSizeInBytes());
+    assertEquals(32768, dict.getSizeInBytes());
     assertEquals(0, dict.size());
   }
 

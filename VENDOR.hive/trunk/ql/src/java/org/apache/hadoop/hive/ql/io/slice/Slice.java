@@ -645,6 +645,48 @@ public final class Slice
         return Ints.compare(size, that.size);
     }
 
+    public int compareTo(int offset, int length, byte[] that, int otherOffset, int otherLength)
+    {
+      if ((this.base == that) && (offset == otherOffset) && (length == otherLength)) {
+        return 0;
+      }
+
+      checkIndexLength(offset, length);
+      checkPositionIndexes(otherOffset, otherOffset + otherLength, that.length);
+
+      int compareLength = Math.min(length, otherLength);
+      while (compareLength >= SizeOf.SIZE_OF_LONG) {
+        long thisLong = unsafe.getLong(base, address + offset);
+        thisLong = Long.reverseBytes(thisLong);
+        long thatLong = unsafe.getLong(that, (long) SizeOf.ARRAY_BYTE_BASE_OFFSET + otherOffset);
+        thatLong = Long.reverseBytes(thatLong);
+
+        int v = UnsignedLongs.compare(thisLong, thatLong);
+        if (v != 0) {
+          return v;
+        }
+
+        offset += SizeOf.SIZE_OF_LONG;
+        otherOffset += SizeOf.SIZE_OF_LONG;
+        compareLength -= SizeOf.SIZE_OF_LONG;
+      }
+
+      while (compareLength > 0) {
+        byte thisByte = unsafe.getByte(base, address + offset);
+        byte thatByte = unsafe.getByte(that, (long) SizeOf.ARRAY_BYTE_BASE_OFFSET + otherOffset);
+
+        int v = UnsignedBytes.compare(thisByte, thatByte);
+        if (v != 0) {
+          return v;
+        }
+        offset++;
+        otherOffset++;
+        compareLength--;
+      }
+
+      return Ints.compare(length, otherLength);
+    }
+
     /**
      * Compares the specified object with this slice for equality.  Equality is
      * solely based on the contents of the slice.
