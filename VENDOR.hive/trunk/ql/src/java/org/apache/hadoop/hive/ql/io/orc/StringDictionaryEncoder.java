@@ -43,6 +43,7 @@ class StringDictionaryEncoder extends DictionaryEncoder {
 
   private class TextCompressed {
     private int offset = -1;
+    private int length = -1;
     private int hashcode = -1;
     private TextCompressed(int hash) {
       hashcode = hash;
@@ -72,7 +73,7 @@ class StringDictionaryEncoder extends DictionaryEncoder {
   public class TextCompressedHashStrategy implements Hash.Strategy<TextCompressed> {
     @Override
     public boolean equals(TextCompressed obj1, TextCompressed other) {
-      return compareValue(obj1.offset) == 0;
+      return equalsValue(obj1.offset, obj1.length);
     }
 
     @Override
@@ -99,7 +100,7 @@ class StringDictionaryEncoder extends DictionaryEncoder {
     newKey.set(value);
     int len = newKey.getLength();
     TextCompressed curKeyCompressed = new TextCompressed(newKey.hashCode());
-    if (htDictionary.contains(curKeyCompressed)) {
+    if (!htDictionary.add(curKeyCompressed)) {
       return htDictionary.get(curKeyCompressed).offset;
     } else {
       // update count of hashset keys
@@ -107,7 +108,7 @@ class StringDictionaryEncoder extends DictionaryEncoder {
       numElements += 1;
       // set current key offset and hashcode
       curKeyCompressed.offset = valRow;
-      htDictionary.add(curKeyCompressed);
+      curKeyCompressed.length = len;
       keySizes.add(byteArray.add(newKey.getBytes(), 0, len));
       return valRow;
     }
@@ -127,6 +128,11 @@ class StringDictionaryEncoder extends DictionaryEncoder {
     int end = getEnd(position);
     return byteArray.compare(newKey.getBytes(), 0, newKey.getLength(),
         start, end - start);
+  }
+
+  protected boolean equalsValue(int position, int length) {
+    int start = keySizes.get(position);
+    return byteArray.equals(newKey.getBytes(), 0, newKey.getLength(), start, length);
   }
 
   private class VisitorContextImpl implements VisitorContext<Text> {

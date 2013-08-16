@@ -855,6 +855,47 @@ public final class Slice
 
         return true;
     }
+    
+    @SuppressWarnings("ObjectEquality")
+    public boolean equals(int offset, int length, byte[] that, int otherOffset, int otherLength)
+    {
+        if (length != otherLength) {
+            return false;
+        }
+
+        if ((this.base == that) && (offset == otherOffset)) {
+            return true;
+        }
+
+        checkIndexLength(offset, length);
+        checkPositionIndexes(otherOffset, otherOffset + otherLength, that.length);
+
+        while (length >= SizeOf.SIZE_OF_LONG) {
+            long thisLong = unsafe.getLong(base, address + offset);
+            long thatLong = unsafe.getLong(that, (long) SizeOf.ARRAY_BYTE_BASE_OFFSET + otherOffset);
+
+            if (thisLong != thatLong) {
+                return false;
+            }
+
+            offset += SizeOf.SIZE_OF_LONG;
+            otherOffset += SizeOf.SIZE_OF_LONG;
+            length -= SizeOf.SIZE_OF_LONG;
+        }
+
+        while (length > 0) {
+            byte thisByte = unsafe.getByte(base, address + offset);
+            byte thatByte = unsafe.getByte(that, (long) SizeOf.ARRAY_BYTE_BASE_OFFSET + otherOffset);
+            if (thisByte != thatByte) {
+                return false;
+            }
+            offset++;
+            otherOffset++;
+            length--;
+        }
+
+        return true;
+    }
 
     /**
      * Creates a slice input backed by this slice.  Any changes to this slice
