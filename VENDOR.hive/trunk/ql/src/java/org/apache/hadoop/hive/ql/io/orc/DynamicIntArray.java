@@ -17,6 +17,10 @@
  */
 package org.apache.hadoop.hive.ql.io.orc;
 
+import org.apache.hadoop.hive.ql.io.slice.SizeOf;
+import org.apache.hadoop.hive.ql.io.slice.Slice;
+import org.apache.hadoop.hive.ql.io.slice.Slices;
+
 /**
  * Dynamic int array that uses primitive types and chunks to avoid copying
  * large number of integers when it resizes.
@@ -32,39 +36,29 @@ package org.apache.hadoop.hive.ql.io.orc;
  * synchronized.
  */
 final class DynamicIntArray {
-  static final int DEFAULT_CHUNKSIZE = 8 * 1024;
-  static final int INIT_CHUNKS = 128;
+  static final int DEFAULT_SIZE = SizeOf.SIZE_OF_INT * 8 * 1024;
 
-  private final int chunkSize;       // our allocation size
-  private int[][] data;              // the real data
-  private int length;                // max set element index +1
-  private int initializedChunks = 0; // the number of created chunks
+  private Slice data;                    // the real data
+  private int length = 0;                // max set element index +1
 
   public DynamicIntArray() {
-    this(DEFAULT_CHUNKSIZE);
+    this(DEFAULT_SIZE);
   }
 
-  public DynamicIntArray(int chunkSize) {
-    this.chunkSize = chunkSize;
+  public DynamicIntArray(int size) {
 
-    data = new int[INIT_CHUNKS][];
+    data = Slices.allocate(size);
   }
 
   /**
    * Ensure that the given index is valid.
    */
-  private void grow(int chunkIndex) {
-    if (chunkIndex >= initializedChunks) {
-      if (chunkIndex >= data.length) {
-        int newSize = Math.max(chunkIndex + 1, 2 * data.length);
-        int[][] newChunk = new int[newSize][];
-        System.arraycopy(data, 0, newChunk, 0, data.length);
-        data = newChunk;
-      }
-      for (int i=initializedChunks; i <= chunkIndex; ++i) {
-        data[i] = new int[chunkSize];
-      }
-      initializedChunks = chunkIndex + 1;
+  private void grow(int index) {
+    if ((index * SizeOf.SIZE_OF_INT) + (SizeOf.SIZE_OF_INT - 1) >= data.length()) {
+      int newSize = Math.max((index * SizeOf.SIZE_OF_INT) + DEFAULT_SIZE, 2 * data.length());
+      Slice newSlice = Slices.allocate(newSize);
+      newSlice.setBytes(0, data);
+      data = newSlice;
     }
   }
 
@@ -74,36 +68,30 @@ final class DynamicIntArray {
                                             " is outside of 0.." +
                                             (length - 1));
     }
-    int i = index / chunkSize;
-    int j = index % chunkSize;
-    return data[i][j];
+
+    return data.getInt(index * SizeOf.SIZE_OF_INT);
   }
 
   public void set(int index, int value) {
-    int i = index / chunkSize;
-    int j = index % chunkSize;
-    grow(i);
+    grow(index);
     if (index >= length) {
       length = index + 1;
     }
-    data[i][j] = value;
+
+    data.setInt(index * SizeOf.SIZE_OF_INT, value);
   }
 
   public void increment(int index, int value) {
-    int i = index / chunkSize;
-    int j = index % chunkSize;
-    grow(i);
+    grow(index);
     if (index >= length) {
       length = index + 1;
     }
-    data[i][j] += value;
+    data.setInt(index * SizeOf.SIZE_OF_INT, data.getInt(index * SizeOf.SIZE_OF_INT) + value);
   }
 
   public void add(int value) {
-    int i = length / chunkSize;
-    int j = length % chunkSize;
-    grow(i);
-    data[i][j] = value;
+    grow(length);
+    data.setInt(length * SizeOf.SIZE_OF_INT, value);
     length += 1;
   }
 
@@ -113,12 +101,10 @@ final class DynamicIntArray {
 
   public void clear() {
     length = 0;
-    for(int i=0; i < data.length; ++i) {
-      data[i] = null;
-    }
-    initializedChunks = 0;
+    data = Slices.allocate(DEFAULT_SIZE);
   }
 
+  @Override
   public String toString() {
     int i;
     StringBuilder sb = new StringBuilder(length * 4);
@@ -136,7 +122,7 @@ final class DynamicIntArray {
   }
 
   public int getSizeInBytes() {
-    return 4 * initializedChunks * chunkSize;
+    return data.length();
   }
 }
 
