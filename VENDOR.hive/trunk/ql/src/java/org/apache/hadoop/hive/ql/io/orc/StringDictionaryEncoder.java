@@ -73,7 +73,7 @@ class StringDictionaryEncoder extends DictionaryEncoder {
   public class TextCompressedHashStrategy implements Hash.Strategy<TextCompressed> {
     @Override
     public boolean equals(TextCompressed obj1, TextCompressed other) {
-      return equalsValue(obj1.offset, obj1.length);
+      return obj1.hashcode == other.hashcode && equalsValue(obj1.offset, obj1.length);
     }
 
     @Override
