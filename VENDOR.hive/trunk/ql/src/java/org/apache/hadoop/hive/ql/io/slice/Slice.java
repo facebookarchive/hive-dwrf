@@ -80,7 +80,7 @@ public final class Slice
      * Base object for relative addresses.  If null, the address is an
      * absolute location in memory.
      */
-    private final Object base;
+    private final byte[] base;
 
     /**
      * If base is null, address is the absolute memory location of data for
@@ -133,7 +133,7 @@ public final class Slice
     /**
      * Creates a slice for directly accessing the base object.
      */
-    Slice(Object base, long address, int size, Object reference)
+    Slice(byte[] base, long address, int size, Object reference)
     {
         if (address <= 0) {
             throw new IllegalArgumentException(format("Invalid address: %s", address));
@@ -358,7 +358,7 @@ public final class Slice
      */
     public byte[] getBytes()
     {
-        return getBytes(0, length());
+        return base;
     }
 
     /**
@@ -391,14 +391,7 @@ public final class Slice
     {
         checkIndexLength(index, length);
 
-        byte[] buffer = new byte[4096];
-        while (length > 0) {
-            int size = Math.min(buffer.length, length);
-            getBytes(index, buffer, 0, size);
-            out.write(buffer, 0, size);
-            length -= size;
-            index += size;
-        }
+        out.write(base, index, length);
     }
 
     /**
