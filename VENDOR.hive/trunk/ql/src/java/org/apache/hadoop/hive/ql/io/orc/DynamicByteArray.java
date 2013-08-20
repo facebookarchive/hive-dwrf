@@ -190,7 +190,7 @@ final class DynamicByteArray {
 
   public void setByteBuffer(ByteBuffer result, int offset, int length) {
     result.clear();
-    result.put(data.getBytes(offset, length));
+    result.put(data.getBytes(), offset, length);
   }
 
   /**
