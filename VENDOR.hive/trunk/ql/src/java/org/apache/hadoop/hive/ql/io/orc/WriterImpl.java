@@ -425,11 +425,21 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     void write(Object obj, long rawDataSize) throws IOException{
       if (obj != null) {
-        indexStatistics.increment();
         setRawDataSize(rawDataSize);
       } else {
         // Estimate the raw size of null as 1 byte
         setRawDataSize(RawDatasizeConst.NULL_SIZE);
+      }
+
+      flushRow(obj);
+    }
+
+    /**
+     * Update the row count and mark the isPresent bit
+     */
+    void flushRow(Object obj) throws IOException {
+      if (obj != null) {
+        indexStatistics.increment();
       }
 
       if (isPresent != null) {
@@ -442,7 +452,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
      *
      * @param rawDataSize
      */
-    private void setRawDataSize(long rawDataSize) {
+    protected void setRawDataSize(long rawDataSize) {
       rowRawDataSize = rawDataSize;
       stripeRawDataSize += rawDataSize;
     }
@@ -479,6 +489,17 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     TreeWriter[] getChildrenWriters() {
       return childrenWriters;
+    }
+
+    /**
+     * For all the TreeWriters that buffer rows, process
+     * all the buffered rows.
+     */
+    void flush() throws IOException {
+      for (TreeWriter writer : childrenWriters) {
+        writer.flush();
+      }
+      return;
     }
 
     /**
@@ -634,6 +655,9 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     private boolean useDictionaryEncoding = true;
     private final StreamFactory writer;
     private final int numBytes;
+    private final Long[] buffer;
+    private int bufferIndex = 0;
+    private long bufferedBytes = 0;
 
     IntegerTreeWriter(int columnId,
                       ObjectInspector inspector,
@@ -657,6 +681,11 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       dictionaryKeySizeThreshold = conf.getFloat(
           HiveConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD.varname,
           HiveConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD.defaultFloatVal);
+
+      int bufferLength = conf.getInt(HiveConf.ConfVars.HIVE_ORC_ROW_BUFFER_SIZE.varname,
+          HiveConf.ConfVars.HIVE_ORC_ROW_BUFFER_SIZE.defaultIntVal);
+      buffer = new Long[bufferLength];
+
       recordPosition(rowIndexPosition);
       rowIndexValueCount.add(0L);
       buildIndex = writer.buildIndex();
@@ -664,38 +693,53 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      long rawDataSize = 0;
       if (obj != null) {
-        long val;
         switch (inspector.getCategory()) {
           case PRIMITIVE:
             switch (((PrimitiveObjectInspector) inspector).getPrimitiveCategory()) {
               case SHORT:
-                val = ((ShortObjectInspector) inspector).get(obj);
-                rawDataSize = RawDatasizeConst.SHORT_SIZE;
+                buffer[bufferIndex++] = new Long(((ShortObjectInspector) inspector).get(obj));
+                setRawDataSize(RawDatasizeConst.SHORT_SIZE);
                 break;
               case INT:
-                val = ((IntObjectInspector) inspector).get(obj);
-                rawDataSize = RawDatasizeConst.INT_SIZE;
+                buffer[bufferIndex++] = new Long(((IntObjectInspector) inspector).get(obj));
+                setRawDataSize(RawDatasizeConst.INT_SIZE);
                 break;
               case LONG:
-                val = ((LongObjectInspector) inspector).get(obj);
-                rawDataSize = RawDatasizeConst.LONG_SIZE;
+                buffer[bufferIndex++] = new Long(((LongObjectInspector) inspector).get(obj));
+                setRawDataSize(RawDatasizeConst.LONG_SIZE);
                 break;
-
               default:
                 throw new IllegalArgumentException("Bad Category: Dictionary Encoding not available for " +
                     ((PrimitiveObjectInspector) inspector).getPrimitiveCategory());
-
             }
             break;
           default:
             throw new IllegalArgumentException("Bad Category: DictionaryEncoding not available for " + inspector.getCategory());
         }
-        rows.add(((IntDictionaryEncoder)dictionary).add(val));
-        indexStatistics.updateInteger(val);
+        bufferedBytes += RawDatasizeConst.LONG_SIZE;
+      } else {
+        buffer[bufferIndex++] = null;
+        setRawDataSize(RawDatasizeConst.NULL_SIZE);
       }
-      super.write(obj, rawDataSize);
+      if (bufferIndex == buffer.length) {
+        flush();
+      }
+    }
+
+    @Override
+    void flush() throws IOException {
+      for (int i = 0; i < bufferIndex; i++) {
+        Long val = buffer[i];
+        buffer[i] = null;
+        if (val != null) {
+          rows.add(dictionary.add(val));
+          indexStatistics.updateInteger(val);
+        }
+        super.flushRow(val);
+      }
+      bufferIndex = 0;
+      bufferedBytes = 0;
     }
 
     @Override
@@ -816,7 +860,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     long estimateMemory() {
-      return rows.size() * 4 + dictionary.getByteSize();
+      return rows.size() * 4 + dictionary.getByteSize() + bufferedBytes;
     }
 
   }
@@ -922,6 +966,10 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     private boolean useDictionaryEncoding = true;
 
+    private final Text[] buffer;
+    private int bufferIndex = 0;
+    private long bufferedBytes = 0;
+
     StringTreeWriter(int columnId,
                      ObjectInspector inspector,
                      StreamFactory writerFactory,
@@ -955,6 +1003,11 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       entropyThreshold = conf.getInt(
           HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD.varname,
           HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD.defaultIntVal);
+
+      int bufferLength = conf.getInt(HiveConf.ConfVars.HIVE_ORC_ROW_BUFFER_SIZE.varname,
+          HiveConf.ConfVars.HIVE_ORC_ROW_BUFFER_SIZE.defaultIntVal);
+      buffer = new Text[bufferLength];
+
       recordPosition(rowIndexPosition);
       rowIndexValueCount.add(0L);
       buildIndex = writer.buildIndex();
@@ -962,15 +1015,34 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     void write(Object obj) throws IOException {
-      long rawDataSize = 0;
       if (obj != null) {
-        Text val = ((StringObjectInspector) inspector)
-          .getPrimitiveWritableObject(obj);
-        rows.add(dictionary.add(val));
-        indexStatistics.updateString(val.toString());
-        rawDataSize = val.getLength();
+        Text val = ((StringObjectInspector) inspector).getPrimitiveWritableObject(obj);
+        buffer[bufferIndex++] = new Text(val);
+        setRawDataSize(val.getLength());
+        bufferedBytes += val.getLength();
+      } else {
+        buffer[bufferIndex++] = null;
+        setRawDataSize(RawDatasizeConst.NULL_SIZE);
       }
-      super.write(obj, rawDataSize);
+      if (bufferIndex == buffer.length) {
+        flush();
+      }
+    }
+
+    @Override
+    void flush() throws IOException {
+      for (int i = 0; i < bufferIndex; i++) {
+        Text val = buffer[i];
+        // Make sure we don't end up storing it twice
+        buffer[i] = null;
+        if (val != null) {
+          rows.add(dictionary.add(val));
+          indexStatistics.updateString(val.toString());
+        }
+        super.flushRow(val);
+      }
+      bufferIndex = 0;
+      bufferedBytes = 0;
     }
 
     private boolean isEntropyThresholdExceeded(Set<Character> chars, Text text, int index) {
@@ -1186,7 +1258,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     long estimateMemory() {
-      return rows.getSizeInBytes() + dictionary.getSizeInBytes();
+      return rows.getSizeInBytes() + dictionary.getSizeInBytes() + bufferedBytes;
     }
   }
 
@@ -1672,6 +1744,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
   }
 
   private void createRowIndexEntry() throws IOException {
+    treeWriter.flush();
     treeWriter.createRowIndexEntry();
     rowsInIndex = 0;
   }
@@ -1692,6 +1765,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
   private void flushStripe() throws IOException {
     ensureWriter();
+    treeWriter.flush();
     if (buildIndex && rowsInIndex != 0) {
       createRowIndexEntry();
     }
