@@ -23,12 +23,30 @@ import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.conf.HiveConf;
+
 class ZlibCodec implements CompressionCodec {
+
+  private final int compressionLevel;
+
+  public ZlibCodec() {
+    compressionLevel = Deflater.DEFAULT_COMPRESSION;
+  }
+
+  public ZlibCodec(Configuration conf) {
+    if (conf == null) {
+      compressionLevel = Deflater.DEFAULT_COMPRESSION;
+    } else {
+      compressionLevel = conf.getInt(HiveConf.ConfVars.HIVE_ORC_ZLIB_COMPRESSION_LEVEL.varname,
+          HiveConf.ConfVars.HIVE_ORC_ZLIB_COMPRESSION_LEVEL.defaultIntVal);
+    }
+  }
 
   @Override
   public boolean compress(ByteBuffer in, ByteBuffer out,
                           ByteBuffer overflow) throws IOException {
-    Deflater deflater = new Deflater(Deflater.DEFAULT_COMPRESSION, true);
+    Deflater deflater = new Deflater(compressionLevel, true);
     int length = in.remaining();
     deflater.setInput(in.array(), in.arrayOffset() + in.position(), length);
     deflater.finish();
