@@ -140,7 +140,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     this.rowIndexStride = rowIndexStride;
     this.memoryManager = memoryManager;
     buildIndex = rowIndexStride > 0;
-    codec = createCodec(compress);
+    codec = createCodec(compress, conf);
     useVInts = conf.getBoolean(HiveConf.ConfVars.HIVE_ORC_USE_VINTS.varname,
         HiveConf.ConfVars.HIVE_ORC_USE_VINTS.defaultBoolVal);
     treeWriter = createTreeWriter(inspector, streamFactory, false, conf, useVInts);
@@ -154,11 +154,17 @@ class WriterImpl implements Writer, MemoryManager.Callback {
   }
 
   static CompressionCodec createCodec(CompressionKind kind) {
+    // To be used for cases where we don't care about configuring the codec,
+    // e.g. reads
+    return createCodec(kind, null);
+  }
+
+  static CompressionCodec createCodec(CompressionKind kind, Configuration conf) {
     switch (kind) {
       case NONE:
         return null;
       case ZLIB:
-        return new ZlibCodec();
+        return new ZlibCodec(conf);
       case SNAPPY:
         return new SnappyCodec();
       case LZO:
