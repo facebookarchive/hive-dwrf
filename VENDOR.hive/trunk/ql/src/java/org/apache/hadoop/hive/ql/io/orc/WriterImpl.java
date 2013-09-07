@@ -373,6 +373,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     protected long stripeRawDataSize = 0;
     protected long rowRawDataSize = 0;
     protected final boolean useVInts;
+    private int numStripes = 0;
 
     /**
      * Create a tree writer
@@ -410,6 +411,9 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       }
     }
 
+    protected int getNumStripes() {
+      return numStripes;
+    }
     protected OrcProto.RowIndex.Builder getRowIndex() {
       return rowIndex;
     }
@@ -475,6 +479,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
      */
     void writeStripe(OrcProto.StripeFooter.Builder builder,
                      int requiredIndexEntries) throws IOException {
+      numStripes++;
       if (isPresent != null) {
         isPresent.flush();
       }
@@ -482,7 +487,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       if (rowIndexStream != null) {
         if (rowIndex.getEntryCount() != requiredIndexEntries) {
           throw new IllegalArgumentException("Column has wrong number of " +
-               "index entries found: " + rowIndexEntry + " expected: " +
+               "index entries found: " + rowIndex.getEntryCount() + " expected: " +
                requiredIndexEntries);
         }
         rowIndex.build().writeTo(rowIndexStream);
@@ -650,6 +655,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
   private static class IntegerTreeWriter extends TreeWriter {
     private final PositionedOutputStream output;
     private final RunLengthIntegerWriter lengthOutput;
+    private final DynamicLongArray rawDataArray = new DynamicLongArray();
     private final DynamicIntArray rows = new DynamicIntArray();
     private final List<OrcProto.RowIndexEntry> savedRowIndex =
         new ArrayList<OrcProto.RowIndexEntry>();
@@ -664,6 +670,9 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     private final Long[] buffer;
     private int bufferIndex = 0;
     private long bufferedBytes = 0;
+    private final int recomputeStripeEncodingInterval;
+    private int numElements = 0;
+
 
     IntegerTreeWriter(int columnId,
                       ObjectInspector inspector,
@@ -677,6 +686,9 @@ class WriterImpl implements Writer, MemoryManager.Callback {
           HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.defaultBoolVal);
 
       this.numBytes = numBytes;
+      recomputeStripeEncodingInterval = conf.getInt(
+          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL.varname,
+          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL.defaultIntVal);
 
       dictionary = new IntDictionaryEncoder(sortKeys, numBytes, useVInts);
       output = writer.createStream(id,
@@ -695,6 +707,10 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       recordPosition(rowIndexPosition);
       rowIndexValueCount.add(0L);
       buildIndex = writer.buildIndex();
+    }
+
+    boolean determineEncodingStripe() {
+      return (getNumStripes() % recomputeStripeEncodingInterval) == 0;
     }
 
     @Override
@@ -739,27 +755,38 @@ class WriterImpl implements Writer, MemoryManager.Callback {
         Long val = buffer[i];
         buffer[i] = null;
         if (val != null) {
-          rows.add(dictionary.add(val));
+          if (!determineEncodingStripe() && !useDictionaryEncoding) {
+              rawDataArray.add(val);
+              numElements++;
+          } else {
+            rows.add(dictionary.add(val));
+          }
           indexStatistics.updateInteger(val);
         }
+
         super.flushRow(val);
       }
       bufferIndex = 0;
       bufferedBytes = 0;
     }
 
+    boolean getUseDictionaryEncoding() {
+      return (rows.size() > 0 &&
+          (float)(dictionary.size()) / (float)rows.size() <= dictionaryKeySizeThreshold);
+    }
+
     @Override
     void writeStripe(OrcProto.StripeFooter.Builder builder,
                      int requiredIndexEntries) throws IOException {
       final PositionedOutputStream rowOutput;
-      if (rows.size() > 0 &&
-          (float)(dictionary.size()) / (float)rows.size() <= dictionaryKeySizeThreshold) {
-        useDictionaryEncoding = true;
+      if (determineEncodingStripe()) {
+        useDictionaryEncoding = getUseDictionaryEncoding();
+      }
+      if (useDictionaryEncoding) {
         rowOutput =
           new RunLengthIntegerWriter(writer.createStream(id,
           OrcProto.Stream.Kind.DATA), false, INT_BYTE_SIZE, useVInts);
       } else {
-        useDictionaryEncoding = false;
         rowOutput = writer.createStream(id,
           OrcProto.Stream.Kind.DATA);
       }
@@ -785,15 +812,10 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       OrcProto.RowIndex.Builder rowIndex = getRowIndex();
       // need to build the first index entry out here, to handle the case of
       // not having any values.
-      if (buildIndex) {
-        while (0 == rowIndexValueCount.get(rowIndexEntry) &&
-            rowIndexEntry < savedRowIndex.size()) {
-          OrcProto.RowIndexEntry.Builder base =
-              savedRowIndex.get(rowIndexEntry++).toBuilder();
-          rowOutput.getPosition(new RowIndexPositionRecorder(base));
-          rowIndex.addEntry(base.build());
-        }
-      }
+
+      if (!determineEncodingStripe() && !useDictionaryEncoding) {
+        length = numElements;
+      } 
       // write the values translated into the dump order.
       for(int i = 0; i <= length; ++i) {
         // now that we are writing out the row values, we can finalize the
@@ -812,8 +834,13 @@ class WriterImpl implements Writer, MemoryManager.Callback {
           if (useDictionaryEncoding && dumpOrder != null) {
             rowOutput.write(dumpOrder[rows.get(i)]);
           } else {
-            SerializationUtils.writeIntegerType(rowOutput,
-                dictionary.getValue(rows.get(i)), numBytes, true, useVInts);
+            if (determineEncodingStripe()) {
+              SerializationUtils.writeIntegerType(rowOutput,
+                  dictionary.getValue(rows.get(i)), numBytes, true, useVInts);
+            } else {
+              SerializationUtils.writeIntegerType(rowOutput,
+                  rawDataArray.get(i), numBytes, true, useVInts);
+            }
           }
         }
       }
@@ -827,6 +854,8 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       rowOutput.flush();
       dictionary.clear();
       rows.clear();
+      rawDataArray.clear();
+      numElements = 0;
       savedRowIndex.clear();
       rowIndexValueCount.clear();
       recordPosition(rowIndexPosition);
@@ -866,7 +895,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     long estimateMemory() {
-      return rows.size() * 4 + dictionary.getByteSize() + bufferedBytes;
+      return rows.size() * 4 + dictionary.getByteSize() + bufferedBytes + rawDataArray.getSizeInBytes();
     }
 
   }
@@ -954,6 +983,8 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     private final RunLengthIntegerWriter lengthOutput;
     private final StringDictionaryEncoder dictionary;
     private final DynamicIntArray rows = new DynamicIntArray();
+    private final DynamicByteArray byteArray = new DynamicByteArray();
+    private final DynamicIntArray rowSizes = new DynamicIntArray();
     private final RunLengthIntegerWriter directLengthOutput;
     private final List<OrcProto.RowIndexEntry> savedRowIndex =
         new ArrayList<OrcProto.RowIndexEntry>();
@@ -975,7 +1006,9 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     private final Text[] buffer;
     private int bufferIndex = 0;
     private long bufferedBytes = 0;
+    private final int recomputeStripeEncodingInterval;
 
+    private int numElements = 0;
     StringTreeWriter(int columnId,
                      ObjectInspector inspector,
                      StreamFactory writerFactory,
@@ -986,6 +1019,9 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       final boolean sortKeys = conf.getBoolean(
           HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.varname,
           HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.defaultBoolVal);
+      recomputeStripeEncodingInterval = conf.getInt(
+          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL.varname,
+          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL.defaultIntVal);
 
       dictionary = new StringDictionaryEncoder(sortKeys);
       stringOutput = writer.createStream(id,
@@ -1019,6 +1055,10 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       buildIndex = writer.buildIndex();
     }
 
+    boolean determineEncodingStripe() {
+      return (getNumStripes() % recomputeStripeEncodingInterval) == 0;
+    }
+
     @Override
     void write(Object obj) throws IOException {
       if (obj != null) {
@@ -1027,8 +1067,8 @@ class WriterImpl implements Writer, MemoryManager.Callback {
         setRawDataSize(val.getLength());
         bufferedBytes += val.getLength();
       } else {
-        buffer[bufferIndex++] = null;
-        setRawDataSize(RawDatasizeConst.NULL_SIZE);
+          buffer[bufferIndex++] = null;
+          setRawDataSize(RawDatasizeConst.NULL_SIZE);
       }
       if (bufferIndex == buffer.length) {
         flush();
@@ -1042,8 +1082,13 @@ class WriterImpl implements Writer, MemoryManager.Callback {
         // Make sure we don't end up storing it twice
         buffer[i] = null;
         if (val != null) {
-          rows.add(dictionary.add(val));
           indexStatistics.updateString(val.toString());
+          if (determineEncodingStripe() || useDictionaryEncoding) {
+            rows.add(dictionary.add(val));
+          } else {
+            rowSizes.add(byteArray.add(val.getBytes(), 0, val.getLength()));
+            numElements++;
+          }
         }
         super.flushRow(val);
       }
@@ -1122,30 +1167,36 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     @Override
     void writeStripe(OrcProto.StripeFooter.Builder builder,
                      int requiredIndexEntries) throws IOException {
+      int rowIndexEntry = 0;
       final PositionedOutputStream rowOutput;
-      // Set the flag indicating whether or not to use dictionary encoding based on whether
-      // or not the fraction of distinct keys over number of non-null rows is less than the
-      // configured threshold, and whether or not the number of distinct characters in a sample
-      // of entries in the dictionary (the estimated entropy) exceeds the configured threshold
-      if (rows.size() > 0) {
-        useDictionaryEncoding = true;
-        // The fraction of non-null values in this column that are repeats of values in the
-        // dictionary
-        float repeatedValuesFraction =
-          (float)(rows.size() - dictionary.size()) / (float)rows.size();
+      OrcProto.RowIndex.Builder rowIndex = getRowIndex();
 
-        // If the number of repeated values is small enough, consider using the entropy heuristic
-        // If the number of repeated values is high, even in the presence of low entropy,
-        // dictionary encoding can provide benefits beyond just zlib
-        if (repeatedValuesFraction <= entropyKeySizeThreshold) {
-          useDictionaryEncoding = useDictionaryEncodingEntropyHeuristic();
+      if (determineEncodingStripe()) {
+
+          // Set the flag indicating whether or not to use dictionary encoding based on whether  
+          // or not the fraction of distinct keys over number of non-null rows is less than the
+          // configured threshold, and whether or not the number of distinct characters in a sample 
+          // of entries in the dictionary (the estimated entropy) exceeds the configured threshold
+        if (rows.size() > 0) {
+          useDictionaryEncoding = true;
+          // The fraction of non-null values in this column that are repeats of values in the
+          // dictionary
+          float repeatedValuesFraction =
+            (float)(rows.size() - dictionary.size()) / (float)rows.size();
+
+          // If the number of repeated values is small enough, consider using the entropy heuristic
+          // If the number of repeated values is high, even in the presence of low entropy,
+          // dictionary encoding can provide benefits beyond just zlib
+          if (repeatedValuesFraction <= entropyKeySizeThreshold) {
+            useDictionaryEncoding = useDictionaryEncodingEntropyHeuristic();
+          }
+
+          // dictionaryKeySizeThreshold is the fraction of keys that are distinct beyond
+          // which dictionary encoding is turned off
+          // so 1 - dictionaryKeySizeThreshold is the number of repeated values below which
+          // dictionary encoding should be turned off
+          useDictionaryEncoding = useDictionaryEncoding && (repeatedValuesFraction > 1.0 - dictionaryKeySizeThreshold);
         }
-
-        // dictionaryKeySizeThreshold is the fraction of keys that are distinct beyond
-        // which dictionary encoding is turned off
-        // so 1 - dictionaryKeySizeThreshold is the number of repeated values below which
-        // dictionary encoding should be turned off
-        useDictionaryEncoding = useDictionaryEncoding && (repeatedValuesFraction > 1.0 - dictionaryKeySizeThreshold);
       }
 
       if (useDictionaryEncoding) {
@@ -1172,11 +1223,10 @@ class WriterImpl implements Writer, MemoryManager.Callback {
           }
         });
       }
-
       int length = rows.size();
-      int rowIndexEntry = 0;
-      OrcProto.RowIndex.Builder rowIndex = getRowIndex();
-
+      if (!determineEncodingStripe() && !useDictionaryEncoding) {
+        length = numElements;
+      }
       Text text = new Text();
       // write the values translated into the dump order.
       for(int i = 0; i <= length; ++i) {
@@ -1195,9 +1245,23 @@ class WriterImpl implements Writer, MemoryManager.Callback {
           if (useDictionaryEncoding) {
             rowOutput.write(dumpOrder[rows.get(i)]);
           } else {
-            dictionary.getText(text, rows.get(i));
-            rowOutput.write(text.getBytes(), 0, text.getLength());
-            directLengthOutput.write(text.getLength());
+            if (!determineEncodingStripe()) {
+              int pos = i;
+              int end = 0;
+              if (pos + 1 == rowSizes.size()) {
+                end = byteArray.size();
+              } else {
+                end = rowSizes.get(pos + 1);
+              }
+              int start = rowSizes.get(pos);
+              directLengthOutput.write(end - start);
+              byteArray.write(rowOutput, start, end - start);
+
+            } else {
+              dictionary.getText(text, rows.get(i));
+              rowOutput.write(text.getBytes(), 0, text.getLength());
+              directLengthOutput.write(text.getLength());
+            }
           }
         }
       }
@@ -1219,6 +1283,11 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       rowIndexValueCount.clear();
       recordPosition(rowIndexPosition);
       rowIndexValueCount.add(0L);
+
+      numElements = 0;
+      byteArray.clear();
+      rowSizes.clear();
+          
     }
 
     // Calls getPosition on the row output stream if dictionary encoding is used, and the direct
@@ -1264,7 +1333,8 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     long estimateMemory() {
-      return rows.getSizeInBytes() + dictionary.getSizeInBytes() + bufferedBytes;
+      return rows.getSizeInBytes() + dictionary.getSizeInBytes() + bufferedBytes + 
+        byteArray.size() + rowSizes.getSizeInBytes();
     }
   }
 
