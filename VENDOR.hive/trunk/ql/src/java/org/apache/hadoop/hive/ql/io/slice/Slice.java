@@ -598,44 +598,7 @@ public final class Slice
     @SuppressWarnings("ObjectEquality")
     public int compareTo(int offset, int length, Slice that, int otherOffset, int otherLength)
     {
-        if ((this == that) && (offset == otherOffset) && (length == otherLength)) {
-            return 0;
-        }
-
-        checkIndexLength(offset, length);
-        that.checkIndexLength(otherOffset, otherLength);
-
-        int compareLength = Math.min(length, otherLength);
-        while (compareLength >= SizeOf.SIZE_OF_LONG) {
-            long thisLong = unsafe.getLong(base, address + offset);
-            thisLong = Long.reverseBytes(thisLong);
-            long thatLong = unsafe.getLong(that.base, that.address + otherOffset);
-            thatLong = Long.reverseBytes(thatLong);
-
-            int v = UnsignedLongs.compare(thisLong, thatLong);
-            if (v != 0) {
-                return v;
-            }
-
-            offset += SizeOf.SIZE_OF_LONG;
-            otherOffset += SizeOf.SIZE_OF_LONG;
-            compareLength -= SizeOf.SIZE_OF_LONG;
-        }
-
-        while (compareLength > 0) {
-            byte thisByte = unsafe.getByte(base, address + offset);
-            byte thatByte = unsafe.getByte(that.base, that.address + otherOffset);
-
-            int v = UnsignedBytes.compare(thisByte, thatByte);
-            if (v != 0) {
-                return v;
-            }
-            offset++;
-            otherOffset++;
-            compareLength--;
-        }
-
-        return Ints.compare(size, that.size);
+        return compareTo(offset, length, that.base, otherOffset, otherLength);
     }
 
     public int compareTo(int offset, int length, byte[] that, int otherOffset, int otherLength)
@@ -848,7 +811,7 @@ public final class Slice
 
         return true;
     }
-    
+
     @SuppressWarnings("ObjectEquality")
     public boolean equals(int offset, int length, byte[] that, int otherOffset, int otherLength)
     {

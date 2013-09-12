@@ -34,8 +34,7 @@ import org.apache.hadoop.io.Text;
 class StringDictionaryEncoder extends DictionaryEncoder {
   private final DynamicByteArray byteArray = new DynamicByteArray();
   private final DynamicIntArray keySizes = new DynamicIntArray();
-  private final Text newKey = new Text();
-  private final Text cmpKey = new Text();
+  private Text newKey;
 
   private final TextCompressedOpenHashSet htDictionary = new TextCompressedOpenHashSet(new TextCompressedHashStrategy());
 
@@ -64,9 +63,7 @@ class StringDictionaryEncoder extends DictionaryEncoder {
 		 int k2Offset = keySizes.get(k2);
 		 int k2Length = getEnd(k2) - k2Offset;
 
-		 byteArray.setText(cmpKey, k1Offset, k1Length);
-
-		 return byteArray.compare(cmpKey.getBytes(), 0, k1Length, k2Offset, k2Length);
+		 return byteArray.compare(k1Offset, k1Length, k2Offset, k2Length);
 	 }
   }
 
@@ -97,7 +94,7 @@ class StringDictionaryEncoder extends DictionaryEncoder {
   }
 
   public int add(Text value) {
-    newKey.set(value);
+    newKey = value;
     int len = newKey.getLength();
     TextCompressed curKeyCompressed = new TextCompressed(newKey.hashCode());
     if (!htDictionary.add(curKeyCompressed)) {
