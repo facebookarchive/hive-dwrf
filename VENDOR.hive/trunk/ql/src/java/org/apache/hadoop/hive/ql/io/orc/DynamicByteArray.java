@@ -128,6 +128,10 @@ final class DynamicByteArray {
    return 0 - data.compareTo(ourOffset, ourLength, other, otherOffset, otherLength);
  }
 
+ public int compare(int otherOffset, int otherLength, int ourOffset, int ourLength) {
+   return 0 - data.compareTo(ourOffset, ourLength, data, otherOffset, otherLength);
+ }
+
   public boolean equals(byte[] other, int otherOffset, int otherLength, int ourOffset, int ourLength) {
     return data.equals(ourOffset, ourLength, other, otherOffset, otherLength);
   }
