@@ -17,14 +17,14 @@
  */
 package org.apache.hadoop.hive.ql.io.orc;
 
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.UnionObject;
-import org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector;
-import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
-import org.apache.hadoop.hive.serde2.typeinfo.UnionTypeInfo;
-
 import java.util.ArrayList;
 import java.util.List;
+
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.SettableUnionObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.UnionObject;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
+import org.apache.hadoop.hive.serde2.typeinfo.UnionTypeInfo;
 
 /**
  * An in-memory representation of a union type.
@@ -78,7 +78,7 @@ final class OrcUnion implements UnionObject {
         ")";
   }
 
-  static class OrcUnionObjectInspector implements UnionObjectInspector {
+  static class OrcUnionObjectInspector implements SettableUnionObjectInspector {
     private final List<ObjectInspector> children;
 
     OrcUnionObjectInspector(int columnId,
@@ -153,6 +153,16 @@ final class OrcUnion implements UnionObject {
         }
         return true;
       }
+    }
+
+    @Override
+    public Object create() {
+      return new OrcUnion();
+    }
+
+    @Override
+    public void setField(Object union, byte tag, Object object) {
+      ((OrcUnion) union).set(tag, object);
     }
   }
 }
