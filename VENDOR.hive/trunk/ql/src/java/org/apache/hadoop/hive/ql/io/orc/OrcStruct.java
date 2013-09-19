@@ -32,7 +32,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.SettableListObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.SettableMapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.SettableStructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
-import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.typeinfo.ListTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.MapTypeInfo;
@@ -203,7 +202,13 @@ final class OrcStruct implements Writable {
 
     @Override
     public Object getStructFieldData(Object object, StructField field) {
-      return ((OrcStruct) object).fields[((Field) field).offset];
+      int offset = ((Field) field).offset;
+      OrcStruct struct = (OrcStruct) object;
+      if (offset >= struct.fields.length) {
+        return null;
+      }
+
+      return struct.fields[offset];
     }
 
     @Override
