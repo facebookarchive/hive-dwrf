@@ -17,10 +17,8 @@
  */
 package org.apache.hadoop.hive.ql.io.orc;
 
-import it.unimi.dsi.fastutil.Hash;
 import it.unimi.dsi.fastutil.ints.IntArrays;
 import it.unimi.dsi.fastutil.ints.IntComparator;
-import it.unimi.dsi.fastutil.objects.ObjectOpenCustomHashSet;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -33,21 +31,143 @@ import org.apache.hadoop.io.Text;
  */
 class StringDictionaryEncoder extends DictionaryEncoder {
   private final DynamicByteArray byteArray = new DynamicByteArray();
-  private final DynamicIntArray keySizes = new DynamicIntArray();
-  private Text newKey;
 
-  private final TextCompressedOpenHashSet htDictionary = new TextCompressedOpenHashSet(new TextCompressedHashStrategy());
+  // The following int arrays represent entries in the dictionary
+  // int[]'s were used instead of DynamicIntArrays because they are
+  // accessed a lot, and DynamicIntArrays perform poorly
+  private int[] offsets = new int[DynamicIntArray.DEFAULT_SIZE];
+  private int[] hashcodes = new int[DynamicIntArray.DEFAULT_SIZE];
+  private int[] nexts = new int[DynamicIntArray.DEFAULT_SIZE];
 
+  private Text newKey = new Text();
+
+  private final TextCompressedHashSet htDictionary = new TextCompressedHashSet();
+
+  // The number of elements in the dictionary
   private int numElements = 0;
 
-  private class TextCompressed {
-    private int offset = -1;
-    private int length = -1;
-    private int hashcode = -1;
-    private TextCompressed(int hash) {
-      hashcode = hash;
+  // A custom implementation of a hash set, based on fastutil's ObjectOpenCustomHashSet
+  // Takes in indices into the int arrays of the surrounding class
+  // NOTE: For the sake of speed and simplicity, assumes index 0 is never used (means we don't
+  // have to initialize all the values in the set to -1 or some other impossible value)
+  private class TextCompressedHashSet {
+    // Essentially an alias for length - 1
+    private int mask;
+    // An array of indeces into the int[]'s in StringDictionaryEncoder
+    private int[] key;
+    // The number of values in the dictionary
+    private int numValues;
+    // The point beyond which the dictionary needs to grow
+    private int maxFill;
+    // The current size of the dictionary
+    private int length;
+
+    // The fraction of the dictionary size beyond which it should grow
+    private static final float LOAD_FACTOR = 0.75f;
+    // The number of entries the set should be initialized to expect
+    private static final int MIN_EXPECTED = 128;
+
+    public TextCompressedHashSet() {
+      this.length = it.unimi.dsi.fastutil.HashCommon.arraySize(MIN_EXPECTED, LOAD_FACTOR);
+      this.mask = length - 1;
+      this.maxFill = it.unimi.dsi.fastutil.HashCommon.maxFill(length, LOAD_FACTOR);
+      this.key = new int[length];
     }
-  }
+
+    public int get(int k) {
+      // Compute the bucket the value at k is in
+      int pos = it.unimi.dsi.fastutil.HashCommon.murmurHash3(hashcodes[k]) & mask;
+      // Iterate over the chain in that bucket
+      int other = key[pos];
+      while(other != 0) {
+        // Compare the hashcodes as a quick way to rule out some results
+        if (hashcodes[k] == hashcodes[other] && equalsValue(offsets[other], getEnd(other) - offsets[other])) {
+          return other;
+        }
+        other = nexts[other];
+      }
+      return 0;
+    }
+
+    public int add(final int k) {
+      // Compute the bucket the value at k is in
+      int pos = it.unimi.dsi.fastutil.HashCommon.murmurHash3(hashcodes[k]) & mask;
+      int other = key[pos];
+      int prev = 0;
+      // Iterate over the chain in that bucket
+      while(other != 0) {
+        // Compare the hashcodes as a quick way to rule out some results
+        if (hashcodes[k] == hashcodes[other] && equalsValue(offsets[other], getEnd(other) - offsets[other])) {
+          // If the value is found to already exist, and it's not already at the head of the chain
+          // move it there to speed up adding this value in the future.
+          if (other != key[pos]) {
+            nexts[prev] = nexts[other];
+            nexts[other] = key[pos];
+            key[pos] = other;
+          }
+          return other;
+        }
+        prev = other;
+        other = nexts[other];
+      }
+
+      // If it's not already in the bucket add it at the front
+      nexts[k] = key[pos];
+      key[pos] = k;
+      // Check if it's necessary to rehash
+      if (++numValues >= maxFill) {
+        rehash(it.unimi.dsi.fastutil.HashCommon.arraySize(numValues + 1, LOAD_FACTOR));
+      }
+      return 0;
+    }
+
+    private void rehash(final int newN) {
+      int i = 0;
+      int pos;
+      int k;
+      int next;
+      final int[] key = this.key;
+      final int newMask = newN - 1;
+      final int[] newKey = new int[newN];
+      // Iterate over all values in the set and rehash them
+      for(int j = numValues; j != 0;) {
+        while((k = key[i]) == 0) {
+          i++;
+        }
+        do {
+          // Compute the new hash
+          pos = it.unimi.dsi.fastutil.HashCommon.murmurHash3(hashcodes[k])  & newMask;
+          // Store the next value in the current bucket of the old set
+          next = nexts[k];
+          // Add the value to the beginning of the new bucket
+          nexts[k] = newKey[pos];
+          newKey[pos] = k;
+          j--;
+          // Repeat for each value in the old bucket
+        } while ((k = next) != 0);
+        i++;
+      }
+      length = newN;
+      mask = newMask;
+      maxFill = it.unimi.dsi.fastutil.HashCommon.maxFill(length, LOAD_FACTOR);
+      this.key = newKey;
+    }
+    public void clear() {
+      if (numValues == 0) {
+        return;
+      }
+
+      numValues = 0;
+      // Set all values to 0
+      for (int i = 0; i < length; i++) {
+        key[i] = 0;
+      }
+    }
+
+    public int size() {
+      return numValues;
+      }
+    }
 
   public class TextPositionComparator implements IntComparator {
    @Override
@@ -57,32 +177,12 @@ class StringDictionaryEncoder extends DictionaryEncoder {
 
 	 @Override
 	 public int compare (int k1, int k2) {
-		 int k1Offset = keySizes.get(k1);
-		 int k1Length = getEnd(k1) - k1Offset;
+		 int k1Length = getEnd(k1) - offsets[k1];
 
-		 int k2Offset = keySizes.get(k2);
-		 int k2Length = getEnd(k2) - k2Offset;
+		 int k2Length = getEnd(k2) - offsets[k2];
 
-		 return byteArray.compare(k1Offset, k1Length, k2Offset, k2Length);
+		 return byteArray.compare(offsets[k1], k1Length, offsets[k2], k2Length);
 	 }
-  }
-
-  public class TextCompressedHashStrategy implements Hash.Strategy<TextCompressed> {
-    @Override
-    public boolean equals(TextCompressed obj1, TextCompressed other) {
-      return obj1.hashcode == other.hashcode && equalsValue(obj1.offset, obj1.length);
-    }
-
-    @Override
-    public int hashCode(TextCompressed arg0) {
-      return arg0.hashcode;
-    }
-  }
-
-  public class TextCompressedOpenHashSet extends ObjectOpenCustomHashSet<TextCompressed> {
-    private TextCompressedOpenHashSet(Hash.Strategy<TextCompressed> strategy) {
-      super(strategy);
-    }
   }
 
   public StringDictionaryEncoder() {
@@ -96,52 +196,63 @@ class StringDictionaryEncoder extends DictionaryEncoder {
   public int add(Text value) {
     newKey = value;
     int len = newKey.getLength();
-    TextCompressed curKeyCompressed = new TextCompressed(newKey.hashCode());
-    if (!htDictionary.add(curKeyCompressed)) {
-      return htDictionary.get(curKeyCompressed).offset;
+    // See the comment on TextCompressedHashSet
+    // This intentionally skips index 0
+    int newKeyIndex = numElements + 1;
+    hashcodes[newKeyIndex] = newKey.hashCode();
+    int existing = htDictionary.add(newKeyIndex);
+    if (existing != 0) {
+      return existing - 1;
     } else {
       // update count of hashset keys
       int valRow = numElements;
       numElements += 1;
-      // set current key offset and hashcode
-      curKeyCompressed.offset = valRow;
-      curKeyCompressed.length = len;
-      keySizes.add(byteArray.add(newKey.getBytes(), 0, len));
+      // If we've outgrown the arrays, resize them
+      if (newKeyIndex + 1 >= offsets.length) {
+        int[] newOffsets = new int[offsets.length * 2];
+        int[] newHashcodes = new int[hashcodes.length * 2];
+        int[] newNexts = new int[nexts.length * 2];
+        System.arraycopy(offsets, 0, newOffsets, 0, offsets.length);
+        System.arraycopy(hashcodes, 0, newHashcodes, 0, hashcodes.length);
+        System.arraycopy(nexts, 0, newNexts, 0, nexts.length);
+        offsets = newOffsets;
+        hashcodes = newHashcodes;
+        nexts = newNexts;
+      }
+      // set current key offset and length
+      offsets[newKeyIndex] = byteArray.add(newKey.getBytes(), 0, len);
       return valRow;
     }
   }
 
   private int getEnd(int pos) {
-    if (pos + 1 == keySizes.size()) {
+    if (pos + 1 > numElements) {
       return byteArray.size();
     }
 
-    return keySizes.get(pos + 1);
+    return offsets[pos + 1];
   }
 
   @Override
   protected int compareValue(int position) {
-    int start = keySizes.get(position);
-    int end = getEnd(position);
     return byteArray.compare(newKey.getBytes(), 0, newKey.getLength(),
-        start, end - start);
+        offsets[position], getEnd(position) - offsets[position]);
   }
 
-  protected boolean equalsValue(int position, int length) {
-    int start = keySizes.get(position);
-    return byteArray.equals(newKey.getBytes(), 0, newKey.getLength(), start, length);
+  protected boolean equalsValue(int offset, int length) {
+    return byteArray.equals(newKey.getBytes(), 0, newKey.getLength(), offset, length);
   }
 
   private class VisitorContextImpl implements VisitorContext<Text> {
     private int originalPosition;
     private int start;
-    private int end;
+    private int length;
     private final Text text = new Text();
 
     public void setOriginalPosition(int pos) {
-      originalPosition = pos;
-      start = keySizes.get(originalPosition);
-      end = getEnd(pos);
+      originalPosition = pos - 1;
+      start = offsets[pos];
+      length = getEnd(pos) - offsets[pos];
     }
 
     public int getOriginalPosition() {
@@ -149,16 +260,16 @@ class StringDictionaryEncoder extends DictionaryEncoder {
     }
 
     public Text getKey() {
-      byteArray.setText(text, start, getLength());
+      byteArray.setText(text, start, length);
       return text;
     }
 
     public void writeBytes(OutputStream out) throws IOException {
-        byteArray.write(out, start, getLength());
+        byteArray.write(out, start, length);
     }
 
     public int getLength() {
-      return end - start;
+      return length;
     }
 
   }
@@ -169,13 +280,13 @@ class StringDictionaryEncoder extends DictionaryEncoder {
       if (sortKeys) {
         keysArray = new int[numElements];
         for (int idx = 0; idx < numElements; idx++) {
-          keysArray[idx] = idx;
+          keysArray[idx] = idx + 1;
         }
         IntArrays.quickSort(keysArray, new TextPositionComparator());
       }
 
       for (int pos = 0; pos < numElements; pos++) {
-        context.setOriginalPosition(keysArray == null? pos : keysArray[pos]);
+        context.setOriginalPosition(keysArray == null? pos + 1: keysArray[pos]);
         visitor.visit(context);
       }
       keysArray = null;
@@ -191,9 +302,7 @@ class StringDictionaryEncoder extends DictionaryEncoder {
   }
 
   public void getText(Text result, int originalPosition) {
-    int start = keySizes.get(originalPosition);
-    int end = getEnd(originalPosition);
-    byteArray.setText(result, start, end - start);
+    byteArray.setText(result, offsets[originalPosition + 1], getEnd(originalPosition + 1) - offsets[originalPosition + 1]);
   }
 
   /**
@@ -202,8 +311,10 @@ class StringDictionaryEncoder extends DictionaryEncoder {
   @Override
   public void clear() {
     byteArray.clear();
-    keySizes.clear();
     htDictionary.clear();
+    offsets = new int[DynamicIntArray.DEFAULT_SIZE];
+    hashcodes = new int[DynamicIntArray.DEFAULT_SIZE];
+    nexts = new int[DynamicIntArray.DEFAULT_SIZE];
     numElements = 0;
   }
 
@@ -224,12 +335,12 @@ class StringDictionaryEncoder extends DictionaryEncoder {
     long refSizes = (htDictionary.size() * 4);
 
     // 2 int fields per element (TextCompressed object)
-    long textCompressedSizes = numElements * 4 * 2;
+    long textCompressedSizes = offsets.length * 4 + hashcodes.length * 4 + nexts.length * 4;
 
     // bytes in the characters
     // size of the int array storing the offsets
-    long totalSize =  getCharacterSize() + keySizes.getSizeInBytes();
-    totalSize += refSizes;
+    long totalSize =  getCharacterSize();
+    totalSize += refSizes + textCompressedSizes;
     return totalSize;
   }
 
