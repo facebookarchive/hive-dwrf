@@ -141,8 +141,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     this.memoryManager = memoryManager;
     buildIndex = rowIndexStride > 0;
     codec = createCodec(compress, conf);
-    useVInts = conf.getBoolean(HiveConf.ConfVars.HIVE_ORC_USE_VINTS.varname,
-        HiveConf.ConfVars.HIVE_ORC_USE_VINTS.defaultBoolVal);
+    useVInts = OrcConfVars.getUseVints(conf);
     treeWriter = createTreeWriter(inspector, streamFactory, false, conf, useVInts);
     dfsBytesPerChecksum = conf.getInt("io.bytes.per.checksum", 512);
     if (buildIndex && rowIndexStride < MIN_ROW_INDEX_STRIDE) {
@@ -681,14 +680,10 @@ class WriterImpl implements Writer, MemoryManager.Callback {
                       boolean useVInts, int numBytes) throws IOException {
       super(columnId, inspector, writerFactory, nullable, conf, useVInts);
       writer = writerFactory;
-      final boolean sortKeys = conf.getBoolean(
-          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.varname,
-          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.defaultBoolVal);
+      final boolean sortKeys = OrcConfVars.getDictionaryKeySorted(conf);
 
       this.numBytes = numBytes;
-      recomputeStripeEncodingInterval = conf.getInt(
-          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL.varname,
-          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL.defaultIntVal);
+      recomputeStripeEncodingInterval = OrcConfVars.getEncodingInterval(conf);
 
       dictionary = new IntDictionaryEncoder(sortKeys, numBytes, useVInts);
       output = writer.createStream(id,
@@ -696,12 +691,9 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       lengthOutput = new RunLengthIntegerWriter(
           writer.createStream(id, OrcProto.Stream.Kind.LENGTH), false, INT_BYTE_SIZE, useVInts);
 
-      dictionaryKeySizeThreshold = conf.getFloat(
-          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD.varname,
-          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD.defaultFloatVal);
+      dictionaryKeySizeThreshold = OrcConfVars.getDictionaryKeyNumericSizeThreshold(conf);
 
-      int bufferLength = conf.getInt(HiveConf.ConfVars.HIVE_ORC_ROW_BUFFER_SIZE.varname,
-          HiveConf.ConfVars.HIVE_ORC_ROW_BUFFER_SIZE.defaultIntVal);
+      int bufferLength = OrcConfVars.getRowBufferSize(conf);
       buffer = new Long[bufferLength];
 
       recordPosition(rowIndexPosition);
@@ -1016,12 +1008,8 @@ class WriterImpl implements Writer, MemoryManager.Callback {
                      boolean useVInts) throws IOException {
       super(columnId, inspector, writerFactory, nullable, conf, useVInts);
       writer = writerFactory;
-      final boolean sortKeys = conf.getBoolean(
-          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.varname,
-          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.defaultBoolVal);
-      recomputeStripeEncodingInterval = conf.getInt(
-          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL.varname,
-          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL.defaultIntVal);
+      final boolean sortKeys = OrcConfVars.getDictionaryKeySorted(conf);
+      recomputeStripeEncodingInterval = OrcConfVars.getEncodingInterval(conf);
 
       dictionary = new StringDictionaryEncoder(sortKeys);
       stringOutput = writer.createStream(id,
@@ -1030,24 +1018,13 @@ class WriterImpl implements Writer, MemoryManager.Callback {
           OrcProto.Stream.Kind.LENGTH), false, INT_BYTE_SIZE, useVInts);
       directLengthOutput = new RunLengthIntegerWriter(writer.createStream(id,
           OrcProto.Stream.Kind.LENGTH), false, INT_BYTE_SIZE, useVInts);
-      dictionaryKeySizeThreshold = conf.getFloat(
-          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname,
-          HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.defaultFloatVal);
-      entropyKeySizeThreshold = conf.getFloat(
-          HiveConf.ConfVars.HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD.varname,
-          HiveConf.ConfVars.HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD.defaultFloatVal);
-      entropyMinSamples = conf.getInt(
-          HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_MIN_SAMPLES.varname,
-          HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_MIN_SAMPLES.defaultIntVal);
-      entropyDictSampleFraction = conf.getFloat(
-          HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_DICT_SAMPLE_FRACTION.varname,
-          HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_DICT_SAMPLE_FRACTION.defaultFloatVal);
-      entropyThreshold = conf.getInt(
-          HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD.varname,
-          HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD.defaultIntVal);
+      dictionaryKeySizeThreshold = OrcConfVars.getDictionaryKeyStringSizeThreshold(conf);
+      entropyKeySizeThreshold = OrcConfVars.getEntropyKeyStringSizeThreshold(conf);
+      entropyMinSamples = OrcConfVars.getEntropyStringMinSamples(conf);
+      entropyDictSampleFraction = OrcConfVars.getEntropyStringDictSampleFraction(conf);
+      entropyThreshold = OrcConfVars.getEntropyStringThreshold(conf);
 
-      int bufferLength = conf.getInt(HiveConf.ConfVars.HIVE_ORC_ROW_BUFFER_SIZE.varname,
-          HiveConf.ConfVars.HIVE_ORC_ROW_BUFFER_SIZE.defaultIntVal);
+      int bufferLength = OrcConfVars.getRowBufferSize(conf);
       buffer = new Text[bufferLength];
 
       recordPosition(rowIndexPosition);

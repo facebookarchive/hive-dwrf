@@ -24,6 +24,7 @@ import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.common.ShadedLogAdapter;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.Utilities;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
@@ -247,9 +248,8 @@ public abstract class MergeMapper extends MapReduceBase {
     Path outpath = new Path(outputPath);
     FileSystem fs = outpath.getFileSystem(job);
     Path backupPath = backupOutputPath(fs, outpath, job);
-    Utilities.mvFileToFinalPath(outputPath, job, success, LOG, dynPartCtx, null,
+    Utilities.mvFileToFinalPath(outputPath, job, success, ShadedLogAdapter.convert(LOG), dynPartCtx, null,
       reporter);
     fs.delete(backupPath, true);
   }
-
 }

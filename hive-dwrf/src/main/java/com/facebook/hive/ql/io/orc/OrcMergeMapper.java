@@ -67,9 +67,10 @@ public class OrcMergeMapper extends MergeMapper implements
         compressionSize = key.compressionSize;
         rowIndexStride = key.rowIndexStride;
         userMetadata = key.userMetadata;
-        outWriter = (WriterImpl)OrcFile.createWriter(fs, outPath,
-            new HiveConf(OrcMergeMapper.class), objectInspector,
-            HiveConf.ConfVars.HIVE_ORC_STRIPE_SIZE.defaultLongVal, // not needed
+          HiveConf conf = new HiveConf(OrcMergeMapper.class);
+          outWriter = (WriterImpl)OrcFile.createWriter(fs, outPath,
+                  conf, objectInspector,
+            OrcConfVars.getStripeSize(conf), // not needed
             compression, compressionSize, rowIndexStride);
         for (Map.Entry<String, ByteBuffer> metadataEntry : userMetadata.entrySet()) {
           outWriter.addUserMetadata(metadataEntry.getKey(), metadataEntry.getValue());

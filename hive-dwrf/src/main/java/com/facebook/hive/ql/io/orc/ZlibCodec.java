@@ -38,8 +38,7 @@ class ZlibCodec implements CompressionCodec {
     if (conf == null) {
       compressionLevel = Deflater.DEFAULT_COMPRESSION;
     } else {
-      compressionLevel = conf.getInt(HiveConf.ConfVars.HIVE_ORC_ZLIB_COMPRESSION_LEVEL.varname,
-          HiveConf.ConfVars.HIVE_ORC_ZLIB_COMPRESSION_LEVEL.defaultIntVal);
+      compressionLevel = OrcConfVars.getCompressZlibLevel(conf);
     }
   }
 

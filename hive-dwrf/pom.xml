@@ -28,4 +28,41 @@
     <properties>
         <fb.main.basedir>${project.parent.basedir}</fb.main.basedir>
     </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.facebook.hive</groupId>
+            <artifactId>hive-dwrf-shims</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.facebook.presto.hadoop</groupId>
+            <artifactId>hadoop-cdh4</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.facebook.presto.hive</groupId>
+            <artifactId>hive-apache</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.google.protobuf</groupId>
+            <artifactId>protobuf-java</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>commons-logging</groupId>
+            <artifactId>commons-logging</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>it.unimi.dsi</groupId>
+            <artifactId>fastutil</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.iq80.snappy</groupId>
+            <artifactId>snappy</artifactId>
+        </dependency>
+    </dependencies>
 </project>
