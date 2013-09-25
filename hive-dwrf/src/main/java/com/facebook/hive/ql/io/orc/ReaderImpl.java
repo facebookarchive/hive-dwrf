@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.hive.ql.io.orc;
+package com.facebook.hive.ql.io.orc;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -131,11 +131,11 @@ final class ReaderImpl implements Reader {
 
   @Override
   public Iterable<StripeInformation> getStripes() {
-    return new Iterable<org.apache.hadoop.hive.ql.io.orc.StripeInformation>(){
+    return new Iterable<com.facebook.hive.ql.io.orc.StripeInformation>(){
 
       @Override
-      public Iterator<org.apache.hadoop.hive.ql.io.orc.StripeInformation> iterator() {
-        return new Iterator<org.apache.hadoop.hive.ql.io.orc.StripeInformation>(){
+      public Iterator<com.facebook.hive.ql.io.orc.StripeInformation> iterator() {
+        return new Iterator<com.facebook.hive.ql.io.orc.StripeInformation>(){
           private final Iterator<OrcProto.StripeInformation> inner =
             footer.getStripesList().iterator();
 
@@ -145,7 +145,7 @@ final class ReaderImpl implements Reader {
           }
 
           @Override
-          public org.apache.hadoop.hive.ql.io.orc.StripeInformation next() {
+          public com.facebook.hive.ql.io.orc.StripeInformation next() {
             return new StripeInformationImpl(inner.next());
           }
 

@@ -15,7 +15,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package org.apache.hadoop.hive.ql.io.orc;
+package com.facebook.hive.ql.io.orc;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -24,8 +24,8 @@ import java.util.List;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.ql.io.orc.OrcFile.KeyWrapper;
-import org.apache.hadoop.hive.ql.io.orc.OrcFile.ValueWrapper;
+import com.facebook.hive.ql.io.orc.OrcFile.KeyWrapper;
+import com.facebook.hive.ql.io.orc.OrcFile.ValueWrapper;
 
 class StripeReader {
   private final FSDataInputStream file;

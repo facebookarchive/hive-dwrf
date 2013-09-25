@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.hive.ql.io.orc;
+package com.facebook.hive.ql.io.orc;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -25,8 +25,8 @@ import java.util.HashMap;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.ql.io.orc.OrcFile.KeyWrapper;
-import org.apache.hadoop.hive.ql.io.orc.OrcFile.ValueWrapper;
+import com.facebook.hive.ql.io.orc.OrcFile.KeyWrapper;
+import com.facebook.hive.ql.io.orc.OrcFile.ValueWrapper;
 import org.apache.hadoop.mapred.FileSplit;
 import org.apache.hadoop.mapred.RecordReader;
 

@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.hive.ql.io.orc;
+package com.facebook.hive.ql.io.orc;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
@@ -45,7 +45,7 @@ public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcStruct>
 
   private static class OrcRecordReader
       implements RecordReader<NullWritable, OrcStruct> {
-    private final org.apache.hadoop.hive.ql.io.orc.RecordReader reader;
+    private final com.facebook.hive.ql.io.orc.RecordReader reader;
     private final long offset;
     private final long length;
     private final int numColumns;
