@@ -134,7 +134,7 @@ public class TestFileDump {
           (MyRecord.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
     // Turn off using the approximate entropy heuristic to turn off dictionary encoding
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD.varname, -1);
+    OrcConfVars.setEntropyKeyStringSizeThreshold(conf, -1);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         100000, CompressionKind.ZLIB, 10000, 10000);
     Random r1 = new Random(1);
@@ -203,10 +203,10 @@ public class TestFileDump {
           (MyRecord.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
     Configuration conf = new Configuration();
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD.varname, 1);
-    conf.setInt(HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD.varname, 11);
+    OrcConfVars.setEntropyKeyStringSizeThreshold(conf, 1);
+    OrcConfVars.setEntropyStringThreshold(conf, 11);
     // Make sure having too few distinct values won't turn off dictionary encoding
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname, 1);
+    OrcConfVars.setDictionaryKeyStringSizeThreshold(conf, 1);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         100000, CompressionKind.ZLIB, 10000, 10000);
     Random r1 = new Random(1);
@@ -234,17 +234,17 @@ public class TestFileDump {
   @Test
   public void testDictionaryThreshold() throws Exception {
     Configuration conf = new Configuration();
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname, 0.49f);
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD.varname, 0.49f);
+    OrcConfVars.setDictionaryKeyStringSizeThreshold(conf, 0.49f);
+    OrcConfVars.setDictionaryKeyNumericSizeThreshold(conf, 0.49f);
     testDictionary(conf, "orc-file-dump-dictionary-threshold.out");
   }
 
   @Test
   public void testUnsortedDictionary() throws Exception {
     Configuration conf = new Configuration();
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname, 0.49f);
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD.varname, 0.49f);
-    conf.setBoolean(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.varname, false);
+    OrcConfVars.setDictionaryKeyStringSizeThreshold(conf, 0.49f);
+    OrcConfVars.setDictionaryKeyNumericSizeThreshold(conf, 0.49f);
+    OrcConfVars.setDictionaryKeySorted(conf, false);
     testDictionary(conf, "orc-file-dump-dictionary-threshold-unsorted.out");
 
   }
@@ -253,9 +253,9 @@ public class TestFileDump {
   @Test
   public void testUnsortedDictionary2() throws Exception {
     Configuration conf = new Configuration();
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname, 0.51f);
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD.varname, 0.51f);
-    conf.setBoolean(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.varname, false);
+    OrcConfVars.setDictionaryKeyStringSizeThreshold(conf, 0.51f);
+    OrcConfVars.setDictionaryKeyNumericSizeThreshold(conf, 0.51f);
+    OrcConfVars.setDictionaryKeySorted(conf, false);
     testDictionary(conf, "orc-file-dump-dictionary-threshold-unsorted2.out");
   }
 
