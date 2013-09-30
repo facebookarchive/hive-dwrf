@@ -32,7 +32,7 @@ class IntDictionaryEncoder extends DictionaryEncoder {
   private final boolean useVInts;
 
   protected final DynamicLongArray keys = new DynamicLongArray();
-  protected final Long2IntOpenHashMap dictionary = new Long2IntOpenHashMap();
+  protected final Long2IntOpenHashMapWithByteSize dictionary = new Long2IntOpenHashMapWithByteSize();
 
   public IntDictionaryEncoder(int numBytes, boolean useVInts) {
     super();
@@ -48,6 +48,25 @@ class IntDictionaryEncoder extends DictionaryEncoder {
 
   public long getValue(int position) {
     return keys.get(position);
+  }
+
+  private class Long2IntOpenHashMapWithByteSize extends Long2IntOpenHashMap {
+    private static final long serialVersionUID = 0L;
+
+    public Long2IntOpenHashMapWithByteSize() {
+      super();
+    }
+
+    public int getByteSize() {
+      int size = key.length * 8 + value.length * 4 + used.length;
+
+      // If we're close to the point where the dictionary is going to be rehashed, be pessimistic
+      // and adjust the size assuming we will
+      if (size + 5000 >= maxFill) {
+        return (int) (size / f);
+      }
+      return size;
+    }
   }
 
   /**
@@ -151,7 +170,7 @@ class IntDictionaryEncoder extends DictionaryEncoder {
     // key in long[] (8 bytes)
     // value in int[] (4 bytes)
     // whether each bucket was used or not in boolean [] (1 byte
-    long posSizes = (8 + 4 + 1) * numElements;
+    long posSizes = dictionary.getByteSize();
 
     return keys.getSizeInBytes() + posSizes;
   }
