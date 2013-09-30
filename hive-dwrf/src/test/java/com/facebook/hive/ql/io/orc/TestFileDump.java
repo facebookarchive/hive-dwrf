@@ -25,26 +25,25 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.PrintStream;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
+import com.google.common.base.Joiner;
+import com.google.common.io.Files;
+import com.google.common.io.Resources;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.junit.Before;
 import org.junit.Test;
 
 public class TestFileDump {
-
-  Path workDir = new Path(System.getProperty("test.tmp.dir",
-      "target" + File.separator + "test" + File.separator + "tmp"));
-  Path resourceDir = new Path(System.getProperty("test.build.resources",
-      "src" + File.separator + "test" + File.separator + "resources"));
+  Path workDir = new Path(Files.createTempDir().toString());
 
   Configuration conf;
   FileSystem fs;
@@ -55,7 +54,7 @@ public class TestFileDump {
     conf = new Configuration();
     fs = FileSystem.getLocal(conf);
     fs.setWorkingDirectory(workDir);
-    testFilePath = new Path("TestFileDump.testDump.orc");
+    testFilePath = new Path(workDir, "TestFileDump.testDump.orc");
     fs.delete(testFilePath, false);
   }
 
@@ -114,17 +113,19 @@ public class TestFileDump {
     }
     writer.close();
     PrintStream origOut = System.out;
-    String outputFilename = File.separator + "orc-file-dump.out";
-    FileOutputStream myOut = new FileOutputStream(workDir + outputFilename);
+    URL expectedFileUrl = Resources.getResource("orc-file-dump.out");
+    assertEquals(expectedFileUrl.getProtocol(), "file");
+    String outputFilename = Joiner.on(File.separator).join(workDir, "orc-file-dump.out");
+    FileOutputStream myOut = new FileOutputStream(outputFilename);
 
     // replace stdout and run command
     System.setOut(new PrintStream(myOut));
-    FileDump.main(new String[]{testFilePath.toString()});
+    FileDump.main(new String[]{testFilePath.getName()});
     System.out.flush();
     System.setOut(origOut);
 
 
-    checkOutput(resourceDir + outputFilename, workDir + outputFilename);
+    checkOutput(expectedFileUrl.getPath(), outputFilename);
   }
 
   private void testDictionary(Configuration conf, String expectedOutputFilename) throws Exception {
@@ -180,16 +181,18 @@ public class TestFileDump {
     }
     writer.close();
     PrintStream origOut = System.out;
-    String outputFilename = File.separator + expectedOutputFilename;
-    FileOutputStream myOut = new FileOutputStream(workDir + outputFilename);
+    URL expectedFileUrl = Resources.getResource(expectedOutputFilename);
+    assertEquals(expectedFileUrl.getProtocol(), "file");
+    String outputFilename = Joiner.on(File.separator).join(workDir, expectedOutputFilename);
+    FileOutputStream myOut = new FileOutputStream(outputFilename);
 
     // replace stdout and run command
     System.setOut(new PrintStream(myOut));
-    FileDump.main(new String[]{testFilePath.toString()});
+    FileDump.main(new String[]{testFilePath.getName()});
     System.out.flush();
     System.setOut(origOut);
 
-    checkOutput(resourceDir + outputFilename, workDir + outputFilename);
+    checkOutput(expectedFileUrl.getPath(), outputFilename);
   }
 
   //Test that if the number of distinct characters in distinct strings is less than the configured
@@ -216,16 +219,18 @@ public class TestFileDump {
     }
     writer.close();
     PrintStream origOut = System.out;
-    String outputFilename = File.separator + "orc-file-dump-entropy-threshold.out";
-    FileOutputStream myOut = new FileOutputStream(workDir + outputFilename);
+    URL expectedFileUrl = Resources.getResource("orc-file-dump-entropy-threshold.out");
+    assertEquals(expectedFileUrl.getProtocol(), "file");
+    String outputFilename = Joiner.on(File.separator).join(workDir, "orc-file-dump-entropy-threshold.out");
+    FileOutputStream myOut = new FileOutputStream(outputFilename);
 
     // replace stdout and run command
     System.setOut(new PrintStream(myOut));
-    FileDump.main(new String[]{testFilePath.toString()});
+    FileDump.main(new String[]{testFilePath.getName()});
     System.out.flush();
     System.setOut(origOut);
 
-    checkOutput(resourceDir + outputFilename, workDir + outputFilename);
+    checkOutput(expectedFileUrl.getPath(), outputFilename);
   }
 
   // Test that if the fraction of rows that have distinct strings is greater than the configured
