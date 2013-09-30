@@ -322,8 +322,8 @@ class StringDictionaryEncoder extends DictionaryEncoder {
    * Get the size of the character data in the table.
    * @return the bytes used by the table
    */
-  public int getCharacterSize() {
-    return byteArray.size();
+  public long getCharacterSize() {
+    return byteArray.getSizeInBytes();
   }
 
   /**
