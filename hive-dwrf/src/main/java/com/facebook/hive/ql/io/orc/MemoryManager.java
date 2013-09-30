@@ -39,7 +39,7 @@ import java.util.Map;
  * This class is thread safe and uses synchronization around the shared state
  * to prevent race conditions.
  */
-class MemoryManager {
+public class MemoryManager {
 
   private static final Log LOG = LogFactory.getLog(MemoryManager.class);
 
@@ -79,10 +79,13 @@ class MemoryManager {
    * @param conf use the configuration to find the maximum size of the memory
    *             pool.
    */
-  MemoryManager(Configuration conf) {
-    double maxLoad = OrcConfVars.getMemoryPool(conf);
-    totalMemoryPool = Math.round(ManagementFactory.getMemoryMXBean().
-        getHeapMemoryUsage().getMax() * maxLoad);
+  public MemoryManager(Configuration conf) {
+    this(Math.round(ManagementFactory.getMemoryMXBean().
+        getHeapMemoryUsage().getMax() * OrcConfVars.getMemoryPool(conf)));
+  }
+
+  public MemoryManager(long totalMemoryPool) {
+    this.totalMemoryPool = totalMemoryPool;
   }
 
   /**

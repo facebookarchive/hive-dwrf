@@ -122,19 +122,9 @@ public final class OrcFile {
                                     long stripeSize,
                                     CompressionKind compress,
                                     int bufferSize,
-                                    int rowIndexStride) throws IOException {
+                                    int rowIndexStride,
+                                    MemoryManager memoryManager) throws IOException {
     return new WriterImpl(fs, path, conf, inspector, stripeSize, compress,
-      bufferSize, rowIndexStride, getMemoryManager(conf));
-  }
-
-  private static MemoryManager memoryManager = null;
-
-  private static synchronized MemoryManager getMemoryManager(
-      Configuration conf) {
-
-    if (memoryManager == null) {
-      memoryManager = new MemoryManager(conf);
-    }
-    return memoryManager;
+      bufferSize, rowIndexStride, memoryManager);
   }
 }

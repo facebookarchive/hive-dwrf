@@ -46,6 +46,16 @@ import java.util.Properties;
 public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
         implements HiveOutputFormat<NullWritable, OrcSerdeRow> {
 
+    private final MemoryManagerProvider memoryManagerProvider;
+
+    public OrcOutputFormat(MemoryManager memoryManager) {
+        memoryManagerProvider = MemoryManagerProviders.fromInstance(memoryManager);
+    }
+
+    public OrcOutputFormat() {
+        memoryManagerProvider = MemoryManagerProviders.staticSingleton();
+    }
+
     private static class OrcRecordWriter
             implements RecordWriter<NullWritable, OrcSerdeRow>,
             SerDeStatsSupplier,
@@ -58,11 +68,12 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
         private final int compressionSize;
         private final CompressionKind compress;
         private final int rowIndexStride;
+        private final MemoryManager memoryManager;
         private final SerDeStats stats;
 
         OrcRecordWriter(FileSystem fs, Path path, Configuration conf,
                 long stripeSize, String compress,
-                int compressionSize, int rowIndexStride) {
+                int compressionSize, int rowIndexStride, MemoryManager memoryManager) {
             this.fs = fs;
             this.path = path;
             this.conf = conf;
@@ -70,6 +81,7 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
             this.compress = CompressionKind.valueOf(compress);
             this.compressionSize = compressionSize;
             this.rowIndexStride = rowIndexStride;
+            this.memoryManager = memoryManager;
             this.stats = new SerDeStats();
         }
 
@@ -78,7 +90,7 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
                 OrcSerdeRow row) throws IOException {
             if (writer == null) {
                 writer = OrcFile.createWriter(fs, path, this.conf, row.getInspector(),
-                        stripeSize, compress, compressionSize, rowIndexStride);
+                        stripeSize, compress, compressionSize, rowIndexStride, memoryManager);
             }
             writer.addRow(row.getRow());
         }
@@ -89,7 +101,7 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
             if (writer == null) {
                 writer = OrcFile.createWriter(fs, path, this.conf,
                         serdeRow.getInspector(), stripeSize, compress, compressionSize,
-                        rowIndexStride);
+                        rowIndexStride, memoryManager);
             }
             writer.addRow(serdeRow.getRow());
         }
@@ -109,7 +121,7 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
                         getStandardStructObjectInspector(new ArrayList<String>(),
                                 new ArrayList<ObjectInspector>());
                 writer = OrcFile.createWriter(fs, path, this.conf, inspector,
-                        stripeSize, compress, compressionSize, rowIndexStride);
+                        stripeSize, compress, compressionSize, rowIndexStride, memoryManager);
             }
             writer.close();
         }
@@ -129,7 +141,8 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
                 OrcConfVars.getStripeSize(conf),
                 OrcConfVars.getCompression(conf),
                 OrcConfVars.getCompressSize(conf),
-                OrcConfVars.getRowIndexStride(conf));
+                OrcConfVars.getRowIndexStride(conf),
+                memoryManagerProvider.get(conf));
     }
 
     @Override
@@ -182,6 +195,7 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
         }
 
         return new OrcRecordWriter(path.getFileSystem(conf), path, conf,
-                stripeSize, compression, compressionSize, rowIndexStride);
+                stripeSize, compression, compressionSize, rowIndexStride,
+                memoryManagerProvider.get(conf));
     }
 }
