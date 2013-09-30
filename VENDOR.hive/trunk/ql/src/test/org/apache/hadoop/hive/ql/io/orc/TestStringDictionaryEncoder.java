@@ -121,7 +121,7 @@ public class TestStringDictionaryEncoder {
     }
     checkContent(dict, expectedUniqueValues, expectedOrder);
     dict.clear();
-    assertEquals(393216, dict.getSizeInBytes());
+    assertEquals(425984, dict.getSizeInBytes());
     assertEquals(0, dict.size());
   }
 
