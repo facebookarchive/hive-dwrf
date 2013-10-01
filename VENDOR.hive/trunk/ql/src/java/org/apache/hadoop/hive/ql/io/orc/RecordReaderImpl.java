@@ -915,22 +915,11 @@ class RecordReaderImpl implements RecordReader {
                       ) throws IOException {
         super.startStripe(streams, encodings);
 
-        // read the dictionary blob
         dictionarySize = encodings.get(columnId).getDictionarySize();
-        StreamName name = new StreamName(columnId,
-            OrcProto.Stream.Kind.DICTIONARY_DATA);
-        InStream in = streams.get(name);
-        if (in.available() > 0) {
-          dictionaryBuffer = new DynamicByteArray(in.available());
-          dictionaryBuffer.readAll(in);
-        } else {
-          dictionaryBuffer = null;
-        }
-        in.close();
 
         // read the lengths
-        name = new StreamName(columnId, OrcProto.Stream.Kind.LENGTH);
-        in = streams.get(name);
+        StreamName name = new StreamName(columnId, OrcProto.Stream.Kind.LENGTH);
+        InStream in = streams.get(name);
         RunLengthIntegerReader lenReader = new RunLengthIntegerReader(in, false,
             WriterImpl.INT_BYTE_SIZE);
         int offset = 0;
@@ -943,6 +932,18 @@ class RecordReaderImpl implements RecordReader {
           offset += (int) lenReader.next();
         }
         dictionaryOffsets[dictionarySize] = offset;
+        in.close();
+
+        // read the dictionary blob
+        name = new StreamName(columnId,
+            OrcProto.Stream.Kind.DICTIONARY_DATA);
+        in = streams.get(name);
+        if (in.available() > 0) {
+          dictionaryBuffer = new DynamicByteArray(dictionaryOffsets[dictionarySize]);
+          dictionaryBuffer.readAll(in);
+        } else {
+          dictionaryBuffer = null;
+        }
         in.close();
 
         // set up the row reader
