@@ -92,7 +92,7 @@ public class TestFileDump {
           (MyRecord.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
-        100000, CompressionKind.ZLIB, 10000, 10000);
+        100000, CompressionKind.ZLIB, 10000, 10000, new MemoryManager(1000000));
     Random r1 = new Random(1);
     String[] words = new String[]{"It", "was", "the", "best", "of", "times,",
         "it", "was", "the", "worst", "of", "times,", "it", "was", "the", "age",
@@ -137,7 +137,7 @@ public class TestFileDump {
     // Turn off using the approximate entropy heuristic to turn off dictionary encoding
     OrcConfVars.setEntropyKeyStringSizeThreshold(conf, -1);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
-        100000, CompressionKind.ZLIB, 10000, 10000);
+        100000, CompressionKind.ZLIB, 10000, 10000, new MemoryManager(1000000));
     Random r1 = new Random(1);
     String[] words = new String[]{"It", "was", "the", "best", "of", "times,",
         "it", "was", "the", "worst", "of", "times,", "it", "was", "the", "age",
@@ -211,7 +211,7 @@ public class TestFileDump {
     // Make sure having too few distinct values won't turn off dictionary encoding
     OrcConfVars.setDictionaryKeyStringSizeThreshold(conf, 1);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
-        100000, CompressionKind.ZLIB, 10000, 10000);
+        100000, CompressionKind.ZLIB, 10000, 10000, new MemoryManager(1000000));
     Random r1 = new Random(1);
     for(int i=0; i < 21000; ++i) {
       writer.addRow(new MyRecord(r1.nextInt(), r1.nextLong(),
