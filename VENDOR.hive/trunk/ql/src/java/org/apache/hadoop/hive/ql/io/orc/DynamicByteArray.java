@@ -112,7 +112,7 @@ final class DynamicByteArray {
       if (read > 0) {
         length += read;
       }
-    } while (read > 0);
+    } while (in.available() > 0);
   }
 
   /**
