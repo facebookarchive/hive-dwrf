@@ -29,6 +29,7 @@ import java.util.Map;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.hive.serde2.io.ByteWritable;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
 import org.apache.hadoop.hive.serde2.io.ShortWritable;
@@ -1429,7 +1430,10 @@ class RecordReaderImpl implements RecordReader {
         }
       }
     }
+
+    ReaderWriterProfiler.start(ReaderWriterProfiler.Counter.DESERIALIZATION_TIME);
     reader.startStripe(streams, stripeFooter.getColumnsList());
+    ReaderWriterProfiler.end(ReaderWriterProfiler.Counter.DESERIALIZATION_TIME);
     rowInStripe = 0;
     rowCountInStripe = stripe.getNumberOfRows();
     rowBaseInStripe = 0;
@@ -1453,7 +1457,10 @@ class RecordReaderImpl implements RecordReader {
       readStripe();
     }
     rowInStripe += 1;
-    return reader.next(previous);
+    ReaderWriterProfiler.start(ReaderWriterProfiler.Counter.DECODING_TIME);
+    Object next = reader.next(previous);
+    ReaderWriterProfiler.end(ReaderWriterProfiler.Counter.DECODING_TIME);
+    return next;
   }
 
   @Override

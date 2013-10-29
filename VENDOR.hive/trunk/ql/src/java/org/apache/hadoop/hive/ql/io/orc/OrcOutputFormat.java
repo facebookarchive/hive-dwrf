@@ -25,6 +25,7 @@ import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
 import org.apache.hadoop.hive.ql.io.orc.OrcSerde.OrcSerdeRow;
 import org.apache.hadoop.hive.serde2.SerDeStats;
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.io.NullWritable;
@@ -123,6 +124,7 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
   public RecordWriter<NullWritable, OrcSerdeRow>
       getRecordWriter(FileSystem fileSystem, JobConf conf, String name,
                       Progressable reporter) throws IOException {
+    ReaderWriterProfiler.setProfilerOptions(conf);
     return new OrcRecordWriter(fileSystem,  new Path(name), conf,
       HiveConf.ConfVars.HIVE_ORC_STRIPE_SIZE.defaultLongVal,
       HiveConf.ConfVars.HIVE_ORC_COMPRESSION.defaultVal,

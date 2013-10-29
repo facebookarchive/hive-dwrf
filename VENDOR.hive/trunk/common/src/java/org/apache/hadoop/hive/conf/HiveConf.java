@@ -459,6 +459,10 @@ public class HiveConf extends Configuration {
     // for hive udtf operator
     HIVEUDTFAUTOPROGRESS("hive.udtf.auto.progress", false),
 
+    // for profiling reads/writes
+    HIVEREADERWRITERPROFILER("hive.exec.profiler.readwrite", false),
+    HIVEREADERWRITERPROFILERTYPE("hive.exec.profiler.readwrite.cpu", false),
+
     // Default file format for CREATE TABLE statement
     // Options: TextFile, SequenceFile
     HIVEDEFAULTFILEFORMAT("hive.default.fileformat", "TextFile"),
