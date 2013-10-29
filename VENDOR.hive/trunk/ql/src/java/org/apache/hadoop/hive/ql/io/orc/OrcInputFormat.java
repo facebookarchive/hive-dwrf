@@ -36,6 +36,7 @@ import org.apache.hadoop.mapred.Reporter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 
 /**
  * A MapReduce/Hive input format for ORC files.
@@ -161,6 +162,7 @@ public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcStruct>
   public RecordReader<NullWritable, OrcStruct>
       getRecordReader(InputSplit inputSplit, JobConf conf,
                       Reporter reporter) throws IOException {
+    ReaderWriterProfiler.setProfilerOptions(conf);
     FileSplit fileSplit = (FileSplit) inputSplit;
     Path path = fileSplit.getPath();
     FileSystem fs = path.getFileSystem(conf);
