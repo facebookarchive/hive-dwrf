@@ -38,6 +38,7 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.common.io.RawDatasizeConst;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -434,6 +435,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     abstract void write(Object obj) throws IOException;
 
     void write(Object obj, long rawDataSize) throws IOException{
+      
       if (obj != null) {
         setRawDataSize(rawDataSize);
       } else {
@@ -1482,10 +1484,11 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       long rawDataSize = 0;
       if (obj != null) {
         StructObjectInspector insp = (StructObjectInspector) inspector;
+        List<Object> fieldDataList = insp.getStructFieldsDataAsList(obj);
+
         for(int i = 0; i < fields.size(); ++i) {
-          StructField field = fields.get(i);
           TreeWriter writer = childrenWriters[i];
-          writer.write(insp.getStructFieldData(obj, field));
+          writer.write(fieldDataList.get(i));
           rawDataSize += writer.getRowRawDataSize();
         }
       }
@@ -1841,17 +1844,25 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
   private void flushStripe() throws IOException {
     ensureWriter();
+
+    ReaderWriterProfiler.start(ReaderWriterProfiler.Counter.ENCODING_TIME);
     treeWriter.flush();
+
     if (buildIndex && rowsInIndex != 0) {
       createRowIndexEntry();
     }
+    ReaderWriterProfiler.end(ReaderWriterProfiler.Counter.ENCODING_TIME);
     if (rowsInStripe != 0) {
       int requiredIndexEntries = rowIndexStride == 0 ? 0 :
           (int) ((rowsInStripe + rowIndexStride - 1) / rowIndexStride);
       OrcProto.StripeFooter.Builder builder =
           OrcProto.StripeFooter.newBuilder();
       long stripeRawDataSize = treeWriter.getStripeRawDataSize();
+
+      ReaderWriterProfiler.start(ReaderWriterProfiler.Counter.SERIALIZATION_TIME);
       treeWriter.writeStripe(builder, requiredIndexEntries);
+      ReaderWriterProfiler.end(ReaderWriterProfiler.Counter.SERIALIZATION_TIME);
+
       long start = rawWriter.getPos();
       long section = start;
       long indexEnd = start;
@@ -1977,6 +1988,8 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
   @Override
   public void addRow(Object row) throws IOException {
+    
+    ReaderWriterProfiler.start(ReaderWriterProfiler.Counter.ENCODING_TIME);
     synchronized (this) {
       treeWriter.write(row);
       rowsInStripe += 1;
@@ -1989,6 +2002,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       }
     }
     memoryManager.addedRow();
+    ReaderWriterProfiler.end(ReaderWriterProfiler.Counter.ENCODING_TIME);
   }
 
   @Override
