@@ -71,6 +71,9 @@ public class ReaderWriterProfiler {
       }
       instance = createInstance();
     }
+    if (instance == null) {
+      instance = createInstance();
+    }
   }
 
   private static ReaderWriterProfiler createInstance() {
@@ -87,6 +90,7 @@ public class ReaderWriterProfiler {
   }
 
   public static ReaderWriterProfiler getInstance() {
+
     return instance;
   }
 

@@ -28,6 +28,8 @@ import java.util.List;
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.fail;
 
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
+
 public class TestInStream {
 
   static class OutputCollector implements OutStream.OutputReceiver {
@@ -57,6 +59,7 @@ public class TestInStream {
 
   @Test
   public void testUncompressed() throws Exception {
+    ReaderWriterProfiler.setProfilerOptions(null);
     OutputCollector collect = new OutputCollector();
     OutStream out = new OutStream("test", 100, null, collect);
     PositionCollector[] positions = new PositionCollector[1024];
@@ -88,6 +91,7 @@ public class TestInStream {
 
   @Test
   public void testCompressed() throws Exception {
+    ReaderWriterProfiler.setProfilerOptions(null);
     OutputCollector collect = new OutputCollector();
     CompressionCodec codec = new ZlibCodec();
     OutStream out = new OutStream("test", 300, codec, collect);
@@ -119,6 +123,7 @@ public class TestInStream {
 
   @Test
   public void testCorruptStream() throws Exception {
+    ReaderWriterProfiler.setProfilerOptions(null);
     OutputCollector collect = new OutputCollector();
     CompressionCodec codec = new ZlibCodec();
     OutStream out = new OutStream("test", 500, codec, collect);

@@ -22,6 +22,8 @@ import org.junit.Test;
 import java.nio.ByteBuffer;
 import java.util.Random;
 
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
+
 import static junit.framework.Assert.assertEquals;
 
 public class TestBitFieldReader {
@@ -70,16 +72,19 @@ public class TestBitFieldReader {
 
   @Test
   public void testUncompressedSeek() throws Exception {
+    ReaderWriterProfiler.setProfilerOptions(null);
     runSeekTest(null);
   }
 
   @Test
   public void testCompressedSeek() throws Exception {
+    ReaderWriterProfiler.setProfilerOptions(null);
     runSeekTest(new ZlibCodec());
   }
 
   @Test
   public void testBiggerItems() throws Exception {
+    ReaderWriterProfiler.setProfilerOptions(null);
     TestInStream.OutputCollector collect = new TestInStream.OutputCollector();
     final int COUNT = 16384;
     BitFieldWriter out = new BitFieldWriter(
@@ -110,6 +115,7 @@ public class TestBitFieldReader {
 
   @Test
   public void testSkips() throws Exception {
+    ReaderWriterProfiler.setProfilerOptions(null);
     TestInStream.OutputCollector collect = new TestInStream.OutputCollector();
     BitFieldWriter out = new BitFieldWriter(
         new OutStream("test", 100, null, collect), 1);

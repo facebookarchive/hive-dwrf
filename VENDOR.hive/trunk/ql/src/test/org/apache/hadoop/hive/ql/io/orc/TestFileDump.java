@@ -34,6 +34,7 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.junit.Before;
@@ -92,6 +93,8 @@ public class TestFileDump {
       inspector = ObjectInspectorFactory.getReflectionObjectInspector
           (MyRecord.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
+    
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         100000, CompressionKind.ZLIB, 10000, 10000);
     Random r1 = new Random(1);
@@ -135,6 +138,7 @@ public class TestFileDump {
     }
     // Turn off using the approximate entropy heuristic to turn off dictionary encoding
     conf.setFloat(HiveConf.ConfVars.HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD.varname, -1);
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         100000, CompressionKind.ZLIB, 10000, 10000);
     Random r1 = new Random(1);
@@ -207,6 +211,8 @@ public class TestFileDump {
     conf.setInt(HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD.varname, 11);
     // Make sure having too few distinct values won't turn off dictionary encoding
     conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname, 1);
+
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         100000, CompressionKind.ZLIB, 10000, 10000);
     Random r1 = new Random(1);
