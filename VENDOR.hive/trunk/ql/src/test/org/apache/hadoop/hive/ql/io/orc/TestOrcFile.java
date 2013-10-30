@@ -40,6 +40,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.DriverContext;
 import org.apache.hadoop.hive.ql.io.merge.BlockMergeTask;
 import org.apache.hadoop.hive.ql.io.merge.MergeWork;
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.hive.serde2.io.ByteWritable;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
 import org.apache.hadoop.hive.serde2.io.ShortWritable;
@@ -197,6 +198,7 @@ public class TestOrcFile {
       inspector = ObjectInspectorFactory.getReflectionObjectInspector
           (BigRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         100000, CompressionKind.ZLIB, 10000, 10000);
     writer.addRow(new BigRow(false, (byte) 1, (short) 1024, 65536,
@@ -210,6 +212,7 @@ public class TestOrcFile {
         list(inner(100000000, "cat"), inner(-100000, "in"), inner(1234, "hat")),
         map(inner(5,"chani"), inner(1,"mauddib"))));
     writer.close();
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Reader reader = OrcFile.createReader(fs, testFilePath);
 
     // check the stats
@@ -429,6 +432,7 @@ public class TestOrcFile {
           (InnerStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         1000, CompressionKind.NONE, 100, 1000);
     Random r1 = new Random(1);
@@ -455,6 +459,7 @@ public class TestOrcFile {
       writer.addRow(inner(x, y));
     }
     writer.close();
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Reader reader = OrcFile.createReader(fs, testFilePath);
 
     // check out the statistics
@@ -512,9 +517,11 @@ public class TestOrcFile {
       inspector = ObjectInspectorFactory.getReflectionObjectInspector
           (BigRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         1000, CompressionKind.NONE, 100, 10000);
     writer.close();
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Reader reader = OrcFile.createReader(fs, testFilePath);
     assertEquals(false, reader.rows(null).hasNext());
     assertEquals(CompressionKind.NONE, reader.getCompression());
@@ -532,6 +539,7 @@ public class TestOrcFile {
       inspector = ObjectInspectorFactory.getReflectionObjectInspector
           (BigRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         1000, CompressionKind.NONE, 100, 10000);
     writer.addUserMetadata("my.meta", byteBuf(1, 2, 3, 4, 5, 6, 7, -1, -2, 127, -128));
@@ -547,6 +555,7 @@ public class TestOrcFile {
         null, null, null, null));
     writer.addUserMetadata("clobber", byteBuf(5,7,11,13,17,19));
     writer.close();
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Reader reader = OrcFile.createReader(fs, testFilePath);
     assertEquals(byteBuf(5,7,11,13,17,19), reader.getMetadataValue("clobber"));
     assertEquals(byteBuf(1,2,3,4,5,6,7,-1,-2,127,-128),
@@ -595,6 +604,7 @@ public class TestOrcFile {
     synchronized (TestOrcFile.class) {
       inspector = OrcStruct.createObjectInspector(0, types);
     }
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         1000, CompressionKind.NONE, 100, 10000);
     OrcStruct row = new OrcStruct(2);
@@ -639,6 +649,7 @@ public class TestOrcFile {
     union.set((byte) 0, new IntWritable(138));
     writer.addRow(row);
     writer.close();
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Reader reader = OrcFile.createReader(fs, testFilePath);
     assertEquals(false, reader.getMetadataKeys().iterator().hasNext());
     assertEquals(5309, reader.getNumberOfRows());
@@ -734,6 +745,7 @@ public class TestOrcFile {
           (InnerStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         1000, CompressionKind.SNAPPY, 100, 10000);
     Random rand = new Random(12);
@@ -769,6 +781,8 @@ public class TestOrcFile {
           (InnerStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
+
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         5000, CompressionKind.SNAPPY, 1000, 0);
     Random rand = new Random(24);
@@ -780,6 +794,7 @@ public class TestOrcFile {
       }
     }
     writer.close();
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Reader reader = OrcFile.createReader(fs, testFilePath);
     assertEquals(50000, reader.getNumberOfRows());
     assertEquals(0, reader.getRowIndexStride());
@@ -810,6 +825,7 @@ public class TestOrcFile {
       inspector = ObjectInspectorFactory.getReflectionObjectInspector
           (BigRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         200000, CompressionKind.ZLIB, 65536, 1000);
     Random rand = new Random(42);
@@ -840,6 +856,7 @@ public class TestOrcFile {
     }
     writer.close();
     writer = null;
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Reader reader = OrcFile.createReader(fs, testFilePath);
     assertEquals(COUNT, reader.getNumberOfRows());
     RecordReader rows = reader.rows(null);
@@ -881,6 +898,7 @@ public class TestOrcFile {
           (BigRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
 
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         100000, CompressionKind.ZLIB, 10000, 10000);
     writer.addRow(new BigRow(false, (byte) 1, (short) 1024, 65536,
@@ -895,6 +913,7 @@ public class TestOrcFile {
         map(inner(5,"chani"), inner(1,"mauddib"))));
     writer.close();
 
+    ReaderWriterProfiler.setProfilerOptions(conf);
     writer = OrcFile.createWriter(fs, testFilePath2, conf, inspector,
         100000, CompressionKind.ZLIB, 10000, 10000);
     writer.addRow(new BigRow(false, (byte) 1, (short) 1023, 65536,
@@ -921,6 +940,7 @@ public class TestOrcFile {
     int ret = taskExec.execute(driverCxt);
     assertEquals(0, ret);
 
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Reader reader = OrcFile.createReader(fs, new Path(workDir, "000000_0"));
 
     // check the stats
@@ -962,6 +982,7 @@ public class TestOrcFile {
           (BigRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
 
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         100000, CompressionKind.ZLIB, 10000, 10000);
     writer.addRow(new BigRow(false, (byte) 1, (short) 1024, 65536,
@@ -976,6 +997,7 @@ public class TestOrcFile {
         map(inner(5,"chani"), inner(1,"mauddib"))));
     writer.close();
 
+    ReaderWriterProfiler.setProfilerOptions(conf);
     writer = OrcFile.createWriter(fs, testFilePath2, conf, inspector,
         100000, CompressionKind.SNAPPY, 10000, 10000);
     writer.addRow(new BigRow(false, (byte) 1, (short) 1023, 65536,
@@ -1006,6 +1028,7 @@ public class TestOrcFile {
     } catch (Exception e) {}
     assertFalse(success);
 
+    ReaderWriterProfiler.setProfilerOptions(conf);
     writer = OrcFile.createWriter(fs, testFilePath2, conf, inspector,
         100000, CompressionKind.ZLIB, 1000, 10000);
     writer.addRow(new BigRow(false, (byte) 1, (short) 1023, 65536,
@@ -1030,6 +1053,7 @@ public class TestOrcFile {
     } catch (Exception e) {}
     assertFalse(success);
 
+    ReaderWriterProfiler.setProfilerOptions(conf);
     writer = OrcFile.createWriter(fs, testFilePath2, conf, inspector,
         100000, CompressionKind.ZLIB, 10000, 1000);
     writer.addRow(new BigRow(false, (byte) 1, (short) 1023, 65536,
@@ -1054,6 +1078,7 @@ public class TestOrcFile {
     } catch (Exception e) {}
     assertFalse(success);
 
+    ReaderWriterProfiler.setProfilerOptions(conf);
     writer = OrcFile.createWriter(fs, testFilePath2, conf, inspector,
         100000, CompressionKind.ZLIB, 10000, 10000);
     writer.addRow(new BigRow(false, (byte) 1, (short) 1023, 65536,
@@ -1166,6 +1191,7 @@ public class TestOrcFile {
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
     MyMemoryManager memory = new MyMemoryManager(conf, 10000, 0.1);
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
         50000, CompressionKind.NONE, 100, 0, memory);
     assertEquals(testFilePath, memory.path);
@@ -1174,6 +1200,7 @@ public class TestOrcFile {
     }
     writer.close();
     assertEquals(null, memory.path);
+    ReaderWriterProfiler.setProfilerOptions(conf);
     Reader reader = OrcFile.createReader(fs, testFilePath);
     int i = 0;
     for(StripeInformation stripe: reader.getStripes()) {

@@ -27,6 +27,7 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
 
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 @SuppressWarnings({ "deprecation", "unchecked" })
 public class OrcBlockMergeInputFormat extends FileInputFormat {
 
@@ -34,6 +35,7 @@ public class OrcBlockMergeInputFormat extends FileInputFormat {
   public RecordReader getRecordReader(InputSplit split, JobConf job,
       Reporter reporter) throws IOException {
 
+    ReaderWriterProfiler.setProfilerOptions(job);
     reporter.setStatus(split.toString());
 
     return new OrcBlockMergeRecordReader(job, (FileSplit) split);

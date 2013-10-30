@@ -140,6 +140,7 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
                          boolean isCompressed,
                          Properties tableProperties,
                          Progressable reporter) throws IOException {
+    ReaderWriterProfiler.setProfilerOptions(conf);
     String stripeSizeStr = tableProperties.getProperty(OrcFile.STRIPE_SIZE);
     long stripeSize;
     if (stripeSizeStr != null) {
