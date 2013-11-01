@@ -24,10 +24,13 @@ import java.util.Random;
 
 import org.junit.Test;
 
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
+
 public class TestRunLengthIntegerReader {
 
   public void runSeekTest(CompressionCodec codec) throws Exception {
     TestInStream.OutputCollector collect = new TestInStream.OutputCollector();
+    ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthIntegerWriter out = new RunLengthIntegerWriter(
         new OutStream("test", 1000, codec, collect), true, 4, true);
     TestInStream.PositionCollector[] positions =
@@ -53,6 +56,7 @@ public class TestRunLengthIntegerReader {
     ByteBuffer inBuf = ByteBuffer.allocate(collect.buffer.size());
     collect.buffer.setByteBuffer(inBuf, 0, collect.buffer.size());
     inBuf.flip();
+    ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthIntegerReader in = new RunLengthIntegerReader(InStream.create
         ("test", inBuf, codec, 1000, true), true, 4);
     for(int i=0; i < 2048; ++i) {
@@ -91,6 +95,7 @@ public class TestRunLengthIntegerReader {
   @Test
   public void testSkips() throws Exception {
     TestInStream.OutputCollector collect = new TestInStream.OutputCollector();
+    ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthIntegerWriter out = new RunLengthIntegerWriter(
         new OutStream("test", 100, null, collect), true, 4, true);
     for(int i=0; i < 2048; ++i) {
@@ -104,6 +109,7 @@ public class TestRunLengthIntegerReader {
     ByteBuffer inBuf = ByteBuffer.allocate(collect.buffer.size());
     collect.buffer.setByteBuffer(inBuf, 0, collect.buffer.size());
     inBuf.flip();
+    ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthIntegerReader in = new RunLengthIntegerReader(InStream.create
         ("test", inBuf, null, 100, true), true, 4);
     for(int i=0; i < 2048; i += 10) {
