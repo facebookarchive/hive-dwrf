@@ -127,7 +127,7 @@ class RecordReaderImpl implements RecordReader {
         present = null;
         valuePresent = true;
       } else {
-        present = new BitFieldReader(in, 1);
+        present = new BitFieldReader(in);
       }
     }
 
@@ -179,7 +179,7 @@ class RecordReaderImpl implements RecordReader {
                      ) throws IOException {
       super.startStripe(streams, encodings);
       reader = new BitFieldReader(streams.get(new StreamName(columnId,
-          OrcProto.Stream.Kind.DATA)), 1);
+          OrcProto.Stream.Kind.DATA)));
     }
 
     @Override

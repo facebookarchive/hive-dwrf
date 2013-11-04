@@ -35,6 +35,8 @@ class OutStream extends PositionedOutputStream {
   static final int HEADER_SIZE = 3;
   private final String name;
   private final OutputReceiver receiver;
+  // if enabled the stream will be suppressed when writing stripe
+  private boolean suppress;
 
   /**
    * Stores the uncompressed bytes that have been serialized, but not
@@ -71,6 +73,7 @@ class OutStream extends PositionedOutputStream {
     this.bufferSize = bufferSize;
     this.codec = codec;
     this.receiver = receiver;
+    this.suppress = false;
   }
 
   public void clear() throws IOException {
@@ -79,6 +82,7 @@ class OutStream extends PositionedOutputStream {
     compressed = null;
     overflow = null;
     current = null;
+    suppress = false;
   }
 
   /**
@@ -266,6 +270,21 @@ class OutStream extends PositionedOutputStream {
       result += overflow.capacity();
     }
     return result;
+  }
+
+  /**
+   * Set suppress flag
+   */
+  public void suppress() {
+    suppress = true;
+  }
+
+  /**
+   * Returns the state of suppress flag
+   * @return value of suppress flag
+   */
+  public boolean isSuppressed() {
+    return suppress;
   }
 }
 
