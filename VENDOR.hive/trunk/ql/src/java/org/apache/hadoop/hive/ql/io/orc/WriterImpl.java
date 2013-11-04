@@ -257,6 +257,14 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     }
 
     /**
+     * Check the state of suppress flag in output stream
+     * @return value of suppress flag
+     */
+    public boolean isSuppressed() {
+      return outStream.isSuppressed();
+    }
+
+    /**
      * Write the saved compressed buffers to the OutputStream.
      * @param out the stream to write to
      * @throws IOException
@@ -317,7 +325,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
      * @return The output outStream that the section needs to be written to.
      * @throws IOException
      */
-    public PositionedOutputStream createStream(int column,
+    public OutStream createStream(int column,
                                                OrcProto.Stream.Kind kind
                                               ) throws IOException {
       StreamName name = new StreamName(column, kind);
@@ -351,6 +359,14 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     public boolean buildIndex() {
       return buildIndex;
     }
+
+    /**
+     * Is the ORC file compressed?
+     * @return are the streams compressed
+     */
+    public boolean isCompressed() {
+      return codec != null;
+    }
   }
 
   /**
@@ -363,6 +379,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     protected final int id;
     protected final ObjectInspector inspector;
     private final BitFieldWriter isPresent;
+    private final boolean isCompressed;
     protected final ColumnStatisticsImpl indexStatistics;
     private final ColumnStatisticsImpl fileStatistics;
     protected TreeWriter[] childrenWriters;
@@ -375,6 +392,8 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     protected long rowRawDataSize = 0;
     protected final boolean useVInts;
     private int numStripes = 0;
+    private boolean foundNulls;
+    private OutStream isPresentOutStream;
 
     /**
      * Create a tree writer
@@ -392,12 +411,14 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       this.inspector = inspector;
       this.conf = conf;
       this.useVInts = useVInts;
+      this.isCompressed = streamFactory.isCompressed();
       if (nullable) {
-        isPresent = new BitFieldWriter(streamFactory.createStream(id,
-            OrcProto.Stream.Kind.PRESENT), 1);
+        isPresentOutStream = streamFactory.createStream(id, OrcProto.Stream.Kind.PRESENT);
+        isPresent = new BitFieldWriter(isPresentOutStream, 1);
       } else {
         isPresent = null;
       }
+      this.foundNulls = false;
       indexStatistics = ColumnStatisticsImpl.create(inspector);
       fileStatistics = ColumnStatisticsImpl.create(inspector);
       childrenWriters = new TreeWriter[0];
@@ -456,6 +477,20 @@ class WriterImpl implements Writer, MemoryManager.Callback {
 
       if (isPresent != null) {
         isPresent.write(obj == null ? 0 : 1);
+        if(obj == null) {
+          foundNulls = true;
+        }
+      }
+    }
+
+    private void removeIsPresentPositions() {
+      for(int i=0; i < rowIndex.getEntryCount(); ++i) {
+        OrcProto.RowIndexEntry.Builder entry = rowIndex.getEntryBuilder(i);
+        List<Long> positions = entry.getPositionsList();
+        // bit streams use 3 positions if uncompressed, 4 if compressed
+        positions = positions.subList(isCompressed ? 4 : 3, positions.size());
+        entry.clearPositions();
+        entry.addAllPositions(positions);
       }
     }
 
@@ -484,7 +519,21 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       numStripes++;
       if (isPresent != null) {
         isPresent.flush();
+
+        // if no nulls are found in a stream, then suppress the stream
+        if(!foundNulls) {
+          isPresentOutStream.suppress();
+          // since isPresent bitstream is suppressed, update the index to
+          // remove the positions of the isPresent stream
+          if (rowIndexStream != null) {
+            removeIsPresentPositions();
+          }
+        }
       }
+
+      // reset the flag for next stripe
+      foundNulls = false;
+
       builder.addColumns(getEncoding());
       if (rowIndexStream != null) {
         if (rowIndex.getEntryCount() != requiredIndexEntries) {
@@ -1868,20 +1917,22 @@ class WriterImpl implements Writer, MemoryManager.Callback {
       long indexEnd = start;
       for(Map.Entry<StreamName, BufferedStream> pair: streams.entrySet()) {
         BufferedStream stream = pair.getValue();
-        stream.flush();
-        stream.spillTo(rawWriter);
-        stream.clear();
-        long end = rawWriter.getPos();
-        StreamName name = pair.getKey();
-        builder.addStreams(OrcProto.Stream.newBuilder()
-            .setColumn(name.getColumn())
-            .setKind(name.getKind())
-            .setLength(end-section)
-            .setUseVInts(useVInts));
-        section = end;
-        if (StreamName.Area.INDEX == name.getArea()) {
-          indexEnd = end;
+        if (!stream.isSuppressed()) {
+          stream.flush();
+          stream.spillTo(rawWriter);
+          long end = rawWriter.getPos();
+          StreamName name = pair.getKey();
+          builder.addStreams(OrcProto.Stream.newBuilder()
+              .setColumn(name.getColumn())
+              .setKind(name.getKind())
+              .setLength(end-section)
+              .setUseVInts(useVInts));
+          section = end;
+          if (StreamName.Area.INDEX == name.getArea()) {
+            indexEnd = end;
+          }
         }
+        stream.clear();
       }
       builder.build().writeTo(protobufWriter);
       protobufWriter.flush();
