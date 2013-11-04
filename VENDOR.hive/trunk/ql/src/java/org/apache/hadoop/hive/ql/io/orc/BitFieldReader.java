@@ -21,17 +21,12 @@ import java.io.EOFException;
 import java.io.IOException;
 
 class BitFieldReader {
-  private RunLengthByteReader input;
-  private final int bitSize;
+  private final RunLengthByteReader input;
   private int current;
   private int bitsLeft;
-  private final int mask;
 
-  BitFieldReader(InStream input,
-                 int bitSize) throws IOException {
+  BitFieldReader(InStream input) throws IOException {
     this.input = new RunLengthByteReader(input);
-    this.bitSize = bitSize;
-    mask = (1 << bitSize) - 1;
   }
 
   private void readByte() throws IOException {
@@ -45,19 +40,15 @@ class BitFieldReader {
 
   int next() throws IOException {
     int result = 0;
-    int bitsLeftToRead = bitSize;
-    while (bitsLeftToRead > bitsLeft) {
-      result <<= bitsLeft;
-      result |= current & ((1 << bitsLeft) - 1);
-      bitsLeftToRead -= bitsLeft;
+
+    if (bitsLeft == 0) {
       readByte();
     }
-    if (bitsLeftToRead > 0) {
-      result <<= bitsLeftToRead;
-      bitsLeft -= bitsLeftToRead;
-      result |= (current >>> bitsLeft) & ((1 << bitsLeftToRead) - 1);
-    }
-    return result & mask;
+
+    bitsLeft--;
+    result |= (current >>> bitsLeft) & 1;
+
+    return result & 1;
   }
 
   void seek(PositionProvider index) throws IOException {
@@ -75,7 +66,7 @@ class BitFieldReader {
   }
 
   void skip(long items) throws IOException {
-    long totalBits = bitSize * items;
+    long totalBits = items;
     if (bitsLeft >= totalBits) {
       bitsLeft -= totalBits;
     } else {

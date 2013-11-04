@@ -152,7 +152,6 @@ public class TestIntDictionaryEncoder {
     TestBitFieldReader bit = new TestBitFieldReader();
     bit.testUncompressedSeek();
     bit.testCompressedSeek();
-    bit.testBiggerItems();
     bit.testSkips();
     TestOrcFile test1 = new TestOrcFile();
     test1.test1();
