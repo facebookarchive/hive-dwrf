@@ -517,7 +517,7 @@ public class HiveConf extends Configuration {
     HIVEMERGERCFILEINPUTFORMATBLOCKLEVEL("hive.merge.input.format.block.level",
         "org.apache.hadoop.hive.ql.io.rcfile.merge.RCFileBlockMergeInputFormat"),
     HIVEMERGEORCINPUTFORMATBLOCKLEVEL("hive.merge.orc.input.format.block.level",
-        "org.apache.hadoop.hive.ql.io.orc.OrcBlockMergeInputFormat"),
+        "org.apache.hadoop.hive.ql.io.orc.merge.OrcBlockMergeInputFormat"),
     HIVEMERGECURRENTJOBHASDYNAMICPARTITIONS(
         "hive.merge.current.job.has.dynamic.partitions", false),
 

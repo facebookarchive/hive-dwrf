@@ -20,7 +20,7 @@ package org.apache.hadoop.hive.ql.io.orc;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 
-class ColumnStatisticsImpl implements ColumnStatistics {
+public class ColumnStatisticsImpl implements ColumnStatistics {
 
   private static final class BooleanStatisticsImpl extends ColumnStatisticsImpl
       implements BooleanColumnStatistics {
@@ -49,7 +49,7 @@ class ColumnStatisticsImpl implements ColumnStatistics {
     }
 
     @Override
-    void merge(ColumnStatisticsImpl other) {
+    public void merge(ColumnStatisticsImpl other) {
       super.merge(other);
       BooleanStatisticsImpl bkt = (BooleanStatisticsImpl) other;
       trueCount += bkt.trueCount;
@@ -141,7 +141,7 @@ class ColumnStatisticsImpl implements ColumnStatistics {
     }
 
     @Override
-    void merge(ColumnStatisticsImpl other) {
+    public void merge(ColumnStatisticsImpl other) {
       IntegerStatisticsImpl otherInt = (IntegerStatisticsImpl) other;
       if (!hasMinimum) {
         hasMinimum = otherInt.hasMinimum;
@@ -268,7 +268,7 @@ class ColumnStatisticsImpl implements ColumnStatistics {
     }
 
     @Override
-    void merge(ColumnStatisticsImpl other) {
+    public void merge(ColumnStatisticsImpl other) {
       super.merge(other);
       DoubleStatisticsImpl dbl = (DoubleStatisticsImpl) other;
       if (!hasMinimum) {
@@ -369,7 +369,7 @@ class ColumnStatisticsImpl implements ColumnStatistics {
     }
 
     @Override
-    void merge(ColumnStatisticsImpl other) {
+    public void merge(ColumnStatisticsImpl other) {
       super.merge(other);
       StringStatisticsImpl str = (StringStatisticsImpl) other;
       if (minimum == null) {
@@ -451,7 +451,7 @@ class ColumnStatisticsImpl implements ColumnStatistics {
     throw new UnsupportedOperationException("Can't update string");
   }
 
-  void merge(ColumnStatisticsImpl stats) {
+  public void merge(ColumnStatisticsImpl stats) {
     count += stats.count;
   }
 

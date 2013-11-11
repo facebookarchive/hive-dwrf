@@ -19,16 +19,19 @@
 package org.apache.hadoop.hive.ql.io.orc;
 
 import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertTrue;
+import static org.apache.hadoop.hive.ql.io.orc.OrcTestUtils.byteBuf;
+import static org.apache.hadoop.hive.ql.io.orc.OrcTestUtils.bytes;
+import static org.apache.hadoop.hive.ql.io.orc.OrcTestUtils.inner;
+import static org.apache.hadoop.hive.ql.io.orc.OrcTestUtils.list;
+import static org.apache.hadoop.hive.ql.io.orc.OrcTestUtils.map;
 
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -36,10 +39,9 @@ import java.util.Random;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.hive.ql.DriverContext;
-import org.apache.hadoop.hive.ql.io.merge.BlockMergeTask;
-import org.apache.hadoop.hive.ql.io.merge.MergeWork;
+import org.apache.hadoop.hive.ql.io.orc.OrcTestUtils.BigRow;
+import org.apache.hadoop.hive.ql.io.orc.OrcTestUtils.InnerStruct;
+import org.apache.hadoop.hive.ql.io.orc.OrcTestUtils.MiddleStruct;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.hive.serde2.io.ByteWritable;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
@@ -74,100 +76,6 @@ import org.junit.rules.TestName;
  * Tests for the top level reader/streamFactory of ORC files.
  */
 public class TestOrcFile {
-
-  public static class InnerStruct {
-    int int1;
-    Text string1 = new Text();
-    InnerStruct(int int1, String string1) {
-      this.int1 = int1;
-      this.string1.set(string1);
-    }
-  }
-
-  public static class MiddleStruct {
-    List<InnerStruct> list = new ArrayList<InnerStruct>();
-
-    MiddleStruct(InnerStruct... items) {
-      list.clear();
-      for(InnerStruct item: items) {
-        list.add(item);
-      }
-    }
-  }
-
-  public static class BigRow {
-    Boolean boolean1;
-    Byte byte1;
-    Short short1;
-    Integer int1;
-    Long long1;
-    Float float1;
-    Double double1;
-    BytesWritable bytes1;
-    Text string1;
-    MiddleStruct middle;
-    List<InnerStruct> list = new ArrayList<InnerStruct>();
-    Map<Text, InnerStruct> map = new HashMap<Text, InnerStruct>();
-
-    BigRow(Boolean b1, Byte b2, Short s1, Integer i1, Long l1, Float f1,
-           Double d1,
-           BytesWritable b3, String s2, MiddleStruct m1,
-           List<InnerStruct> l2, Map<Text, InnerStruct> m2) {
-      this.boolean1 = b1;
-      this.byte1 = b2;
-      this.short1 = s1;
-      this.int1 = i1;
-      this.long1 = l1;
-      this.float1 = f1;
-      this.double1 = d1;
-      this.bytes1 = b3;
-      if (s2 == null) {
-        this.string1 = null;
-      } else {
-        this.string1 = new Text(s2);
-      }
-      this.middle = m1;
-      this.list = l2;
-      this.map = m2;
-    }
-  }
-
-  private static InnerStruct inner(int i, String s) {
-    return new InnerStruct(i, s);
-  }
-
-  private static Map<Text, InnerStruct> map(InnerStruct... items)  {
-    Map<Text, InnerStruct> result = new HashMap<Text, InnerStruct>();
-    for(InnerStruct i: items) {
-      result.put(new Text(i.string1), i);
-    }
-    return result;
-  }
-
-  private static List<InnerStruct> list(InnerStruct... items) {
-    List<InnerStruct> result = new ArrayList<InnerStruct>();
-    for(InnerStruct s: items) {
-      result.add(s);
-    }
-    return result;
-  }
-
-  private static BytesWritable bytes(int... items) {
-    BytesWritable result = new BytesWritable();
-    result.setSize(items.length);
-    for(int i=0; i < items.length; ++i) {
-      result.getBytes()[i] = (byte) items[i];
-    }
-    return result;
-  }
-
-  private static ByteBuffer byteBuf(int... items) {
-     ByteBuffer result = ByteBuffer.allocate(items.length);
-    for(int item: items) {
-      result.put((byte) item);
-    }
-    return result;
-  }
 
   Path workDir = new Path(System.getProperty("test.tmp.dir",
       "target" + File.separator + "test" + File.separator + "tmp"));
@@ -888,221 +796,6 @@ public class TestOrcFile {
       compareList(expectedList, actualList);
       compareList(expected.list, (List) row.getFieldValue(10));
     }
-  }
-
-  @Test
-  public void testMerge() throws Exception {
-    ObjectInspector inspector;
-    synchronized (TestOrcFile.class) {
-      inspector = ObjectInspectorFactory.getReflectionObjectInspector
-          (BigRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
-    }
-
-    ReaderWriterProfiler.setProfilerOptions(conf);
-    Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
-        100000, CompressionKind.ZLIB, 10000, 10000);
-    writer.addRow(new BigRow(false, (byte) 1, (short) 1024, 65536,
-        Long.MAX_VALUE, (float) 1.0, -15.0, bytes(0,1,2,3,4), "hi",
-        new MiddleStruct(inner(1, "bye"), inner(2, "sigh")),
-        list(inner(3, "good"), inner(4, "bad")),
-        map()));
-    writer.addRow(new BigRow(true, (byte) 100, (short) 2048, 65536,
-        Long.MAX_VALUE, (float) 2.0, -5.0, bytes(), "bye",
-        new MiddleStruct(inner(1, "bye"), inner(2, "sigh")),
-        list(inner(100000000, "cat"), inner(-100000, "in"), inner(1234, "hat")),
-        map(inner(5,"chani"), inner(1,"mauddib"))));
-    writer.close();
-
-    ReaderWriterProfiler.setProfilerOptions(conf);
-    writer = OrcFile.createWriter(fs, testFilePath2, conf, inspector,
-        100000, CompressionKind.ZLIB, 10000, 10000);
-    writer.addRow(new BigRow(false, (byte) 1, (short) 1023, 65536,
-        Long.MIN_VALUE, (float) 1.0, -14.0, bytes(0,1,2,3,4), "hI",
-        new MiddleStruct(inner(1, "bye"), inner(2, "sigh")),
-        list(inner(3, "good"), inner(4, "bad")),
-        map()));
-    writer.addRow(new BigRow(false, (byte) 100, (short) 2047, 65536,
-        Long.MIN_VALUE, (float) 2.0, -4.0, bytes(), "Bye",
-        new MiddleStruct(inner(1, "bye"), inner(2, "sigh")),
-        list(inner(100000000, "cat"), inner(-100000, "in"), inner(1234, "hat")),
-        map(inner(5,"chani"), inner(1,"mauddib"))));
-    writer.close();
-
-    List<String> inputPaths = new ArrayList<String>();
-    inputPaths.add(testFilePath.toString());
-    inputPaths.add(testFilePath2.toString());
-    MergeWork mergeWork = new MergeWork(inputPaths, workDir.toString(),
-        OrcMergeMapper.class, OrcBlockMergeInputFormat.class);
-    DriverContext driverCxt = new DriverContext();
-    BlockMergeTask taskExec = new BlockMergeTask();
-    taskExec.initialize(new HiveConf(), null, driverCxt);
-    taskExec.setWork(mergeWork);
-    int ret = taskExec.execute(driverCxt);
-    assertEquals(0, ret);
-
-    ReaderWriterProfiler.setProfilerOptions(conf);
-    Reader reader = OrcFile.createReader(fs, new Path(workDir, "000000_0"));
-
-    // check the stats
-    ColumnStatistics[] stats = reader.getStatistics();
-    assertEquals(4, stats[1].getNumberOfValues());
-    assertEquals(3, ((BooleanColumnStatistics) stats[1]).getFalseCount());
-    assertEquals(1, ((BooleanColumnStatistics) stats[1]).getTrueCount());
-    assertEquals("count: 4 true: 1", stats[1].toString());
-
-    assertEquals(2048, ((IntegerColumnStatistics) stats[3]).getMaximum());
-    assertEquals(1023, ((IntegerColumnStatistics) stats[3]).getMinimum());
-    assertEquals(true, ((IntegerColumnStatistics) stats[3]).isSumDefined());
-    assertEquals(6142, ((IntegerColumnStatistics) stats[3]).getSum());
-    assertEquals("count: 4 min: 1023 max: 2048 sum: 6142",
-        stats[3].toString());
-
-    assertEquals(Long.MAX_VALUE,
-        ((IntegerColumnStatistics) stats[5]).getMaximum());
-    assertEquals(Long.MIN_VALUE,
-        ((IntegerColumnStatistics) stats[5]).getMinimum());
-    assertEquals(false, ((IntegerColumnStatistics) stats[5]).isSumDefined());
-    assertEquals("count: 4 min: -9223372036854775808 max: 9223372036854775807",
-        stats[5].toString());
-
-    assertEquals(-15.0, ((DoubleColumnStatistics) stats[7]).getMinimum());
-    assertEquals(-4.0, ((DoubleColumnStatistics) stats[7]).getMaximum());
-    assertEquals(-38.0, ((DoubleColumnStatistics) stats[7]).getSum(), 0.00001);
-    assertEquals("count: 4 min: -15.0 max: -4.0 sum: -38.0",
-        stats[7].toString());
-
-    assertEquals("count: 4 min: Bye max: hi", stats[9].toString());
-  }
-
-  @Test
-  public void testMergeFail() throws Exception {
-    ObjectInspector inspector;
-    synchronized (TestOrcFile.class) {
-      inspector = ObjectInspectorFactory.getReflectionObjectInspector
-          (BigRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
-    }
-
-    ReaderWriterProfiler.setProfilerOptions(conf);
-    Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
-        100000, CompressionKind.ZLIB, 10000, 10000);
-    writer.addRow(new BigRow(false, (byte) 1, (short) 1024, 65536,
-        Long.MAX_VALUE, (float) 1.0, -15.0, bytes(0,1,2,3,4), "hi",
-        new MiddleStruct(inner(1, "bye"), inner(2, "sigh")),
-        list(inner(3, "good"), inner(4, "bad")),
-        map()));
-    writer.addRow(new BigRow(true, (byte) 100, (short) 2048, 65536,
-        Long.MAX_VALUE, (float) 2.0, -5.0, bytes(), "bye",
-        new MiddleStruct(inner(1, "bye"), inner(2, "sigh")),
-        list(inner(100000000, "cat"), inner(-100000, "in"), inner(1234, "hat")),
-        map(inner(5,"chani"), inner(1,"mauddib"))));
-    writer.close();
-
-    ReaderWriterProfiler.setProfilerOptions(conf);
-    writer = OrcFile.createWriter(fs, testFilePath2, conf, inspector,
-        100000, CompressionKind.SNAPPY, 10000, 10000);
-    writer.addRow(new BigRow(false, (byte) 1, (short) 1023, 65536,
-        Long.MIN_VALUE, (float) 1.0, -14.0, bytes(0,1,2,3,4), "hI",
-        new MiddleStruct(inner(1, "bye"), inner(2, "sigh")),
-        list(inner(3, "good"), inner(4, "bad")),
-        map()));
-    writer.addRow(new BigRow(false, (byte) 100, (short) 2047, 65536,
-        Long.MIN_VALUE, (float) 2.0, -4.0, bytes(), "Bye",
-        new MiddleStruct(inner(1, "bye"), inner(2, "sigh")),
-        list(inner(100000000, "cat"), inner(-100000, "in"), inner(1234, "hat")),
-        map(inner(5,"chani"), inner(1,"mauddib"))));
-    writer.close();
-
-    List<String> inputPaths = new ArrayList<String>();
-    inputPaths.add(testFilePath.toString());
-    inputPaths.add(testFilePath2.toString());
-    MergeWork mergeWork = new MergeWork(inputPaths, workDir.toString(),
-        OrcMergeMapper.class, OrcBlockMergeInputFormat.class);
-    DriverContext driverCxt = new DriverContext();
-    BlockMergeTask taskExec = new BlockMergeTask();
-    taskExec.initialize(new HiveConf(), null, driverCxt);
-    taskExec.setWork(mergeWork);
-    boolean success = false;
-    try {
-      int ret = taskExec.execute(driverCxt);
-      success = ret == 0;
-    } catch (Exception e) {}
-    assertFalse(success);
-
-    ReaderWriterProfiler.setProfilerOptions(conf);
-    writer = OrcFile.createWriter(fs, testFilePath2, conf, inspector,
-        100000, CompressionKind.ZLIB, 1000, 10000);
-    writer.addRow(new BigRow(false, (byte) 1, (short) 1023, 65536,
-        Long.MIN_VALUE, (float) 1.0, -14.0, bytes(0,1,2,3,4), "hI",
-        new MiddleStruct(inner(1, "bye"), inner(2, "sigh")),
-        list(inner(3, "good"), inner(4, "bad")),
-        map()));
-    writer.addRow(new BigRow(false, (byte) 100, (short) 2047, 65536,
-        Long.MIN_VALUE, (float) 2.0, -4.0, bytes(), "Bye",
-        new MiddleStruct(inner(1, "bye"), inner(2, "sigh")),
-        list(inner(100000000, "cat"), inner(-100000, "in"), inner(1234, "hat")),
-        map(inner(5,"chani"), inner(1,"mauddib"))));
-    writer.close();
-
-    taskExec = new BlockMergeTask();
-    taskExec.initialize(new HiveConf(), null, driverCxt);
-    taskExec.setWork(mergeWork);
-    success = false;
-    try {
-      int ret = taskExec.execute(driverCxt);
-      success = ret == 0;
-    } catch (Exception e) {}
-    assertFalse(success);
-
-    ReaderWriterProfiler.setProfilerOptions(conf);
-    writer = OrcFile.createWriter(fs, testFilePath2, conf, inspector,
-        100000, CompressionKind.ZLIB, 10000, 1000);
-    writer.addRow(new BigRow(false, (byte) 1, (short) 1023, 65536,
-        Long.MIN_VALUE, (float) 1.0, -14.0, bytes(0,1,2,3,4), "hI",
-        new MiddleStruct(inner(1, "bye"), inner(2, "sigh")),
-        list(inner(3, "good"), inner(4, "bad")),
-        map()));
-    writer.addRow(new BigRow(false, (byte) 100, (short) 2047, 65536,
-        Long.MIN_VALUE, (float) 2.0, -4.0, bytes(), "Bye",
-        new MiddleStruct(inner(1, "bye"), inner(2, "sigh")),
-        list(inner(100000000, "cat"), inner(-100000, "in"), inner(1234, "hat")),
-        map(inner(5,"chani"), inner(1,"mauddib"))));
-    writer.close();
-
-    taskExec = new BlockMergeTask();
-    taskExec.initialize(new HiveConf(), null, driverCxt);
-    taskExec.setWork(mergeWork);
-    success = false;
-    try {
-      int ret = taskExec.execute(driverCxt);
-      success = ret == 0;
-    } catch (Exception e) {}
-    assertFalse(success);
-
-    ReaderWriterProfiler.setProfilerOptions(conf);
-    writer = OrcFile.createWriter(fs, testFilePath2, conf, inspector,
-        100000, CompressionKind.ZLIB, 10000, 10000);
-    writer.addRow(new BigRow(false, (byte) 1, (short) 1023, 65536,
-        Long.MIN_VALUE, (float) 1.0, -14.0, bytes(0,1,2,3,4), "hI",
-        new MiddleStruct(inner(1, "bye"), inner(2, "sigh")),
-        list(inner(3, "good"), inner(4, "bad")),
-        map()));
-    writer.addRow(new BigRow(false, (byte) 100, (short) 2047, 65536,
-        Long.MIN_VALUE, (float) 2.0, -4.0, bytes(), "Bye",
-        new MiddleStruct(inner(1, "bye"), inner(2, "sigh")),
-        list(inner(100000000, "cat"), inner(-100000, "in"), inner(1234, "hat")),
-        map(inner(5,"chani"), inner(1,"mauddib"))));
-    writer.addUserMetadata("clobber", byteBuf(1,2,3));
-    writer.close();
-
-    taskExec = new BlockMergeTask();
-    taskExec.initialize(new HiveConf(), null, driverCxt);
-    taskExec.setWork(mergeWork);
-    success = false;
-    try {
-      int ret = taskExec.execute(driverCxt);
-      success = ret == 0;
-    } catch (Exception e) {}
-    assertFalse(success);
   }
 
   private void compareInner(InnerStruct expect,

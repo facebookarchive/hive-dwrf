@@ -75,7 +75,7 @@ import com.google.protobuf.CodedOutputStream;
  * particular, because the MemoryManager is shared between writers, this class
  * assumes that checkMemory may be called from a separate thread.
  */
-class WriterImpl implements Writer, MemoryManager.Callback {
+public class WriterImpl implements Writer, MemoryManager.Callback {
 
   private static final Log LOG = LogFactory.getLog(WriterImpl.class);
 
@@ -1877,7 +1877,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     rowsInIndex = 0;
   }
 
-  void addStripe(StripeInformation si, byte[] data) throws IOException {
+  public void addStripe(StripeInformation si, byte[] data) throws IOException {
     ensureWriter();
     OrcProto.StripeInformation dirEntry =
       OrcProto.StripeInformation.newBuilder()
@@ -2066,7 +2066,7 @@ class WriterImpl implements Writer, MemoryManager.Callback {
     close(null);
   }
 
-  void close(ColumnStatisticsImpl[] columnStats) throws IOException {
+  public void close(ColumnStatisticsImpl[] columnStats) throws IOException {
     // remove us from the memory manager so that we don't get any callbacks
     memoryManager.removeWriter(path);
     // actually close the file

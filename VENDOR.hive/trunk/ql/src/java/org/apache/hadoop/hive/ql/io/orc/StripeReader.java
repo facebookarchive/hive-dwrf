@@ -27,7 +27,7 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.io.orc.OrcFile.KeyWrapper;
 import org.apache.hadoop.hive.ql.io.orc.OrcFile.ValueWrapper;
 
-class StripeReader {
+public class StripeReader {
   private final FSDataInputStream file;
   private final List<StripeInformation> stripes =
     new ArrayList<StripeInformation>();

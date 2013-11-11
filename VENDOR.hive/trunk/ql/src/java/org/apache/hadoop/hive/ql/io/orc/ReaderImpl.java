@@ -32,7 +32,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 
 import com.google.protobuf.CodedInputStream;
 
-final class ReaderImpl implements Reader {
+public final class ReaderImpl implements Reader {
 
   private static final int DIRECTORY_SIZE_GUESS = 16 * 1024;
 
@@ -187,7 +187,7 @@ final class ReaderImpl implements Reader {
     return result;
   }
 
-  ReaderImpl(FileSystem fs, Path path) throws IOException {
+  public ReaderImpl(FileSystem fs, Path path) throws IOException {
     this.fileSystem = fs;
     this.path = path;
     FSDataInputStream file = fs.open(path);
