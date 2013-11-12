@@ -17,20 +17,20 @@
  */
 package org.apache.hadoop.hive.ql.io.orc;
 
+import static junit.framework.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.doubleThat;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+
+import java.lang.management.ManagementFactory;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.junit.Test;
-
-import java.lang.management.ManagementFactory;
-
-import static junit.framework.Assert.assertEquals;
-import static org.junit.Assert.assertTrue;
-import static org.mockito.Mockito.doubleThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
 
 /**
  * Test the ORC memory manager.
@@ -51,7 +51,7 @@ public class TestMemoryManager {
     NullCallback callback = new NullCallback();
     long poolSize = mgr.getTotalMemoryPool();
     assertEquals(Math.round(ManagementFactory.getMemoryMXBean().
-        getHeapMemoryUsage().getMax() * 0.5f), poolSize);
+        getHeapMemoryUsage().getMax() * 0.5), poolSize);
     assertEquals(1.0, mgr.getAllocationScale(), 0.00001);
     mgr.addWriter(new Path("p1"), 1000, callback);
     assertEquals(1.0, mgr.getAllocationScale(), 0.00001);

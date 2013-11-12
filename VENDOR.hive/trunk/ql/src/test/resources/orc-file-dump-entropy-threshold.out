@@ -9,95 +9,95 @@ Statistics:
   Column 0: count: 21000
   Column 1: count: 21000 min: -2146993718 max: 2147378179 sum: 193017464403
   Column 2: count: 21000 min: -9222758097219661129 max: 9222303228623055266
-  Column 3: count: 21000 min: -1000330164 max: 999398743
+  Column 3: count: 21000 min: -1000330164 max: 999572033
 
 Stripes:
-  Stripe: offset: 3 data: 74936 rows: 4000 tail: 89 index: 124 raw_data: 87898
+  Stripe: offset: 3 data: 93697 rows: 5000 tail: 89 index: 124 raw_data: 109859
     Stream: column 0 section ROW_INDEX start: 3 length 10
     Stream: column 1 section ROW_INDEX start: 13 length 34
     Stream: column 2 section ROW_INDEX start: 47 length 38
     Stream: column 3 section ROW_INDEX start: 85 length 42
-    Stream: column 1 section DATA start: 127 length 18033
-    Stream: column 1 section LENGTH start: 18160 length 0
-    Stream: column 1 section DICTIONARY_DATA start: 18160 length 0
-    Stream: column 2 section DATA start: 18160 length 34716
-    Stream: column 2 section LENGTH start: 52876 length 0
-    Stream: column 2 section DICTIONARY_DATA start: 52876 length 0
-    Stream: column 3 section DATA start: 52876 length 20584
-    Stream: column 3 section LENGTH start: 73460 length 1603
-    Stream: column 3 section DICTIONARY_DATA start: 75063 length 0
+    Stream: column 1 section DATA start: 127 length 22569
+    Stream: column 1 section LENGTH start: 22696 length 0
+    Stream: column 1 section DICTIONARY_DATA start: 22696 length 0
+    Stream: column 2 section DATA start: 22696 length 43384
+    Stream: column 2 section LENGTH start: 66080 length 0
+    Stream: column 2 section DICTIONARY_DATA start: 66080 length 0
+    Stream: column 3 section DATA start: 66080 length 25755
+    Stream: column 3 section LENGTH start: 91835 length 1989
+    Stream: column 3 section DICTIONARY_DATA start: 93824 length 0
     Encoding column 0: DIRECT
     Encoding column 1: DIRECT
     Encoding column 2: DIRECT
     Encoding column 3: DIRECT
-  Stripe: offset: 75152 data: 93783 rows: 5000 tail: 89 index: 125 raw_data: 109935
-    Stream: column 0 section ROW_INDEX start: 75152 length 10
-    Stream: column 1 section ROW_INDEX start: 75162 length 35
-    Stream: column 2 section ROW_INDEX start: 75197 length 38
-    Stream: column 3 section ROW_INDEX start: 75235 length 42
-    Stream: column 1 section DATA start: 75277 length 22562
-    Stream: column 1 section LENGTH start: 97839 length 0
-    Stream: column 1 section DICTIONARY_DATA start: 97839 length 0
-    Stream: column 2 section DATA start: 97839 length 43391
-    Stream: column 2 section LENGTH start: 141230 length 0
-    Stream: column 2 section DICTIONARY_DATA start: 141230 length 0
-    Stream: column 3 section DATA start: 141230 length 25842
-    Stream: column 3 section LENGTH start: 167072 length 1988
-    Stream: column 3 section DICTIONARY_DATA start: 169060 length 0
+  Stripe: offset: 93913 data: 93732 rows: 5000 tail: 89 index: 123 raw_data: 109897
+    Stream: column 0 section ROW_INDEX start: 93913 length 10
+    Stream: column 1 section ROW_INDEX start: 93923 length 33
+    Stream: column 2 section ROW_INDEX start: 93956 length 38
+    Stream: column 3 section ROW_INDEX start: 93994 length 42
+    Stream: column 1 section DATA start: 94036 length 22561
+    Stream: column 1 section LENGTH start: 116597 length 0
+    Stream: column 1 section DICTIONARY_DATA start: 116597 length 0
+    Stream: column 2 section DATA start: 116597 length 43401
+    Stream: column 2 section LENGTH start: 159998 length 0
+    Stream: column 2 section DICTIONARY_DATA start: 159998 length 0
+    Stream: column 3 section DATA start: 159998 length 25779
+    Stream: column 3 section LENGTH start: 185777 length 1991
+    Stream: column 3 section DICTIONARY_DATA start: 187768 length 0
     Encoding column 0: DIRECT
     Encoding column 1: DIRECT
     Encoding column 2: DIRECT
     Encoding column 3: DIRECT
-  Stripe: offset: 169149 data: 93659 rows: 5000 tail: 89 index: 125 raw_data: 109873
-    Stream: column 0 section ROW_INDEX start: 169149 length 10
-    Stream: column 1 section ROW_INDEX start: 169159 length 35
-    Stream: column 2 section ROW_INDEX start: 169194 length 38
-    Stream: column 3 section ROW_INDEX start: 169232 length 42
-    Stream: column 1 section DATA start: 169274 length 22555
-    Stream: column 1 section LENGTH start: 191829 length 0
-    Stream: column 1 section DICTIONARY_DATA start: 191829 length 0
-    Stream: column 2 section DATA start: 191829 length 43379
-    Stream: column 2 section LENGTH start: 235208 length 0
-    Stream: column 2 section DICTIONARY_DATA start: 235208 length 0
-    Stream: column 3 section DATA start: 235208 length 25741
-    Stream: column 3 section LENGTH start: 260949 length 1984
-    Stream: column 3 section DICTIONARY_DATA start: 262933 length 0
+  Stripe: offset: 187857 data: 93706 rows: 5000 tail: 89 index: 125 raw_data: 109935
+    Stream: column 0 section ROW_INDEX start: 187857 length 10
+    Stream: column 1 section ROW_INDEX start: 187867 length 35
+    Stream: column 2 section ROW_INDEX start: 187902 length 38
+    Stream: column 3 section ROW_INDEX start: 187940 length 42
+    Stream: column 1 section DATA start: 187982 length 22560
+    Stream: column 1 section LENGTH start: 210542 length 0
+    Stream: column 1 section DICTIONARY_DATA start: 210542 length 0
+    Stream: column 2 section DATA start: 210542 length 43372
+    Stream: column 2 section LENGTH start: 253914 length 0
+    Stream: column 2 section DICTIONARY_DATA start: 253914 length 0
+    Stream: column 3 section DATA start: 253914 length 25797
+    Stream: column 3 section LENGTH start: 279711 length 1977
+    Stream: column 3 section DICTIONARY_DATA start: 281688 length 0
     Encoding column 0: DIRECT
     Encoding column 1: DIRECT
     Encoding column 2: DIRECT
     Encoding column 3: DIRECT
-  Stripe: offset: 263022 data: 93729 rows: 5000 tail: 89 index: 125 raw_data: 109846
-    Stream: column 0 section ROW_INDEX start: 263022 length 10
-    Stream: column 1 section ROW_INDEX start: 263032 length 35
-    Stream: column 2 section ROW_INDEX start: 263067 length 38
-    Stream: column 3 section ROW_INDEX start: 263105 length 42
-    Stream: column 1 section DATA start: 263147 length 22548
-    Stream: column 1 section LENGTH start: 285695 length 0
-    Stream: column 1 section DICTIONARY_DATA start: 285695 length 0
-    Stream: column 2 section DATA start: 285695 length 43378
-    Stream: column 2 section LENGTH start: 329073 length 0
-    Stream: column 2 section DICTIONARY_DATA start: 329073 length 0
-    Stream: column 3 section DATA start: 329073 length 25760
-    Stream: column 3 section LENGTH start: 354833 length 2043
-    Stream: column 3 section DICTIONARY_DATA start: 356876 length 0
+  Stripe: offset: 281777 data: 93712 rows: 5000 tail: 89 index: 124 raw_data: 109854
+    Stream: column 0 section ROW_INDEX start: 281777 length 10
+    Stream: column 1 section ROW_INDEX start: 281787 length 34
+    Stream: column 2 section ROW_INDEX start: 281821 length 38
+    Stream: column 3 section ROW_INDEX start: 281859 length 42
+    Stream: column 1 section DATA start: 281901 length 22540
+    Stream: column 1 section LENGTH start: 304441 length 0
+    Stream: column 1 section DICTIONARY_DATA start: 304441 length 0
+    Stream: column 2 section DATA start: 304441 length 43394
+    Stream: column 2 section LENGTH start: 347835 length 0
+    Stream: column 2 section DICTIONARY_DATA start: 347835 length 0
+    Stream: column 3 section DATA start: 347835 length 25753
+    Stream: column 3 section LENGTH start: 373588 length 2025
+    Stream: column 3 section DICTIONARY_DATA start: 375613 length 0
     Encoding column 0: DIRECT
     Encoding column 1: DIRECT
     Encoding column 2: DIRECT
     Encoding column 3: DIRECT
-  Stripe: offset: 356965 data: 37493 rows: 2000 tail: 86 index: 122 raw_data: 43958
-    Stream: column 0 section ROW_INDEX start: 356965 length 10
-    Stream: column 1 section ROW_INDEX start: 356975 length 35
-    Stream: column 2 section ROW_INDEX start: 357010 length 38
-    Stream: column 3 section ROW_INDEX start: 357048 length 39
-    Stream: column 1 section DATA start: 357087 length 8998
-    Stream: column 1 section LENGTH start: 366085 length 0
-    Stream: column 1 section DICTIONARY_DATA start: 366085 length 0
-    Stream: column 2 section DATA start: 366085 length 17366
-    Stream: column 2 section LENGTH start: 383451 length 0
-    Stream: column 2 section DICTIONARY_DATA start: 383451 length 0
-    Stream: column 3 section DATA start: 383451 length 10279
-    Stream: column 3 section LENGTH start: 393730 length 850
-    Stream: column 3 section DICTIONARY_DATA start: 394580 length 0
+  Stripe: offset: 375702 data: 18794 rows: 1000 tail: 83 index: 122 raw_data: 21965
+    Stream: column 0 section ROW_INDEX start: 375702 length 10
+    Stream: column 1 section ROW_INDEX start: 375712 length 35
+    Stream: column 2 section ROW_INDEX start: 375747 length 38
+    Stream: column 3 section ROW_INDEX start: 375785 length 39
+    Stream: column 1 section DATA start: 375824 length 4522
+    Stream: column 1 section LENGTH start: 380346 length 0
+    Stream: column 1 section DICTIONARY_DATA start: 380346 length 0
+    Stream: column 2 section DATA start: 380346 length 8683
+    Stream: column 2 section LENGTH start: 389029 length 0
+    Stream: column 2 section DICTIONARY_DATA start: 389029 length 0
+    Stream: column 3 section DATA start: 389029 length 5129
+    Stream: column 3 section LENGTH start: 394158 length 460
+    Stream: column 3 section DICTIONARY_DATA start: 394618 length 0
     Encoding column 0: DIRECT
     Encoding column 1: DIRECT
     Encoding column 2: DIRECT

@@ -25,6 +25,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
 import java.io.PrintStream;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -40,12 +41,12 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.junit.Before;
 import org.junit.Test;
 
+import com.google.common.io.Resources;
+
 public class TestFileDump {
 
   Path workDir = new Path(System.getProperty("test.tmp.dir",
       "target" + File.separator + "test" + File.separator + "tmp"));
-  Path resourceDir = new Path(System.getProperty("test.build.resources",
-      "ql" + File.separator + "src" + File.separator + "test" + File.separator + "resources"));
 
   Configuration conf;
   FileSystem fs;
@@ -56,6 +57,7 @@ public class TestFileDump {
     conf = new Configuration();
     fs = FileSystem.getLocal(conf);
     fs.setWorkingDirectory(workDir);
+    fs.mkdirs(workDir);
     testFilePath = new Path("TestFileDump.testDump.orc");
     fs.delete(testFilePath, false);
   }
@@ -93,10 +95,10 @@ public class TestFileDump {
       inspector = ObjectInspectorFactory.getReflectionObjectInspector
           (MyRecord.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
-    
+
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
-        100000, CompressionKind.ZLIB, 10000, 10000);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        100000, CompressionKind.ZLIB, 10000, 10000, new MemoryManager(conf));
     Random r1 = new Random(1);
     String[] words = new String[]{"It", "was", "the", "best", "of", "times,",
         "it", "was", "the", "worst", "of", "times,", "it", "was", "the", "age",
@@ -117,17 +119,18 @@ public class TestFileDump {
     }
     writer.close();
     PrintStream origOut = System.out;
-    String outputFilename = File.separator + "orc-file-dump.out";
-    FileOutputStream myOut = new FileOutputStream(workDir + outputFilename);
+    URL expectedFileUrl = Resources.getResource("orc-file-dump.out");
+    String outputFilename = workDir + File.separator + "orc-file-dump.out";
+    FileOutputStream myOut = new FileOutputStream(outputFilename);
 
     // replace stdout and run command
     System.setOut(new PrintStream(myOut));
-    FileDump.main(new String[]{testFilePath.toString()});
+    FileDump.main(new String[]{testFilePath.getName()});
     System.out.flush();
     System.setOut(origOut);
 
 
-    checkOutput(resourceDir + outputFilename, workDir + outputFilename);
+    checkOutput(expectedFileUrl.getPath(), outputFilename);
   }
 
   private void testDictionary(Configuration conf, String expectedOutputFilename) throws Exception {
@@ -139,8 +142,8 @@ public class TestFileDump {
     // Turn off using the approximate entropy heuristic to turn off dictionary encoding
     conf.setFloat(HiveConf.ConfVars.HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD.varname, -1);
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
-        100000, CompressionKind.ZLIB, 10000, 10000);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        100000, CompressionKind.ZLIB, 10000, 10000, new MemoryManager(conf));
     Random r1 = new Random(1);
     String[] words = new String[]{"It", "was", "the", "best", "of", "times,",
         "it", "was", "the", "worst", "of", "times,", "it", "was", "the", "age",
@@ -184,16 +187,17 @@ public class TestFileDump {
     }
     writer.close();
     PrintStream origOut = System.out;
-    String outputFilename = File.separator + expectedOutputFilename;
-    FileOutputStream myOut = new FileOutputStream(workDir + outputFilename);
+    URL expectedFileUrl = Resources.getResource(expectedOutputFilename);
+    String outputFilename = workDir + File.separator + expectedOutputFilename;
+    FileOutputStream myOut = new FileOutputStream(outputFilename);
 
     // replace stdout and run command
     System.setOut(new PrintStream(myOut));
-    FileDump.main(new String[]{testFilePath.toString()});
+    FileDump.main(new String[]{testFilePath.getName()});
     System.out.flush();
     System.setOut(origOut);
 
-    checkOutput(resourceDir + outputFilename, workDir + outputFilename);
+    checkOutput(expectedFileUrl.getPath(), outputFilename);
   }
 
   //Test that if the number of distinct characters in distinct strings is less than the configured
@@ -213,8 +217,8 @@ public class TestFileDump {
     conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname, 1);
 
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
-        100000, CompressionKind.ZLIB, 10000, 10000);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        100000, CompressionKind.ZLIB, 10000, 10000, new MemoryManager(conf));
     Random r1 = new Random(1);
     for(int i=0; i < 21000; ++i) {
       writer.addRow(new MyRecord(r1.nextInt(), r1.nextLong(),
@@ -222,16 +226,17 @@ public class TestFileDump {
     }
     writer.close();
     PrintStream origOut = System.out;
-    String outputFilename = File.separator + "orc-file-dump-entropy-threshold.out";
-    FileOutputStream myOut = new FileOutputStream(workDir + outputFilename);
+    URL expectedFileUrl = Resources.getResource("orc-file-dump-entropy-threshold.out");
+    String outputFilename = workDir + File.separator + "orc-file-dump-entropy-threshold.out";
+    FileOutputStream myOut = new FileOutputStream(outputFilename);
 
     // replace stdout and run command
     System.setOut(new PrintStream(myOut));
-    FileDump.main(new String[]{testFilePath.toString()});
+    FileDump.main(new String[]{testFilePath.getName()});
     System.out.flush();
     System.setOut(origOut);
 
-    checkOutput(resourceDir + outputFilename, workDir + outputFilename);
+    checkOutput(expectedFileUrl.getPath(), outputFilename);
   }
 
   // Test that if the fraction of rows that have distinct strings is greater than the configured
