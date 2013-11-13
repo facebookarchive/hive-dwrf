@@ -98,7 +98,7 @@ public class TestFileDump {
 
     ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
-        100000, CompressionKind.ZLIB, 10000, 10000, new MemoryManager(conf));
+        100000, CompressionKind.SNAPPY, 10000, 10000, new MemoryManager(conf));
     Random r1 = new Random(1);
     String[] words = new String[]{"It", "was", "the", "best", "of", "times,",
         "it", "was", "the", "worst", "of", "times,", "it", "was", "the", "age",
@@ -143,7 +143,7 @@ public class TestFileDump {
     conf.setFloat(HiveConf.ConfVars.HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD.varname, -1);
     ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
-        100000, CompressionKind.ZLIB, 10000, 10000, new MemoryManager(conf));
+        100000, CompressionKind.SNAPPY, 10000, 10000, new MemoryManager(conf));
     Random r1 = new Random(1);
     String[] words = new String[]{"It", "was", "the", "best", "of", "times,",
         "it", "was", "the", "worst", "of", "times,", "it", "was", "the", "age",
@@ -218,7 +218,7 @@ public class TestFileDump {
 
     ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
-        100000, CompressionKind.ZLIB, 10000, 10000, new MemoryManager(conf));
+        100000, CompressionKind.SNAPPY, 10000, 10000, new MemoryManager(conf));
     Random r1 = new Random(1);
     for(int i=0; i < 21000; ++i) {
       writer.addRow(new MyRecord(r1.nextInt(), r1.nextLong(),
