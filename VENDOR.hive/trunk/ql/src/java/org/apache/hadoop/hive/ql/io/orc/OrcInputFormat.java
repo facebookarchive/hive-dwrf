@@ -18,12 +18,17 @@
 
 package org.apache.hadoop.hive.ql.io.orc;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.io.InputFormatChecker;
+import org.apache.hadoop.hive.ql.io.orc.lazy.OrcLazyRow;
 import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapred.FileInputFormat;
@@ -32,20 +37,16 @@ import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 
 /**
  * A MapReduce/Hive input format for ORC files.
  */
-public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcStruct>
+public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcLazyRow>
   implements InputFormatChecker {
 
-  private static class OrcRecordReader
-      implements RecordReader<NullWritable, OrcStruct> {
+  static class OrcRecordReader
+      implements RecordReader<NullWritable, OrcLazyRow> {
     private final org.apache.hadoop.hive.ql.io.orc.RecordReader reader;
     private final long offset;
     private final long length;
@@ -67,7 +68,7 @@ public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcStruct>
     }
 
     @Override
-    public boolean next(NullWritable key, OrcStruct value) throws IOException {
+    public boolean next(NullWritable key, OrcLazyRow value) throws IOException {
       if (reader.hasNext()) {
         reader.next(value);
         progress = reader.getProgress();
@@ -83,8 +84,8 @@ public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcStruct>
     }
 
     @Override
-    public OrcStruct createValue() {
-      return new OrcStruct(numColumns);
+    public OrcLazyRow createValue() {
+      return ((RecordReaderImpl) reader).getReader();
     }
 
     @Override
@@ -159,7 +160,7 @@ public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcStruct>
   }
 
   @Override
-  public RecordReader<NullWritable, OrcStruct>
+  public RecordReader<NullWritable, OrcLazyRow>
       getRecordReader(InputSplit inputSplit, JobConf conf,
                       Reporter reporter) throws IOException {
     ReaderWriterProfiler.setProfilerOptions(conf);

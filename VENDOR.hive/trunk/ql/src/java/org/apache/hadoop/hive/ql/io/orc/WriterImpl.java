@@ -82,9 +82,9 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
   private static final int HDFS_BUFFER_SIZE = 256 * 1024;
   private static final int MIN_ROW_INDEX_STRIDE = 1000;
 
-  static final int SHORT_BYTE_SIZE = 2;
-  static final int INT_BYTE_SIZE = 4;
-  static final int LONG_BYTE_SIZE = 8;
+  public static final int SHORT_BYTE_SIZE = 2;
+  public static final int INT_BYTE_SIZE = 4;
+  public static final int LONG_BYTE_SIZE = 8;
 
   private final FileSystem fs;
   private final Path path;
@@ -866,7 +866,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
 
       if (!determineEncodingStripe() && !useDictionaryEncoding) {
         length = numElements;
-      } 
+      }
       // write the values translated into the dump order.
       for(int i = 0; i <= length; ++i) {
         // now that we are writing out the row values, we can finalize the
@@ -1224,9 +1224,9 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
 
       if (determineEncodingStripe()) {
 
-          // Set the flag indicating whether or not to use dictionary encoding based on whether  
+          // Set the flag indicating whether or not to use dictionary encoding based on whether
           // or not the fraction of distinct keys over number of non-null rows is less than the
-          // configured threshold, and whether or not the number of distinct characters in a sample 
+          // configured threshold, and whether or not the number of distinct characters in a sample
           // of entries in the dictionary (the estimated entropy) exceeds the configured threshold
         if (rows.size() > 0) {
           useDictionaryEncoding = true;
@@ -1338,7 +1338,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       numElements = 0;
       byteArray.clear();
       rowSizes.clear();
-          
+
     }
 
     // Calls getPosition on the row output stream if dictionary encoding is used, and the direct
@@ -1384,7 +1384,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     long estimateMemory() {
-      return rows.getSizeInBytes() + dictionary.getSizeInBytes() + bufferedBytes + 
+      return rows.getSizeInBytes() + dictionary.getSizeInBytes() + bufferedBytes +
         byteArray.size() + rowSizes.getSizeInBytes();
     }
   }
@@ -1438,8 +1438,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     }
   }
 
-  static final int MILLIS_PER_SECOND = 1000;
-  static final long BASE_TIMESTAMP =
+  public static final int MILLIS_PER_SECOND = 1000;
+  public static final long BASE_TIMESTAMP =
       Timestamp.valueOf("2015-01-01 00:00:00").getTime() / MILLIS_PER_SECOND;
 
   private static class TimestampTreeWriter extends TreeWriter {

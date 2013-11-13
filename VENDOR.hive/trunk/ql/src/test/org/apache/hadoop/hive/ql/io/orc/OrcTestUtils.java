@@ -11,11 +11,15 @@ import org.apache.hadoop.io.Text;
 
 public class OrcTestUtils {
   public static class InnerStruct {
-    int int1;
+    Integer int1;
     Text string1 = new Text();
-    InnerStruct(int int1, String string1) {
+    InnerStruct(Integer int1, String string1) {
       this.int1 = int1;
-      this.string1.set(string1);
+      if (string1 == null) {
+        this.string1 = null;
+      } else {
+        this.string1.set(string1);
+      }
     }
   }
 
@@ -74,7 +78,7 @@ public class OrcTestUtils {
   public static Map<Text, InnerStruct> map(InnerStruct... items)  {
     Map<Text, InnerStruct> result = new HashMap<Text, InnerStruct>();
     for(InnerStruct i: items) {
-      result.put(new Text(i.string1), i);
+      result.put(i == null || i.string1 == null ? null : new Text(i.string1), i);
     }
     return result;
   }

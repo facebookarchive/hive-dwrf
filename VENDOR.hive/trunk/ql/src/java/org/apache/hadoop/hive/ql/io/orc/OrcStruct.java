@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.hadoop.hive.ql.io.orc.lazy.OrcLazyObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -32,28 +33,25 @@ import org.apache.hadoop.hive.serde2.objectinspector.SettableListObjectInspector
 import org.apache.hadoop.hive.serde2.objectinspector.SettableMapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.SettableStructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.typeinfo.ListTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.MapTypeInfo;
-import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
-import org.apache.hadoop.hive.serde2.typeinfo.UnionTypeInfo;
 import org.apache.hadoop.io.Writable;
 
-final class OrcStruct implements Writable {
+public final class OrcStruct implements Writable {
 
   private Object[] fields;
 
-  OrcStruct(int children) {
+  public OrcStruct(int children) {
     fields = new Object[children];
   }
 
-  Object getFieldValue(int fieldIndex) {
+  public Object getFieldValue(int fieldIndex) {
     return fields[fieldIndex];
   }
 
-  void setFieldValue(int fieldIndex, Object value) {
+  public void setFieldValue(int fieldIndex, Object value) {
     fields[fieldIndex] = value;
   }
 
@@ -134,12 +132,12 @@ final class OrcStruct implements Writable {
     return buffer.toString();
   }
 
-  static class Field implements StructField {
+  public static class Field implements StructField {
     private final String name;
     private final ObjectInspector inspector;
     private final int offset;
 
-    Field(String name, ObjectInspector inspector, int offset) {
+    public Field(String name, ObjectInspector inspector, int offset) {
       this.name = name;
       this.inspector = inspector;
       this.offset = offset;
@@ -159,29 +157,33 @@ final class OrcStruct implements Writable {
     public String getFieldComment() {
       return null;
     }
+
+    public int getOffset() {
+      return offset;
+    }
   }
 
-  static class OrcStructInspector extends SettableStructObjectInspector {
+  public static class OrcStructInspector extends SettableStructObjectInspector {
     private final List<StructField> fields;
 
-    OrcStructInspector(StructTypeInfo info) {
+    public OrcStructInspector(StructTypeInfo info) {
       ArrayList<String> fieldNames = info.getAllStructFieldNames();
       ArrayList<TypeInfo> fieldTypes = info.getAllStructFieldTypeInfos();
       fields = new ArrayList<StructField>(fieldNames.size());
       for(int i=0; i < fieldNames.size(); ++i) {
         fields.add(new Field(fieldNames.get(i),
-          createObjectInspector(fieldTypes.get(i)), i));
+            OrcLazyObjectInspectorUtils.createWritableObjectInspector(fieldTypes.get(i)), i));
       }
     }
 
-    OrcStructInspector(int columnId, List<OrcProto.Type> types) {
+    public OrcStructInspector(int columnId, List<OrcProto.Type> types) {
       OrcProto.Type type = types.get(columnId);
       int fieldCount = type.getSubtypesCount();
       fields = new ArrayList<StructField>(fieldCount);
       for(int i=0; i < fieldCount; ++i) {
         int fieldType = type.getSubtypes(i);
         fields.add(new Field(type.getFieldNames(i),
-          createObjectInspector(fieldType, types), i));
+            OrcLazyObjectInspectorUtils.createWritableObjectInspector(fieldType, types), i));
       }
     }
 
@@ -286,20 +288,20 @@ final class OrcStruct implements Writable {
     }
   }
 
-  static class OrcMapObjectInspector
+  public static class OrcMapObjectInspector
       implements MapObjectInspector, SettableMapObjectInspector {
     private final ObjectInspector key;
     private final ObjectInspector value;
 
-    OrcMapObjectInspector(MapTypeInfo info) {
-      key = createObjectInspector(info.getMapKeyTypeInfo());
-      value = createObjectInspector(info.getMapValueTypeInfo());
+    public OrcMapObjectInspector(MapTypeInfo info) {
+      key = OrcLazyObjectInspectorUtils.createWritableObjectInspector(info.getMapKeyTypeInfo());
+      value = OrcLazyObjectInspectorUtils.createWritableObjectInspector(info.getMapValueTypeInfo());
     }
 
-    OrcMapObjectInspector(int columnId, List<OrcProto.Type> types) {
+    public OrcMapObjectInspector(int columnId, List<OrcProto.Type> types) {
       OrcProto.Type type = types.get(columnId);
-      key = createObjectInspector(type.getSubtypes(0), types);
-      value = createObjectInspector(type.getSubtypes(1), types);
+      key = OrcLazyObjectInspectorUtils.createWritableObjectInspector(type.getSubtypes(0), types);
+      value = OrcLazyObjectInspectorUtils.createWritableObjectInspector(type.getSubtypes(1), types);
     }
 
     @Override
@@ -374,17 +376,17 @@ final class OrcStruct implements Writable {
     }
   }
 
-  static class OrcListObjectInspector
+  public static class OrcListObjectInspector
       implements ListObjectInspector, SettableListObjectInspector {
     private final ObjectInspector child;
 
-    OrcListObjectInspector(ListTypeInfo info) {
-      child = createObjectInspector(info.getListElementTypeInfo());
+    public OrcListObjectInspector(ListTypeInfo info) {
+      child = OrcLazyObjectInspectorUtils.createWritableObjectInspector(info.getListElementTypeInfo());
     }
 
-    OrcListObjectInspector(int columnId, List<OrcProto.Type> types) {
+    public OrcListObjectInspector(int columnId, List<OrcProto.Type> types) {
       OrcProto.Type type = types.get(columnId);
-      child = createObjectInspector(type.getSubtypes(0), types);
+      child = OrcLazyObjectInspectorUtils.createWritableObjectInspector(type.getSubtypes(0), types);
     }
 
     @Override
@@ -453,86 +455,6 @@ final class OrcStruct implements Writable {
         ObjectInspector other = ((OrcListObjectInspector) o).child;
         return other.equals(child);
       }
-    }
-  }
-
-  static ObjectInspector createObjectInspector(TypeInfo info) {
-    switch (info.getCategory()) {
-      case PRIMITIVE:
-        switch (((PrimitiveTypeInfo) info).getPrimitiveCategory()) {
-          case FLOAT:
-            return PrimitiveObjectInspectorFactory.writableFloatObjectInspector;
-          case DOUBLE:
-            return PrimitiveObjectInspectorFactory.writableDoubleObjectInspector;
-          case BOOLEAN:
-            return PrimitiveObjectInspectorFactory.writableBooleanObjectInspector;
-          case BYTE:
-            return PrimitiveObjectInspectorFactory.writableByteObjectInspector;
-          case SHORT:
-            return PrimitiveObjectInspectorFactory.writableShortObjectInspector;
-          case INT:
-            return PrimitiveObjectInspectorFactory.writableIntObjectInspector;
-          case LONG:
-            return PrimitiveObjectInspectorFactory.writableLongObjectInspector;
-          case BINARY:
-            return PrimitiveObjectInspectorFactory.writableBinaryObjectInspector;
-          case STRING:
-            return PrimitiveObjectInspectorFactory.writableStringObjectInspector;
-          case TIMESTAMP:
-            return PrimitiveObjectInspectorFactory.javaTimestampObjectInspector;
-          default:
-            throw new IllegalArgumentException("Unknown primitive type " +
-              ((PrimitiveTypeInfo) info).getPrimitiveCategory());
-        }
-      case STRUCT:
-        return new OrcStructInspector((StructTypeInfo) info);
-      case UNION:
-        return new OrcUnion.OrcUnionObjectInspector((UnionTypeInfo) info);
-      case MAP:
-        return new OrcMapObjectInspector((MapTypeInfo) info);
-      case LIST:
-        return new OrcListObjectInspector((ListTypeInfo) info);
-      default:
-        throw new IllegalArgumentException("Unknown type " +
-          info.getCategory());
-    }
-  }
-
-  static ObjectInspector createObjectInspector(int columnId,
-                                               List<OrcProto.Type> types){
-    OrcProto.Type type = types.get(columnId);
-    switch (type.getKind()) {
-      case FLOAT:
-        return PrimitiveObjectInspectorFactory.writableFloatObjectInspector;
-      case DOUBLE:
-        return PrimitiveObjectInspectorFactory.writableDoubleObjectInspector;
-      case BOOLEAN:
-        return PrimitiveObjectInspectorFactory.writableBooleanObjectInspector;
-      case BYTE:
-        return PrimitiveObjectInspectorFactory.writableByteObjectInspector;
-      case SHORT:
-        return PrimitiveObjectInspectorFactory.writableShortObjectInspector;
-      case INT:
-        return PrimitiveObjectInspectorFactory.writableIntObjectInspector;
-      case LONG:
-        return PrimitiveObjectInspectorFactory.writableLongObjectInspector;
-      case BINARY:
-        return PrimitiveObjectInspectorFactory.writableBinaryObjectInspector;
-      case STRING:
-        return PrimitiveObjectInspectorFactory.writableStringObjectInspector;
-      case TIMESTAMP:
-        return PrimitiveObjectInspectorFactory.javaTimestampObjectInspector;
-      case STRUCT:
-        return new OrcStructInspector(columnId, types);
-      case UNION:
-        return new OrcUnion.OrcUnionObjectInspector(columnId, types);
-      case MAP:
-        return new OrcMapObjectInspector(columnId, types);
-      case LIST:
-        return new OrcListObjectInspector(columnId, types);
-      default:
-        throw new UnsupportedOperationException("Unknown type " +
-          type.getKind());
     }
   }
 }

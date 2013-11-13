@@ -17,6 +17,15 @@
  */
 package org.apache.hadoop.hive.ql.io.orc;
 
+import static org.junit.Assert.assertEquals;
+
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
+
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -26,7 +35,6 @@ import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
 import org.apache.hadoop.hive.ql.io.InputFormatChecker;
 import org.apache.hadoop.hive.serde2.SerDe;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
@@ -45,15 +53,6 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
-
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Properties;
-
-import static org.junit.Assert.assertEquals;
 
 public class TestInputOutputFormat {
 
@@ -250,7 +249,7 @@ public class TestInputOutputFormat {
         fields.get(1).getFieldObjectInspector();
     List<? extends StructField> inFields = inner.getAllStructFieldRefs();
     IntObjectInspector intInspector =
-        (IntObjectInspector) fields.get(0).getFieldObjectInspector();
+        (IntObjectInspector) inFields.get(0).getFieldObjectInspector();
     while (reader.next(key, value)) {
       assertEquals(null, inspector.getStructFieldData(value, fields.get(0)));
       Object sub = inspector.getStructFieldData(value, fields.get(1));

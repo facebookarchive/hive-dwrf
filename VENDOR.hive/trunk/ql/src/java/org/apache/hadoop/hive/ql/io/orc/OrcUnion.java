@@ -20,6 +20,7 @@ package org.apache.hadoop.hive.ql.io.orc;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.hadoop.hive.ql.io.orc.lazy.OrcLazyObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.SettableUnionObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.UnionObject;
@@ -29,11 +30,11 @@ import org.apache.hadoop.hive.serde2.typeinfo.UnionTypeInfo;
 /**
  * An in-memory representation of a union type.
  */
-final class OrcUnion implements UnionObject {
+public final class OrcUnion implements UnionObject {
   private byte tag;
   private Object object;
 
-  void set(byte tag, Object object) {
+  public void set(byte tag, Object object) {
     this.tag = tag;
     this.object = object;
   }
@@ -78,24 +79,24 @@ final class OrcUnion implements UnionObject {
         ")";
   }
 
-  static class OrcUnionObjectInspector implements SettableUnionObjectInspector {
+  public static class OrcUnionObjectInspector implements SettableUnionObjectInspector {
     private final List<ObjectInspector> children;
 
-    OrcUnionObjectInspector(int columnId,
+    public OrcUnionObjectInspector(int columnId,
                             List<OrcProto.Type> types) {
       OrcProto.Type type = types.get(columnId);
       children = new ArrayList<ObjectInspector>(type.getSubtypesCount());
       for(int i=0; i < type.getSubtypesCount(); ++i) {
-        children.add(OrcStruct.createObjectInspector(type.getSubtypes(i),
+        children.add(OrcLazyObjectInspectorUtils.createWritableObjectInspector(type.getSubtypes(i),
             types));
       }
     }
 
-    OrcUnionObjectInspector(UnionTypeInfo info) {
+    public OrcUnionObjectInspector(UnionTypeInfo info) {
       List<TypeInfo> unionChildren = info.getAllUnionObjectTypeInfos();
       this.children = new ArrayList<ObjectInspector>(unionChildren.size());
       for(TypeInfo child: info.getAllUnionObjectTypeInfos()) {
-        this.children.add(OrcStruct.createObjectInspector(child));
+        this.children.add(OrcLazyObjectInspectorUtils.createWritableObjectInspector(child));
       }
     }
 

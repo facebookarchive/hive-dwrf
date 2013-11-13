@@ -23,7 +23,7 @@ import java.io.IOException;
 /**
  * A reader that reads a sequence of integers.
  * */
-class RunLengthIntegerReader {
+public class RunLengthIntegerReader {
   private final InStream input;
   private final boolean signed;
   private final int numBytes;
@@ -35,7 +35,7 @@ class RunLengthIntegerReader {
   private int used = 0;
   private boolean repeat = false;
 
-  RunLengthIntegerReader(InStream input, boolean signed, int numBytes)
+  public RunLengthIntegerReader(InStream input, boolean signed, int numBytes)
       throws IOException {
     this.input = input;
     this.signed = signed;
@@ -72,7 +72,7 @@ class RunLengthIntegerReader {
     return used != numLiterals || input.available() > 0;
   }
 
-  long next() throws IOException {
+  public long next() throws IOException {
     long result;
     if (used == numLiterals) {
       readValues();
@@ -85,7 +85,7 @@ class RunLengthIntegerReader {
     return result;
   }
 
-  void seek(PositionProvider index) throws IOException {
+  public void seek(PositionProvider index) throws IOException {
     input.seek(index);
     int consumed = (int) index.getNext();
     if (consumed != 0) {
@@ -101,7 +101,7 @@ class RunLengthIntegerReader {
     }
   }
 
-  void skip(long numValues) throws IOException {
+  public void skip(long numValues) throws IOException {
     while (numValues > 0) {
       if (used == numLiterals) {
         readValues();

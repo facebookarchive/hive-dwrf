@@ -28,6 +28,7 @@ import java.util.List;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.ql.io.orc.lazy.OrcLazyRowObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 
 import com.google.protobuf.CodedInputStream;
@@ -238,7 +239,7 @@ public final class ReaderImpl implements Reader {
     }
     InputStream instream = InStream.create("footer", buffer, codec, bufferSize);
     footer = OrcProto.Footer.parseFrom(instream);
-    inspector = OrcStruct.createObjectInspector(0, footer.getTypesList());
+    inspector = new OrcLazyRowObjectInspector(0, footer.getTypesList());
     file.close();
   }
 

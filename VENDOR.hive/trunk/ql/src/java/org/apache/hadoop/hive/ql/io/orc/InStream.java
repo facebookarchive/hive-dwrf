@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 
-abstract class InStream extends InputStream {
+public abstract class InStream extends InputStream {
 
   private final boolean useVInts;
 

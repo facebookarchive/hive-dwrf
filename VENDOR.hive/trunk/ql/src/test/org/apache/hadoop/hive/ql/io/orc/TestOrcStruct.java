@@ -17,6 +17,15 @@
  */
 package org.apache.hadoop.hive.ql.io.orc;
 
+import static org.junit.Assert.assertEquals;
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.hadoop.hive.ql.io.orc.lazy.OrcLazyObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -24,15 +33,6 @@ import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.junit.Test;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
-import static org.junit.Assert.assertEquals;
 
 public class TestOrcStruct {
 
@@ -74,7 +74,7 @@ public class TestOrcStruct {
             "c9:string,c10:struct<c1:int>,c11:map<int,int>,c12:uniontype<int>" +
             ",c13:array<timestamp>>");
     StructObjectInspector inspector = (StructObjectInspector)
-        OrcStruct.createObjectInspector(typeInfo);
+        OrcLazyObjectInspectorUtils.createWritableObjectInspector(typeInfo);
     assertEquals("struct<c1:boolean,c2:tinyint,c3:smallint,c4:int,c5:" +
         "bigint,c6:float,c7:double,c8:binary,c9:string,c10:struct<" +
         "c1:int>,c11:map<int,int>,c12:uniontype<int>,c13:array<timestamp>>",

@@ -17,7 +17,14 @@
  */
 package org.apache.hadoop.hive.ql.io.orc;
 
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Properties;
+
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.hive.ql.io.orc.lazy.OrcLazyRowObjectInspector;
 import org.apache.hadoop.hive.serde2.SerDe;
 import org.apache.hadoop.hive.serde2.SerDeException;
 import org.apache.hadoop.hive.serde2.SerDeStats;
@@ -26,12 +33,6 @@ import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.hadoop.io.Writable;
-
-import java.io.DataInput;
-import java.io.DataOutput;
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Properties;
 
 /**
  * A serde class for ORC.
@@ -95,7 +96,7 @@ public class OrcSerde implements SerDe {
     StructTypeInfo rootType = new StructTypeInfo();
     rootType.setAllStructFieldNames(columnNames);
     rootType.setAllStructFieldTypeInfos(fieldTypes);
-    inspector = OrcStruct.createObjectInspector(rootType);
+    inspector = new OrcLazyRowObjectInspector(rootType);
   }
 
   @Override

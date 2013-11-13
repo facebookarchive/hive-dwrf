@@ -155,10 +155,10 @@ public class TestIntDictionaryEncoder {
     bit.testSkips();
     TestOrcFile test1 = new TestOrcFile();
     test1.test1();
-    test1.emptyFile();
-    test1.metaData();
+    test1.testEmptyFile();
+    test1.testMetaData();
     test1.testUnionAndTimestamp();
-    test1.columnProjection();
+    test1.testColumnProjection();
     test1.testSnappy();
     test1.testWithoutIndex();
     test1.testSeek();

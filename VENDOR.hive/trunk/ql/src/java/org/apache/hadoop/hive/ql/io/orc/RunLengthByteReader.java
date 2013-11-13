@@ -25,7 +25,7 @@ import java.io.IOException;
  * each run with positive values 0 to 127 meaning 3 to 130 repetitions. If the
  * byte is -1 to -128, 1 to 128 literal byte values follow.
  */
-class RunLengthByteReader {
+public class RunLengthByteReader {
   private final InStream input;
   private final byte[] literals =
     new byte[RunLengthByteWriter.MAX_LITERAL_SIZE];
@@ -33,7 +33,7 @@ class RunLengthByteReader {
   private int used = 0;
   private boolean repeat = false;
 
-  RunLengthByteReader(InStream input) throws IOException {
+  public RunLengthByteReader(InStream input) throws IOException {
     this.input = input;
   }
 
@@ -68,7 +68,7 @@ class RunLengthByteReader {
     return used != numLiterals || input.available() > 0;
   }
 
-  byte next() throws IOException {
+  public byte next() throws IOException {
     byte result;
     if (used == numLiterals) {
       readValues();
@@ -82,7 +82,7 @@ class RunLengthByteReader {
     return result;
   }
 
-  void seek(PositionProvider index) throws IOException {
+  public void seek(PositionProvider index) throws IOException {
     input.seek(index);
     int consumed = (int) index.getNext();
     if (consumed != 0) {
@@ -98,7 +98,7 @@ class RunLengthByteReader {
     }
   }
 
-  void skip(long items) throws IOException {
+  public void skip(long items) throws IOException {
     while (items > 0) {
       if (used == numLiterals) {
         readValues();

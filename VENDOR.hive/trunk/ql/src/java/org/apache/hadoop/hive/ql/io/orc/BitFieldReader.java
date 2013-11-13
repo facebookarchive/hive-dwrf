@@ -20,12 +20,12 @@ package org.apache.hadoop.hive.ql.io.orc;
 import java.io.EOFException;
 import java.io.IOException;
 
-class BitFieldReader {
+public class BitFieldReader {
   private final RunLengthByteReader input;
   private int current;
   private int bitsLeft;
 
-  BitFieldReader(InStream input) throws IOException {
+  public BitFieldReader(InStream input) throws IOException {
     this.input = new RunLengthByteReader(input);
   }
 
@@ -38,7 +38,7 @@ class BitFieldReader {
     }
   }
 
-  int next() throws IOException {
+  public int next() throws IOException {
     int result = 0;
 
     if (bitsLeft == 0) {
@@ -51,7 +51,7 @@ class BitFieldReader {
     return result & 1;
   }
 
-  void seek(PositionProvider index) throws IOException {
+  public void seek(PositionProvider index) throws IOException {
     input.seek(index);
     int consumed = (int) index.getNext();
     if (consumed > 8) {
@@ -65,7 +65,7 @@ class BitFieldReader {
     }
   }
 
-  void skip(long items) throws IOException {
+  public void skip(long items) throws IOException {
     long totalBits = items;
     if (bitsLeft >= totalBits) {
       bitsLeft -= totalBits;
