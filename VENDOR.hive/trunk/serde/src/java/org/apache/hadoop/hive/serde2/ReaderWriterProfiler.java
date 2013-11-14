@@ -18,17 +18,17 @@
 
 package org.apache.hadoop.hive.serde2;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
-import org.apache.hadoop.mapred.Reporter;
-
 import java.lang.management.ManagementFactory;
-import java.lang.management.OperatingSystemMXBean;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
-import org.apache.hadoop.hive.conf.HiveConf;
-import org.apache.hadoop.conf.Configuration;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapred.Reporter;
+
+// This class cannot depend on any variables HiveConf not in open source because ORC depends
+// on it, and Presto uses open source Hive.
 public class ReaderWriterProfiler {
   public static enum Counter {
     DECOMPRESSION_TIME(0),
@@ -43,10 +43,19 @@ public class ReaderWriterProfiler {
       value = v;
     }
   }
-  public static enum ReadWriteCounter {  
+  public static enum ReadWriteCounter {
     READ_TIME,
     WRITE_TIME
   }
+
+  // These constants also appear in HiveConf, be sure to update that file as well with
+  // any changes here.
+  private static final String HIVE_READER_WRITER_PROFILER_ENABLED_CONFIG =
+    "hive.exec.profiler.readwrite";
+  private static final boolean HIVE_READER_WRITER_PROFILER_ENABLED_DEFAULT = false;
+  private static final String HIVE_READER_WRITER_PROFILER_USE_CPU_CONFIG =
+    "hive.exec.profiler.readwrite.cpu";
+  private static final boolean HIVE_READER_WRITER_PROFILER_USE_CPU_DEFAULT = false;
 
   private static boolean profile = false;
   private static boolean useCpuTime = false;
@@ -56,7 +65,7 @@ public class ReaderWriterProfiler {
   protected static int [] profileStarted = new int[6];
   protected static int [] ended = new int[6];
   protected static int [] started = new int[6];
-  protected static long [] profileTimes = new long[6]; 
+  protected static long [] profileTimes = new long[6];
   public static final Log LOG = LogFactory
       .getLog(ReaderWriterProfiler.class.getName());
 
@@ -65,9 +74,12 @@ public class ReaderWriterProfiler {
 
   public static void setProfilerOptions(Configuration conf) {
     if (conf != null) {
-      if(HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVEREADERWRITERPROFILER, false)) {
+      if(conf.getBoolean(HIVE_READER_WRITER_PROFILER_ENABLED_CONFIG,
+          HIVE_READER_WRITER_PROFILER_ENABLED_DEFAULT)) {
+
         profile = true;
-        useCpuTime = HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVEREADERWRITERPROFILERTYPE, false);
+        useCpuTime = conf.getBoolean(HIVE_READER_WRITER_PROFILER_USE_CPU_CONFIG,
+            HIVE_READER_WRITER_PROFILER_USE_CPU_DEFAULT);
       }
       instance = createInstance();
     }
@@ -97,7 +109,7 @@ public class ReaderWriterProfiler {
   public static void start(Counter c) {
     instance.startProfiler(c);
   }
-  
+
   public static void end(Counter c) {
     instance.endProfiler(c);
   }
@@ -128,7 +140,7 @@ public class ReaderWriterProfiler {
       LOG.info("write time: " + write);
       logReporter.incrCounter(ReadWriteCounter.READ_TIME, read);
       logReporter.incrCounter(ReadWriteCounter.WRITE_TIME, write);
-    } 
+    }
   }
 
   private static class CpuReaderWriterProfiler extends ReaderWriterProfiler {
@@ -145,7 +157,7 @@ public class ReaderWriterProfiler {
       }
       return -1;
     }
-    
+
     private long getCpuTime(long mainThreadId) {
       return BEAN.isCurrentThreadCpuTimeSupported() ? BEAN.getThreadCpuTime(mainThreadId) : 0L;
     }
@@ -160,7 +172,7 @@ public class ReaderWriterProfiler {
       }
       profileStarted[c.value] += 1;
     }
-    
+
     @Override
     protected void endProfiler(Counter c) {
       profileStarted[c.value] -= 1;
@@ -184,7 +196,7 @@ public class ReaderWriterProfiler {
       }
       profileStarted[c.value] += 1;
     }
-    
+
     @Override
     protected void endProfiler(Counter c) {
       profileStarted[c.value] -= 1;

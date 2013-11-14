@@ -460,8 +460,10 @@ public class HiveConf extends Configuration {
     HIVEUDTFAUTOPROGRESS("hive.udtf.auto.progress", false),
 
     // for profiling reads/writes
-    HIVEREADERWRITERPROFILER("hive.exec.profiler.readwrite", false),
-    HIVEREADERWRITERPROFILERTYPE("hive.exec.profiler.readwrite.cpu", false),
+    // These constants also appear in ReaderWriterProfiler, be sure to update that file as well
+    // with any changes made here.
+    HIVE_READER_WRITER_PROFILER_ENABLED("hive.exec.profiler.readwrite", false),
+    HIVE_READER_WRITER_PROFILER_USE_CPU("hive.exec.profiler.readwrite.cpu", false),
 
     // Default file format for CREATE TABLE statement
     // Options: TextFile, SequenceFile
