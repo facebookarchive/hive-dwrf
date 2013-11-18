@@ -17,16 +17,19 @@
  */
 package org.apache.hadoop.hive.ql.io.orc;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Properties;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
 import org.apache.hadoop.hive.ql.exec.StatsProvidingRecordWriter;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
 import org.apache.hadoop.hive.ql.io.orc.OrcSerde.OrcSerdeRow;
-import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
+import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.io.NullWritable;
@@ -36,10 +39,6 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordWriter;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.util.Progressable;
-
-import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Properties;
 
 /**
  * A Hive OutputFormat for ORC files.
@@ -127,10 +126,10 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
                       Progressable reporter) throws IOException {
     ReaderWriterProfiler.setProfilerOptions(conf);
     return new OrcRecordWriter(fileSystem,  new Path(name), conf,
-      HiveConf.ConfVars.HIVE_ORC_STRIPE_SIZE.defaultLongVal,
-      HiveConf.ConfVars.HIVE_ORC_COMPRESSION.defaultVal,
-      HiveConf.ConfVars.HIVE_ORC_COMPRESSION_BLOCK_SIZE.defaultIntVal,
-      HiveConf.ConfVars.HIVE_ORC_ROW_INDEX_STRIDE.defaultIntVal);
+      OrcConf.ConfVars.HIVE_ORC_STRIPE_SIZE.defaultLongVal,
+      OrcConf.ConfVars.HIVE_ORC_COMPRESSION.defaultVal,
+      OrcConf.ConfVars.HIVE_ORC_COMPRESSION_BLOCK_SIZE.defaultIntVal,
+      OrcConf.ConfVars.HIVE_ORC_ROW_INDEX_STRIDE.defaultIntVal);
   }
 
   @Override
@@ -147,12 +146,12 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
     if (stripeSizeStr != null) {
       stripeSize = Long.valueOf(stripeSizeStr);
     } else {
-      stripeSize = HiveConf.getLongVar(conf, HiveConf.ConfVars.HIVE_ORC_STRIPE_SIZE);
+      stripeSize = OrcConf.getLongVar(conf, OrcConf.ConfVars.HIVE_ORC_STRIPE_SIZE);
     }
 
     String compression = tableProperties.getProperty(OrcFile.COMPRESSION);
     if (compression == null) {
-      compression = HiveConf.getVar(conf, HiveConf.ConfVars.HIVE_ORC_COMPRESSION);
+      compression = OrcConf.getVar(conf, OrcConf.ConfVars.HIVE_ORC_COMPRESSION);
     }
 
     String compressionSizeStr = tableProperties.getProperty(OrcFile.COMPRESSION_BLOCK_SIZE);
@@ -160,8 +159,8 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
     if (compressionSizeStr != null) {
       compressionSize = Integer.valueOf(compressionSizeStr);
     } else {
-      compressionSize = HiveConf.getIntVar(conf,
-          HiveConf.ConfVars.HIVE_ORC_COMPRESSION_BLOCK_SIZE);
+      compressionSize = OrcConf.getIntVar(conf,
+          OrcConf.ConfVars.HIVE_ORC_COMPRESSION_BLOCK_SIZE);
     }
 
     String rowIndexStrideStr = tableProperties.getProperty(OrcFile.ROW_INDEX_STRIDE);
@@ -169,7 +168,7 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
     if (rowIndexStrideStr != null) {
       rowIndexStride = Integer.valueOf(rowIndexStrideStr);
     } else {
-      rowIndexStride = HiveConf.getIntVar(conf, HiveConf.ConfVars.HIVE_ORC_ROW_INDEX_STRIDE);
+      rowIndexStride = OrcConf.getIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ROW_INDEX_STRIDE);
     }
 
     String enableIndexesStr = tableProperties.getProperty(OrcFile.ENABLE_INDEXES);
@@ -177,7 +176,7 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
     if (enableIndexesStr != null) {
       enableIndexes = Boolean.valueOf(enableIndexesStr);
     } else {
-      enableIndexes = HiveConf.getBoolVar(conf, HiveConf.ConfVars.HIVE_ORC_CREATE_INDEX);
+      enableIndexes = OrcConf.getBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_CREATE_INDEX);
     }
 
     if (!enableIndexes) {

@@ -34,7 +34,6 @@ import java.util.Random;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
@@ -140,7 +139,7 @@ public class TestFileDump {
           (MyRecord.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
     // Turn off using the approximate entropy heuristic to turn off dictionary encoding
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD.varname, -1);
+    OrcConf.setFloatVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD, -1);
     ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
         100000, CompressionKind.SNAPPY, 10000, 10000, new MemoryManager(conf));
@@ -211,10 +210,10 @@ public class TestFileDump {
           (MyRecord.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
     Configuration conf = new Configuration();
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD.varname, 1);
-    conf.setInt(HiveConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD.varname, 11);
+    OrcConf.setFloatVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD, 1);
+    OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD, 11);
     // Make sure having too few distinct values won't turn off dictionary encoding
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname, 1);
+    OrcConf.setFloatVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD, 1);
 
     ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
@@ -245,17 +244,21 @@ public class TestFileDump {
   @Test
   public void testDictionaryThreshold() throws Exception {
     Configuration conf = new Configuration();
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname, 0.49f);
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD.varname, 0.49f);
+    OrcConf.setFloatVar(conf,
+        OrcConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD, 0.49f);
+    OrcConf.setFloatVar(conf,
+        OrcConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD, 0.49f);
     testDictionary(conf, "orc-file-dump-dictionary-threshold.out");
   }
 
   @Test
   public void testUnsortedDictionary() throws Exception {
     Configuration conf = new Configuration();
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname, 0.49f);
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD.varname, 0.49f);
-    conf.setBoolean(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.varname, false);
+    OrcConf.setFloatVar(conf,
+        OrcConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD, 0.49f);
+    OrcConf.setFloatVar(conf,
+        OrcConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD, 0.49f);
+    OrcConf.setBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS, false);
     testDictionary(conf, "orc-file-dump-dictionary-threshold-unsorted.out");
 
   }
@@ -264,9 +267,11 @@ public class TestFileDump {
   @Test
   public void testUnsortedDictionary2() throws Exception {
     Configuration conf = new Configuration();
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD.varname, 0.51f);
-    conf.setFloat(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD.varname, 0.51f);
-    conf.setBoolean(HiveConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS.varname, false);
+    OrcConf.setFloatVar(conf,
+        OrcConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD, 0.51f);
+    OrcConf.setFloatVar(conf,
+        OrcConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD, 0.51f);
+    OrcConf.setBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS, false);
     testDictionary(conf, "orc-file-dump-dictionary-threshold-unsorted2.out");
   }
 

@@ -523,6 +523,8 @@ public class HiveConf extends Configuration {
 
     HIVEUSEEXPLICITRCFILEHEADER("hive.exec.rcfile.use.explicit.header", true),
 
+    // All ORC configs also appear in OrcConf, so be sure to update that file with any changes
+    // made here
     HIVE_ORC_COMPRESSION("hive.exec.orc.compress", "ZLIB"),
     HIVE_ORC_ZLIB_COMPRESSION_LEVEL("hive.exec.orc.compress.zlib.level", -1),
     HIVE_ORC_COMPRESSION_BLOCK_SIZE("hive.exec.orc.compress.size", 262144),

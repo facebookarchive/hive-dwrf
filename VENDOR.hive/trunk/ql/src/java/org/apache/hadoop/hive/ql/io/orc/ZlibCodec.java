@@ -24,7 +24,6 @@ import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
 import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.hive.conf.HiveConf;
 
 class ZlibCodec implements CompressionCodec {
 
@@ -38,8 +37,7 @@ class ZlibCodec implements CompressionCodec {
     if (conf == null) {
       compressionLevel = Deflater.DEFAULT_COMPRESSION;
     } else {
-      compressionLevel = conf.getInt(HiveConf.ConfVars.HIVE_ORC_ZLIB_COMPRESSION_LEVEL.varname,
-          HiveConf.ConfVars.HIVE_ORC_ZLIB_COMPRESSION_LEVEL.defaultIntVal);
+      compressionLevel = OrcConf.getIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ZLIB_COMPRESSION_LEVEL);
     }
   }
 

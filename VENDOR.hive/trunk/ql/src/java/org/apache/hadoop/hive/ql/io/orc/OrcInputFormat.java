@@ -30,6 +30,7 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.io.InputFormatChecker;
 import org.apache.hadoop.hive.ql.io.orc.lazy.OrcLazyRow;
 import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileSplit;
@@ -37,7 +38,6 @@ import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
-import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 
 /**
  * A MapReduce/Hive input format for ORC files.
@@ -50,19 +50,12 @@ public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcLazyRow>
     private final org.apache.hadoop.hive.ql.io.orc.RecordReader reader;
     private final long offset;
     private final long length;
-    private final int numColumns;
     private float progress = 0.0f;
 
     OrcRecordReader(Reader file, Configuration conf,
                     long offset, long length) throws IOException {
       this.reader = file.rows(offset, length,
           findIncludedColumns(file.getTypes(), conf));
-      List<OrcProto.Type> types = file.getTypes();
-      if (types.size() == 0) {
-        numColumns = 0;
-      } else {
-        numColumns = types.get(0).getSubtypesCount();
-      }
       this.offset = offset;
       this.length = length;
     }
