@@ -16,14 +16,12 @@ public abstract class LazyTreeReader {
   protected RowIndex index;
   protected long rowIndexStride;
   protected long previousRow;
-  protected long previousRowIndexEntry;
   protected final int columnId;
   protected long rowBaseInStripe;
   private BitFieldReader present = null;
   // By default assume the value is not null
   protected boolean valuePresent = true;
   protected long previousPresentRow;
-  protected long previousPresentRowIndexEntry;
   private long numNonNulls;
   protected PositionProviderImpl previousPositionProvider = null;
 
@@ -149,6 +147,16 @@ public abstract class LazyTreeReader {
   }
 
   /**
+   * Computes the number of the row index entry that immediately precedes row
+   *
+   * @param row
+   * @return
+   */
+  private int computeRowIndexEntry(long row) {
+    return rowIndexStride > 0 ? (int) ((row - rowBaseInStripe - 1) / rowIndexStride) : 0;
+  }
+
+  /**
    * Shifts only the present stream so that next will return the value for currentRow
    *
    * @param currentRow
@@ -157,14 +165,13 @@ public abstract class LazyTreeReader {
   protected void seekToPresentRow(long currentRow) throws IOException {
     if (currentRow != previousPresentRow + 1) {
       long rowInStripe = currentRow - rowBaseInStripe - 1;
-      int rowIndexEntry = rowIndexStride > 0 ? (int) (rowInStripe / rowIndexStride) : 0;
-      if (rowIndexEntry != previousPresentRowIndexEntry || currentRow < previousPresentRow) {
-        previousPresentRowIndexEntry = rowIndexEntry;
+      int rowIndexEntry = computeRowIndexEntry(currentRow);
+      if (rowIndexEntry != computeRowIndexEntry(previousRow) || currentRow < previousPresentRow) {
         previousPositionProvider = new PositionProviderImpl(index.getEntry(rowIndexEntry));
         present.seek(previousPositionProvider);
-        numNonNulls = countNonNulls(rowInStripe - (previousPresentRowIndexEntry * rowIndexStride));
+        numNonNulls = countNonNulls(rowInStripe - (rowIndexEntry * rowIndexStride));
       } else {
-        numNonNulls += countNonNulls(rowInStripe - previousPresentRow);
+        numNonNulls += countNonNulls(currentRow - previousPresentRow - 1);
       }
     }
     previousPresentRow = currentRow;
@@ -174,9 +181,7 @@ public abstract class LazyTreeReader {
     this.columnId = columnId;
     this.rowIndexStride = rowIndexStride;
     this.previousRow = 0;
-    this.previousRowIndexEntry = 0;
     this.previousPresentRow = 0;
-    this.previousPresentRowIndexEntry = 0;
     this.numNonNulls = 0;
   }
 
@@ -203,16 +208,14 @@ public abstract class LazyTreeReader {
    * @throws IOException
    */
   protected void seek(int rowIndexEntry, boolean backwards) throws IOException {
-    if (backwards || rowIndexEntry != previousRowIndexEntry) {
-      if (backwards || rowIndexEntry != previousPresentRowIndexEntry) {
+    if (backwards || rowIndexEntry != computeRowIndexEntry(previousRow)) {
+      if (backwards || rowIndexEntry != computeRowIndexEntry(previousPresentRow)) {
         previousPositionProvider = new PositionProviderImpl(index.getEntry(rowIndexEntry));
         if (present != null) {
           present.seek(previousPositionProvider);
-          previousPresentRowIndexEntry = rowIndexEntry;
         }
       }
       seek(previousPositionProvider);
-      previousRowIndexEntry = rowIndexEntry;
     }
   }
 
@@ -235,8 +238,8 @@ public abstract class LazyTreeReader {
     if (currentRow != previousRow + 1 && valuePresent) {
       numNonNulls--;
       long rowInStripe = currentRow - rowBaseInStripe - 1;
-      int rowIndexEntry = rowIndexStride > 0 ? (int) (rowInStripe / rowIndexStride) : 0;
-      if (rowIndexEntry != previousRowIndexEntry || currentRow < previousRow) {
+      int rowIndexEntry = computeRowIndexEntry(currentRow);
+      if (rowIndexEntry != computeRowIndexEntry(previousRow) || currentRow < previousRow) {
         if (present == null) {
           previousPositionProvider = new PositionProviderImpl(index.getEntry(rowIndexEntry));
           numNonNulls = countNonNulls(rowInStripe - (rowIndexEntry * rowIndexStride));
@@ -244,11 +247,11 @@ public abstract class LazyTreeReader {
         seek(rowIndexEntry, currentRow <= previousRow);
         skipRows(numNonNulls);
       } else {
-        if (present == null) {
-          // If present is null, it means there are no nulls in this column
-          // so the number of nonNulls is the number of rows being skipped
-          numNonNulls = currentRow - previousRow - 1;
-        }
+         if (present == null) {
+           // If present is null, it means there are no nulls in this column
+           // so the number of nonNulls is the number of rows being skipped
+           numNonNulls = currentRow - previousRow - 1;
+         }
         skipRows(numNonNulls);
       }
       seeked = true;
@@ -263,8 +266,8 @@ public abstract class LazyTreeReader {
       RowIndex[] indexes, long rowBaseInStripe) throws IOException {
     this.index = indexes[columnId];
     this.previousRow = rowBaseInStripe;
+    this.previousPresentRow = rowBaseInStripe;
     this.rowBaseInStripe = rowBaseInStripe;
-    this.previousRowIndexEntry = 0;
 
     InStream in = streams.get(new StreamName(columnId,
         OrcProto.Stream.Kind.PRESENT));

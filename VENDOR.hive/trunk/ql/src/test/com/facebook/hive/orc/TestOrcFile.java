@@ -792,8 +792,8 @@ public class TestOrcFile {
           (BigRowTwoStrings.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
-        200000, CompressionKind.ZLIB, 65536, 1000);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector, 200000,
+        CompressionKind.ZLIB, 65536, 1000, new MemoryManager(conf));
     Random rand = new Random(42);
     RandomRowInputs inputs = new RandomRowInputs(count);
     long[] intValues = inputs.intValues;
@@ -826,9 +826,15 @@ public class TestOrcFile {
     return inputs;
   }
 
-  private void compareRows(OrcStruct row, RandomRowInputs inputs, int rowNumber) throws Exception {
-    BigRowTwoStrings expected = createRandomRow(inputs.intValues, inputs.doubleValues,
+  private void compareRows(OrcStruct row, RandomRowInputs inputs, int rowNumber, boolean withNulls) throws Exception {
+    BigRowTwoStrings expected;
+    if (withNulls) {
+      expected = createRandomRowWithNulls(inputs.intValues, inputs.doubleValues,
         inputs.stringValues, inputs.byteValues, inputs.words, rowNumber);
+    } else {
+      expected = createRandomRow(inputs.intValues, inputs.doubleValues,
+          inputs.stringValues, inputs.byteValues, inputs.words, rowNumber);
+    }
     if (((OrcLazyObject) row.getFieldValue(0)).nextIsNull()) {
       assertNull(expected.boolean1);
     } else {
@@ -920,7 +926,7 @@ public class TestOrcFile {
       rows.seekToRow(i);
       lazyRow = (OrcLazyStruct) rows.next(lazyRow);
       row = (OrcStruct) lazyRow.materialize();
-      compareRows(row, inputs, i);
+      compareRows(row, inputs, i, false);
     }
     rows.close();
   }
@@ -939,7 +945,7 @@ public class TestOrcFile {
       lazyRow = (OrcLazyStruct) rows.next(lazyRow);
       if (i % n == 0) {
         row = (OrcStruct) lazyRow.materialize();
-        compareRows(row, inputs, i);
+        compareRows(row, inputs, i, false);
       }
     }
     rows.close();
@@ -970,44 +976,50 @@ public class TestOrcFile {
     readEveryNthRow(10000);
   }
 
-  @Test
-  public void testNulls() throws Exception {
+  private RandomRowInputs writeRandomRowsWithNulls(int count) throws IOException {
     ObjectInspector inspector;
     synchronized (TestOrcFile.class) {
       inspector = ObjectInspectorFactory.getReflectionObjectInspector
           (BigRowTwoStrings.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
-    Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
-        200000, CompressionKind.ZLIB, 65536, 1000);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector, 200000,
+        CompressionKind.ZLIB, 65536, 1000, new MemoryManager(conf));
     Random rand = new Random(42);
-    final int COUNT=32768;
-    long[] intValues= new long[COUNT];
-    double[] doubleValues = new double[COUNT];
-    String[] stringValues = new String[COUNT];
-    BytesWritable[] byteValues = new BytesWritable[COUNT];
-    String[] words = new String[128];
+    RandomRowInputs inputs = new RandomRowInputs(count);
+    long[] intValues = inputs.intValues;
+    double[] doubleValues = inputs.doubleValues;
+    String[] stringValues = inputs.stringValues;
+    BytesWritable[] byteValues = inputs.byteValues;
+    String[] words = inputs.words;
     for(int i=0; i < words.length; ++i) {
       words[i] = Integer.toHexString(rand.nextInt());
     }
-    for(int i=0; i < COUNT/2; ++i) {
+    for(int i=0; i < count/2; ++i) {
       intValues[2*i] = rand.nextLong();
       intValues[2*i+1] = intValues[2*i];
       stringValues[2*i] = words[rand.nextInt(words.length)];
       stringValues[2*i+1] = stringValues[2*i];
     }
-    for(int i=0; i < COUNT; ++i) {
+    for(int i=0; i < count; ++i) {
       doubleValues[i] = rand.nextDouble();
       byte[] buf = new byte[20];
       rand.nextBytes(buf);
       byteValues[i] = new BytesWritable(buf);
     }
-    for(int i=0; i < COUNT; ++i) {
+    for(int i=0; i < count; ++i) {
       BigRowTwoStrings bigrow = createRandomRowWithNulls(intValues, doubleValues, stringValues,
           byteValues, words, i);
       writer.addRow(bigrow);
     }
     writer.close();
     writer = null;
+    return inputs;
+  }
+
+  private void readEveryNthRowWithNulls(int n) throws Exception {
+    final int COUNT=32768;
+    RandomRowInputs inputs = writeRandomRowsWithNulls(COUNT);
     Reader reader = OrcFile.createReader(fs, testFilePath);
     assertEquals(COUNT, reader.getNumberOfRows());
     RecordReader rows = reader.rows(null);
@@ -1015,86 +1027,37 @@ public class TestOrcFile {
     OrcStruct row = null;
     for(int i=0; i < COUNT; i++) {
       rows.next(lazyRow);
-      row = (OrcStruct) lazyRow.materialize();
-      BigRowTwoStrings expected = createRandomRowWithNulls(intValues, doubleValues,
-          stringValues, byteValues, words, i);
-      if (((OrcLazyObject) row.getFieldValue(0)).nextIsNull()) {
-        assertNull(expected.boolean1);
-      } else {
-        assertEquals(expected.boolean1.booleanValue(),
-            ((BooleanWritable) ((OrcLazyBoolean) row.getFieldValue(0)).materialize()).get());
-      }
-      if (((OrcLazyObject) row.getFieldValue(1)).nextIsNull()) {
-        assertNull(expected.byte1);
-      } else {
-        assertEquals(expected.byte1.byteValue(),
-            ((ByteWritable) ((OrcLazyByte) row.getFieldValue(1)).materialize()).get());
-      }
-      if (((OrcLazyObject) row.getFieldValue(2)).nextIsNull()) {
-        assertNull(expected.short1);
-      } else {
-        assertEquals(expected.short1.shortValue(),
-            ((ShortWritable) ((OrcLazyShort) row.getFieldValue(2)).materialize()).get());
-      }
-      if (((OrcLazyObject) row.getFieldValue(3)).nextIsNull()) {
-        assertNull(expected.int1);
-      } else {
-        assertEquals(expected.int1.intValue(),
-            ((IntWritable) ((OrcLazyInt) row.getFieldValue(3)).materialize()).get());
-      }
-      if (((OrcLazyObject) row.getFieldValue(4)).nextIsNull()) {
-        assertNull(expected.long1);
-      } else {
-        assertEquals(expected.long1.longValue(),
-            ((LongWritable) ((OrcLazyLong) row.getFieldValue(4)).materialize()).get());
-      }
-      if (((OrcLazyObject) row.getFieldValue(5)).nextIsNull()) {
-        assertNull(expected.float1);
-      } else {
-        assertEquals(expected.float1.floatValue(),
-            ((FloatWritable) ((OrcLazyFloat) row.getFieldValue(5)).materialize()).get(), 0.0001);
-      }
-      if (((OrcLazyObject) row.getFieldValue(6)).nextIsNull()) {
-        assertNull(expected.double1);
-      } else {
-        assertEquals(expected.double1.doubleValue(),
-            ((DoubleWritable) ((OrcLazyDouble) row.getFieldValue(6)).materialize()).get(), 0.0001);
-      }
-      if (((OrcLazyObject) row.getFieldValue(7)).nextIsNull()) {
-        assertNull(expected.bytes1);
-      } else {
-        assertEquals(expected.bytes1, ((OrcLazyBinary) row.getFieldValue(7)).materialize());
-      }
-      if (((OrcLazyObject) row.getFieldValue(8)).nextIsNull()) {
-        assertNull(expected.string1);
-      } else {
-        assertEquals(expected.string1, ((OrcLazyString) row.getFieldValue(8)).materialize());
-      }
-      if (((OrcLazyString) row.getFieldValue(9)).nextIsNull()) {
-        assertNull(expected.string2);
-      } else {
-        assertEquals(expected.string2, ((OrcLazyString) row.getFieldValue(9)).materialize());
-      }
-      if (((OrcLazyObject) row.getFieldValue(10)).nextIsNull()) {
-        assertNull(expected.middle);
-      } else {
-        List<InnerStruct> expectedList = expected.middle.list;
-        List<OrcStruct> actualList =
-            (List) ((OrcStruct) ((OrcLazyStruct) row.getFieldValue(10)).materialize()).getFieldValue(0);
-        compareList(expectedList, actualList);
-      }
-      if (((OrcLazyObject) row.getFieldValue(11)).nextIsNull()) {
-        assertNull(expected.list);
-      } else {
-        compareList(expected.list, (List) ((OrcLazyList) row.getFieldValue(11)).materialize());
-      }
-      if (((OrcLazyObject) row.getFieldValue(12)).nextIsNull()) {
-        assertNull(expected.map);
-      } else {
-        compareMap(expected.map, (Map) ((OrcLazyMap) row.getFieldValue(12)).materialize());
+      if (i % n == 0) {
+        row = (OrcStruct) lazyRow.materialize();
+        compareRows(row, inputs, i, true);
       }
     }
     rows.close();
+  }
+
+  @Test
+  public void testEveryRowWithNulls() throws Exception {
+    readEveryNthRowWithNulls(1);
+  }
+
+  @Test
+  public void testEveryTenthRowWithNulls() throws Exception {
+    readEveryNthRowWithNulls(10);
+  }
+
+  @Test
+  public void testEveryHundredthRowWithNulls() throws Exception {
+    readEveryNthRowWithNulls(100);
+  }
+
+  @Test
+  public void testEveryThousandthRowWithNulls() throws Exception {
+    readEveryNthRowWithNulls(1000);
+  }
+
+  @Test
+  public void testEveryTenThousandthRowWithNulls() throws Exception {
+    readEveryNthRowWithNulls(10000);
   }
 
   private void compareInner(InnerStruct expect,
