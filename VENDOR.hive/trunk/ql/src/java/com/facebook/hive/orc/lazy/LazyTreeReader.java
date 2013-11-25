@@ -244,6 +244,11 @@ public abstract class LazyTreeReader {
         seek(rowIndexEntry, currentRow <= previousRow);
         skipRows(numNonNulls);
       } else {
+        if (present == null) {
+          // If present is null, it means there are no nulls in this column
+          // so the number of nonNulls is the number of rows being skipped
+          numNonNulls = currentRow - previousRow - 1;
+        }
         skipRows(numNonNulls);
       }
       seeked = true;
