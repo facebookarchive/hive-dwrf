@@ -18,15 +18,15 @@
 
 package com.facebook.hive.orc;
 
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertNotNull;
-import static junit.framework.Assert.assertNull;
-import static junit.framework.Assert.assertTrue;
 import static com.facebook.hive.orc.OrcTestUtils.byteBuf;
 import static com.facebook.hive.orc.OrcTestUtils.bytes;
 import static com.facebook.hive.orc.OrcTestUtils.inner;
 import static com.facebook.hive.orc.OrcTestUtils.list;
 import static com.facebook.hive.orc.OrcTestUtils.map;
+import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertNotNull;
+import static junit.framework.Assert.assertNull;
+import static junit.framework.Assert.assertTrue;
 
 import java.io.File;
 import java.io.IOException;
@@ -40,26 +40,6 @@ import java.util.Random;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import com.facebook.hive.orc.OrcTestUtils.BigRow;
-import com.facebook.hive.orc.OrcTestUtils.InnerStruct;
-import com.facebook.hive.orc.OrcTestUtils.MiddleStruct;
-import com.facebook.hive.orc.lazy.OrcLazyBinary;
-import com.facebook.hive.orc.lazy.OrcLazyBoolean;
-import com.facebook.hive.orc.lazy.OrcLazyByte;
-import com.facebook.hive.orc.lazy.OrcLazyDouble;
-import com.facebook.hive.orc.lazy.OrcLazyFloat;
-import com.facebook.hive.orc.lazy.OrcLazyInt;
-import com.facebook.hive.orc.lazy.OrcLazyList;
-import com.facebook.hive.orc.lazy.OrcLazyLong;
-import com.facebook.hive.orc.lazy.OrcLazyMap;
-import com.facebook.hive.orc.lazy.OrcLazyObject;
-import com.facebook.hive.orc.lazy.OrcLazyObjectInspectorUtils;
-import com.facebook.hive.orc.lazy.OrcLazyRow;
-import com.facebook.hive.orc.lazy.OrcLazyShort;
-import com.facebook.hive.orc.lazy.OrcLazyString;
-import com.facebook.hive.orc.lazy.OrcLazyStruct;
-import com.facebook.hive.orc.lazy.OrcLazyTimestamp;
-import com.facebook.hive.orc.lazy.OrcLazyUnion;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.hive.serde2.io.ByteWritable;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
@@ -90,6 +70,28 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
+
+import com.facebook.hive.orc.OrcTestUtils.BigRow;
+import com.facebook.hive.orc.OrcTestUtils.BigRowTwoStrings;
+import com.facebook.hive.orc.OrcTestUtils.InnerStruct;
+import com.facebook.hive.orc.OrcTestUtils.MiddleStruct;
+import com.facebook.hive.orc.lazy.OrcLazyBinary;
+import com.facebook.hive.orc.lazy.OrcLazyBoolean;
+import com.facebook.hive.orc.lazy.OrcLazyByte;
+import com.facebook.hive.orc.lazy.OrcLazyDouble;
+import com.facebook.hive.orc.lazy.OrcLazyFloat;
+import com.facebook.hive.orc.lazy.OrcLazyInt;
+import com.facebook.hive.orc.lazy.OrcLazyList;
+import com.facebook.hive.orc.lazy.OrcLazyLong;
+import com.facebook.hive.orc.lazy.OrcLazyMap;
+import com.facebook.hive.orc.lazy.OrcLazyObject;
+import com.facebook.hive.orc.lazy.OrcLazyObjectInspectorUtils;
+import com.facebook.hive.orc.lazy.OrcLazyRow;
+import com.facebook.hive.orc.lazy.OrcLazyShort;
+import com.facebook.hive.orc.lazy.OrcLazyString;
+import com.facebook.hive.orc.lazy.OrcLazyStruct;
+import com.facebook.hive.orc.lazy.OrcLazyTimestamp;
+import com.facebook.hive.orc.lazy.OrcLazyUnion;
 
 /**
  * Tests for the top level reader/streamFactory of ORC files.
@@ -773,7 +775,7 @@ public class TestOrcFile {
     ObjectInspector inspector;
     synchronized (TestOrcFile.class) {
       inspector = ObjectInspectorFactory.getReflectionObjectInspector
-          (BigRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+          (BigRowTwoStrings.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
     ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
@@ -801,7 +803,7 @@ public class TestOrcFile {
       byteValues[i] = new BytesWritable(buf);
     }
     for(int i=0; i < COUNT; ++i) {
-      BigRow bigrow = createRandomRow(intValues, doubleValues, stringValues,
+      BigRowTwoStrings bigrow = createRandomRow(intValues, doubleValues, stringValues,
           byteValues, words, i);
       writer.addRow(bigrow);
     }
@@ -817,7 +819,7 @@ public class TestOrcFile {
       rows.seekToRow(i);
       lazyRow = (OrcLazyStruct) rows.next(lazyRow);
       row = (OrcStruct) lazyRow.materialize();
-      BigRow expected = createRandomRow(intValues, doubleValues,
+      BigRowTwoStrings expected = createRandomRow(intValues, doubleValues,
           stringValues, byteValues, words, i);
       assertEquals(expected.boolean1.booleanValue(),
           ((BooleanWritable) ((OrcLazyBoolean) row.getFieldValue(0)).materialize()).get());
@@ -835,11 +837,13 @@ public class TestOrcFile {
           ((DoubleWritable) ((OrcLazyDouble) row.getFieldValue(6)).materialize()).get(), 0.0001);
       assertEquals(expected.bytes1, ((OrcLazyBinary) row.getFieldValue(7)).materialize());
       assertEquals(expected.string1, ((OrcLazyString) row.getFieldValue(8)).materialize());
+      assertEquals(expected.string2, ((OrcLazyString) row.getFieldValue(9)).materialize());
       List<InnerStruct> expectedList = expected.middle.list;
       List<OrcStruct> actualList =
-          (List) ((OrcStruct) ((OrcLazyStruct) row.getFieldValue(9)).materialize()).getFieldValue(0);
+          (List) ((OrcStruct) ((OrcLazyStruct) row.getFieldValue(10)).materialize()).getFieldValue(0);
       compareList(expectedList, actualList);
-      compareList(expected.list, (List) ((OrcLazyList) row.getFieldValue(10)).materialize());
+      compareList(expected.list, (List) ((OrcLazyList) row.getFieldValue(11)).materialize());
+      compareMap(expected.map, (Map) ((OrcLazyMap) row.getFieldValue(12)).materialize());
     }
     rows.close();
   }
@@ -849,7 +853,7 @@ public class TestOrcFile {
     ObjectInspector inspector;
     synchronized (TestOrcFile.class) {
       inspector = ObjectInspectorFactory.getReflectionObjectInspector
-          (BigRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+          (BigRowTwoStrings.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         200000, CompressionKind.ZLIB, 65536, 1000);
@@ -876,7 +880,7 @@ public class TestOrcFile {
       byteValues[i] = new BytesWritable(buf);
     }
     for(int i=0; i < COUNT; ++i) {
-      BigRow bigrow = createRandomRowWithNulls(intValues, doubleValues, stringValues,
+      BigRowTwoStrings bigrow = createRandomRowWithNulls(intValues, doubleValues, stringValues,
           byteValues, words, i);
       writer.addRow(bigrow);
     }
@@ -890,7 +894,7 @@ public class TestOrcFile {
     for(int i=0; i < COUNT; i++) {
       rows.next(lazyRow);
       row = (OrcStruct) lazyRow.materialize();
-      BigRow expected = createRandomRowWithNulls(intValues, doubleValues,
+      BigRowTwoStrings expected = createRandomRowWithNulls(intValues, doubleValues,
           stringValues, byteValues, words, i);
       if (((OrcLazyObject) row.getFieldValue(0)).nextIsNull()) {
         assertNull(expected.boolean1);
@@ -944,23 +948,28 @@ public class TestOrcFile {
       } else {
         assertEquals(expected.string1, ((OrcLazyString) row.getFieldValue(8)).materialize());
       }
-      if (((OrcLazyObject) row.getFieldValue(9)).nextIsNull()) {
+      if (((OrcLazyString) row.getFieldValue(9)).nextIsNull()) {
+        assertNull(expected.string2);
+      } else {
+        assertEquals(expected.string2, ((OrcLazyString) row.getFieldValue(9)).materialize());
+      }
+      if (((OrcLazyObject) row.getFieldValue(10)).nextIsNull()) {
         assertNull(expected.middle);
       } else {
         List<InnerStruct> expectedList = expected.middle.list;
         List<OrcStruct> actualList =
-            (List) ((OrcStruct) ((OrcLazyStruct) row.getFieldValue(9)).materialize()).getFieldValue(0);
+            (List) ((OrcStruct) ((OrcLazyStruct) row.getFieldValue(10)).materialize()).getFieldValue(0);
         compareList(expectedList, actualList);
       }
-      if (((OrcLazyObject) row.getFieldValue(10)).nextIsNull()) {
+      if (((OrcLazyObject) row.getFieldValue(11)).nextIsNull()) {
         assertNull(expected.list);
       } else {
-        compareList(expected.list, (List) ((OrcLazyList) row.getFieldValue(10)).materialize());
+        compareList(expected.list, (List) ((OrcLazyList) row.getFieldValue(11)).materialize());
       }
-      if (((OrcLazyObject) row.getFieldValue(11)).nextIsNull()) {
+      if (((OrcLazyObject) row.getFieldValue(12)).nextIsNull()) {
         assertNull(expected.map);
       } else {
-        compareMap(expected.map, (Map) ((OrcLazyMap) row.getFieldValue(11)).materialize());
+        compareMap(expected.map, (Map) ((OrcLazyMap) row.getFieldValue(12)).materialize());
       }
     }
     rows.close();
@@ -996,20 +1005,20 @@ public class TestOrcFile {
     }
   }
 
-  private BigRow createRandomRow(long[] intValues, double[] doubleValues,
+  private BigRowTwoStrings createRandomRow(long[] intValues, double[] doubleValues,
                                  String[] stringValues,
                                  BytesWritable[] byteValues,
                                  String[] words, int i) {
     InnerStruct inner = new InnerStruct((int) intValues[i], stringValues[i]);
     InnerStruct inner2 = new InnerStruct((int) (intValues[i] >> 32),
         words[i % words.length] + "-x");
-    return new BigRow((intValues[i] & 1) == 0, (byte) intValues[i],
+    return new BigRowTwoStrings((intValues[i] & 1) == 0, (byte) intValues[i],
         (short) intValues[i], (int) intValues[i], intValues[i],
-        (float) doubleValues[i], doubleValues[i], byteValues[i],stringValues[i],
+        (float) doubleValues[i], doubleValues[i], byteValues[i],stringValues[i], Integer.toHexString(i),
         new MiddleStruct(inner, inner2), list(), map(inner,inner2));
   }
 
-  private BigRow createRandomRowWithNulls(long[] intValues, double[] doubleValues,
+  private BigRowTwoStrings createRandomRowWithNulls(long[] intValues, double[] doubleValues,
       String[] stringValues, BytesWritable[] byteValues, String[] words, int i) {
     Boolean booleanVal = intValues[i] % 10 == 0 ? null : (intValues[i] & 1) == 0;
     Byte byteVal = intValues[i] % 11 == 0 ? null : (byte) intValues[i];
@@ -1029,8 +1038,9 @@ public class TestOrcFile {
     MiddleStruct middle = intValues[i] % 15 == 0 ? null : new MiddleStruct(inner, inner2);
     List<InnerStruct> list = intValues[i] % 16 == 0 ? null : list(inner, inner2);
     Map<Text, InnerStruct> map = intValues[i] % 17 == 0 ? null : map(inner, inner2);
-    return new BigRow(booleanVal, byteVal, shortVal, intVal, longVal, floatVal, doubleVal,
-        bytesVal, strVal, middle, list, map);
+    String strVal2 = intValues[i] % 18 == 0 ? null : Integer.toHexString(i);
+    return new BigRowTwoStrings(booleanVal, byteVal, shortVal, intVal, longVal, floatVal, doubleVal,
+        bytesVal, strVal, strVal2, middle, list, map);
   }
 
   private static class MyMemoryManager extends MemoryManager {

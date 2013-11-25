@@ -34,6 +34,58 @@ public class OrcTestUtils {
     }
   }
 
+  /**
+   *
+   * BigRowTwoStrings.
+   *
+   * A BigRow with an additional String column,
+   * useful for testing both dictionary and directly encoded strings
+   *
+   * Unfortunately this cannot simply extend BigRow in order to make the reflection
+   * ObjectInspector work.
+   */
+  public static class BigRowTwoStrings {
+    Boolean boolean1;
+    Byte byte1;
+    Short short1;
+    Integer int1;
+    Long long1;
+    Float float1;
+    Double double1;
+    BytesWritable bytes1;
+    Text string1;
+    Text string2;
+    MiddleStruct middle;
+    List<InnerStruct> list = new ArrayList<InnerStruct>();
+    Map<Text, InnerStruct> map = new HashMap<Text, InnerStruct>();
+
+    public BigRowTwoStrings(Boolean b1, Byte b2, Short s1, Integer i1, Long l1, Float f1,
+        Double d1, BytesWritable b3, String s2, String s3, MiddleStruct m1, List<InnerStruct> l2,
+        Map<Text, InnerStruct> m2) {
+      this.boolean1 = b1;
+      this.byte1 = b2;
+      this.short1 = s1;
+      this.int1 = i1;
+      this.long1 = l1;
+      this.float1 = f1;
+      this.double1 = d1;
+      this.bytes1 = b3;
+      if (s2 == null) {
+        this.string1 = null;
+      } else {
+        this.string1 = new Text(s2);
+      }
+      if (s3 == null) {
+        this.string2 = null;
+      } else {
+        this.string2 = new Text(s3);
+      }
+      this.middle = m1;
+      this.list = l2;
+      this.map = m2;
+    }
+  }
+
   public static class BigRow {
     Boolean boolean1;
     Byte byte1;

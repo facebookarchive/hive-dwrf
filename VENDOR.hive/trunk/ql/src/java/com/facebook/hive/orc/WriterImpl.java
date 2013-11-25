@@ -1056,7 +1056,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     private long bufferedBytes = 0;
     private final int recomputeStripeEncodingInterval;
 
-    private int numElements = 0;
     StringTreeWriter(int columnId,
                      ObjectInspector inspector,
                      StreamFactory writerFactory,
@@ -1123,11 +1122,10 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
         buffer[i] = null;
         if (val != null) {
           indexStatistics.updateString(val.toString());
-          if (determineEncodingStripe() || useDictionaryEncoding) {
-            rows.add(dictionary.add(val));
-          } else {
+          if (useDirectEncoding()) {
             rowSizes.add(byteArray.add(val.getBytes(), 0, val.getLength()));
-            numElements++;
+          } else {
+            rows.add(dictionary.add(val));
           }
         }
         super.flushRow(val);
@@ -1204,6 +1202,14 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       return false;
     }
 
+    /**
+     * Returns true iff the encoding is not being determined using this stripe, and
+     * the previously determined encoding was direct.
+     */
+    private boolean useDirectEncoding() {
+      return !determineEncodingStripe() && !useDictionaryEncoding;
+    }
+
     @Override
     void writeStripe(OrcProto.StripeFooter.Builder builder,
                      int requiredIndexEntries) throws IOException {
@@ -1264,8 +1270,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
         });
       }
       int length = rows.size();
-      if (!determineEncodingStripe() && !useDictionaryEncoding) {
-        length = numElements;
+      if (useDirectEncoding()) {
+        length = rowSizes.size();
       }
       Text text = new Text();
       // write the values translated into the dump order.
@@ -1324,7 +1330,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       recordPosition(rowIndexPosition);
       rowIndexValueCount.add(0L);
 
-      numElements = 0;
       byteArray.clear();
       rowSizes.clear();
 
@@ -1368,7 +1373,11 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       savedRowIndex.add(rowIndexEntry.build());
       rowIndexEntry.clear();
       recordPosition(rowIndexPosition);
-      rowIndexValueCount.add(Long.valueOf(rows.size()));
+      if (useDirectEncoding()) {
+        rowIndexValueCount.add(Long.valueOf(rowSizes.size()));
+      } else {
+        rowIndexValueCount.add(Long.valueOf(rows.size()));
+      }
     }
 
     @Override
