@@ -454,7 +454,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     abstract void write(Object obj) throws IOException;
 
     void write(Object obj, long rawDataSize) throws IOException{
-      
+
       if (obj != null) {
         setRawDataSize(rawDataSize);
       } else {
@@ -1031,8 +1031,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     private final RunLengthIntegerWriter lengthOutput;
     private final StringDictionaryEncoder dictionary;
     private final DynamicIntArray rows = new DynamicIntArray();
-    private final DynamicByteArray byteArray = new DynamicByteArray();
-    private final DynamicIntArray rowSizes = new DynamicIntArray();
     private final RunLengthIntegerWriter directLengthOutput;
     private final List<OrcProto.RowIndexEntry> savedRowIndex =
         new ArrayList<OrcProto.RowIndexEntry>();
@@ -1055,6 +1053,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     private int bufferIndex = 0;
     private long bufferedBytes = 0;
     private final int recomputeStripeEncodingInterval;
+    private PositionedOutputStream rowOutput;
 
     StringTreeWriter(int columnId,
                      ObjectInspector inspector,
@@ -1122,8 +1121,9 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
         buffer[i] = null;
         if (val != null) {
           indexStatistics.updateString(val.toString());
-          if (useDirectEncoding()) {
-            rowSizes.add(byteArray.add(val.getBytes(), 0, val.getLength()));
+          if (useCarriedOverDirectEncoding()) {
+            rowOutput.write(val.getBytes());
+            directLengthOutput.write(val.getLength());
           } else {
             rows.add(dictionary.add(val));
           }
@@ -1206,7 +1206,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
      * Returns true iff the encoding is not being determined using this stripe, and
      * the previously determined encoding was direct.
      */
-    private boolean useDirectEncoding() {
+    private boolean useCarriedOverDirectEncoding() {
       return !determineEncodingStripe() && !useDictionaryEncoding;
     }
 
@@ -1214,7 +1214,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     void writeStripe(OrcProto.StripeFooter.Builder builder,
                      int requiredIndexEntries) throws IOException {
       int rowIndexEntry = 0;
-      final PositionedOutputStream rowOutput;
       OrcProto.RowIndex.Builder rowIndex = getRowIndex();
 
       if (determineEncodingStripe()) {
@@ -1248,7 +1247,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       if (useDictionaryEncoding) {
         rowOutput = new RunLengthIntegerWriter(writer.createStream(id,
             OrcProto.Stream.Kind.DATA), false, INT_BYTE_SIZE, useVInts);
-      } else {
+      } else if (determineEncodingStripe()) {
         rowOutput = writer.createStream(id,
             OrcProto.Stream.Kind.DATA);
       }
@@ -1269,44 +1268,30 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
           }
         });
       }
-      int length = rows.size();
-      if (useDirectEncoding()) {
-        length = rowSizes.size();
-      }
-      Text text = new Text();
-      // write the values translated into the dump order.
-      for(int i = 0; i <= length; ++i) {
-        // now that we are writing out the row values, we can finalize the
-        // row index
-        if (buildIndex) {
-          while (i == rowIndexValueCount.get(rowIndexEntry) &&
-              rowIndexEntry < savedRowIndex.size()) {
-            OrcProto.RowIndexEntry.Builder base =
-                savedRowIndex.get(rowIndexEntry++).toBuilder();
-            recordOutputPosition(rowOutput, base);
-            rowIndex.addEntry(base.build());
-          }
-        }
-        if (i !=  length) {
-          if (useDictionaryEncoding) {
-            rowOutput.write(dumpOrder[rows.get(i)]);
-          } else {
-            if (!determineEncodingStripe()) {
-              int pos = i;
-              int end = 0;
-              if (pos + 1 == rowSizes.size()) {
-                end = byteArray.size();
-              } else {
-                end = rowSizes.get(pos + 1);
-              }
-              int start = rowSizes.get(pos);
-              directLengthOutput.write(end - start);
-              byteArray.write(rowOutput, start, end - start);
 
+      if (!useCarriedOverDirectEncoding()) {
+        int length = rows.size();
+        Text text = new Text();
+        // write the values translated into the dump order.
+        for(int i = 0; i <= length; ++i) {
+          // now that we are writing out the row values, we can finalize the
+          // row index
+          if (buildIndex) {
+            while (i == rowIndexValueCount.get(rowIndexEntry) &&
+                rowIndexEntry < savedRowIndex.size()) {
+              OrcProto.RowIndexEntry.Builder base =
+                  savedRowIndex.get(rowIndexEntry++).toBuilder();
+              recordOutputPosition(rowOutput, base);
+              rowIndex.addEntry(base.build());
+            }
+          }
+          if (i !=  length) {
+            if (useDictionaryEncoding) {
+              rowOutput.write(dumpOrder[rows.get(i)]);
             } else {
-              dictionary.getText(text, rows.get(i));
-              rowOutput.write(text.getBytes(), 0, text.getLength());
-              directLengthOutput.write(text.getLength());
+                dictionary.getText(text, rows.get(i));
+                rowOutput.write(text.getBytes(), 0, text.getLength());
+                directLengthOutput.write(text.getLength());
             }
           }
         }
@@ -1328,10 +1313,12 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       savedRowIndex.clear();
       rowIndexValueCount.clear();
       recordPosition(rowIndexPosition);
+      if (useCarriedOverDirectEncoding())  {
+        rowOutput = writer.createStream(id, OrcProto.Stream.Kind.DATA);
+        rowOutput.getPosition(rowIndexPosition);
+        directLengthOutput.getPosition(rowIndexPosition);
+      }
       rowIndexValueCount.add(0L);
-
-      byteArray.clear();
-      rowSizes.clear();
 
     }
 
@@ -1370,11 +1357,16 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       OrcProto.RowIndexEntry.Builder rowIndexEntry = getRowIndexEntry();
       rowIndexEntry.setStatistics(indexStatistics.serialize());
       indexStatistics.reset();
-      savedRowIndex.add(rowIndexEntry.build());
+      if (useCarriedOverDirectEncoding()) {
+        getRowIndex().addEntry(rowIndexEntry);
+      } else {
+        savedRowIndex.add(rowIndexEntry.build());
+      }
       rowIndexEntry.clear();
       recordPosition(rowIndexPosition);
-      if (useDirectEncoding()) {
-        rowIndexValueCount.add(Long.valueOf(rowSizes.size()));
+      if (useCarriedOverDirectEncoding()) {
+        rowOutput.getPosition(rowIndexPosition);
+        directLengthOutput.getPosition(rowIndexPosition);
       } else {
         rowIndexValueCount.add(Long.valueOf(rows.size()));
       }
@@ -1383,7 +1375,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     @Override
     long estimateMemory() {
       return rows.getSizeInBytes() + dictionary.getSizeInBytes() + bufferedBytes +
-        byteArray.size() + rowSizes.getSizeInBytes();
+        (rowOutput == null ? 0 : rowOutput.getBufferSize()) + directLengthOutput.getBufferSize();
     }
   }
 
@@ -2037,7 +2029,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
 
   @Override
   public void addRow(Object row) throws IOException {
-    
+
     ReaderWriterProfiler.start(ReaderWriterProfiler.Counter.ENCODING_TIME);
     synchronized (this) {
       treeWriter.write(row);
