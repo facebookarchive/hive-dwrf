@@ -6,17 +6,18 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import com.facebook.hive.orc.InStream;
-import com.facebook.hive.orc.OrcProto;
-import com.facebook.hive.orc.StreamName;
-import com.facebook.hive.orc.OrcProto.RowIndex;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.io.Writable;
+
+import com.facebook.hive.orc.InStream;
+import com.facebook.hive.orc.OrcProto;
+import com.facebook.hive.orc.OrcProto.RowIndex;
+import com.facebook.hive.orc.StreamName;
 
 
 public abstract class OrcLazyObject implements Writable {
   private long currentRow = 0;
-  private LazyTreeReader treeReader;
+  private final LazyTreeReader treeReader;
   protected Object previous;
   private boolean nextIsNull;
   private boolean materialized;
@@ -27,7 +28,12 @@ public abstract class OrcLazyObject implements Writable {
   }
 
   public OrcLazyObject(OrcLazyObject copy) {
-    materialized = true;
+    materialized = copy.materialized;
+    currentRow = copy.currentRow;
+    nextIsNull = copy.nextIsNull;
+    nextIsNullSet = copy.nextIsNullSet;
+    previous = copy.previous;
+    treeReader = copy.treeReader;
   }
 
   @Override
