@@ -37,8 +37,11 @@ public class OrcLazyRowObjectInspector extends OrcLazyStructObjectInspector {
 
     try {
       OrcLazyObject obj = ((OrcLazyRow) data).getFieldValue(offset);
-      obj.materialize();
-      return obj == null || obj.nextIsNull() ? null : obj;
+      if (obj != null) {
+        obj.materialize();
+        return obj.nextIsNull() ? null : obj;
+      }
+      return null;
     } catch (IOException e) {
       throw new RuntimeException(e);
     }
