@@ -19,6 +19,7 @@ package com.facebook.hive.orc;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 
 /**
  * A tool for printing out the file structure of ORC files.
@@ -33,6 +34,7 @@ public final class FileDump {
     for(String filename: args) {
       System.out.println("Structure for " + filename);
       Path path = new Path(filename);
+      ReaderWriterProfiler.setProfilerOptions(conf);
       Reader reader = OrcFile.createReader(path.getFileSystem(conf), path);
       RecordReaderImpl rows = (RecordReaderImpl) reader.rows(null);
       System.out.println("Rows: " + reader.getNumberOfRows());
