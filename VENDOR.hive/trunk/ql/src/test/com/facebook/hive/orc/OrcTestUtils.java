@@ -36,20 +36,23 @@ public class OrcTestUtils {
 
   /**
    *
-   * BigRowTwoStrings.
+   * ReallyBigRow.
    *
-   * A BigRow with an additional String column,
-   * useful for testing both dictionary and directly encoded strings
+   * A BigRow with additional String and numeric columns,
+   * useful for testing both dictionary and directly encoded columns
    *
    * Unfortunately this cannot simply extend BigRow in order to make the reflection
    * ObjectInspector work.
    */
-  public static class BigRowTwoStrings {
+  public static class ReallyBigRow {
     Boolean boolean1;
     Byte byte1;
     Short short1;
     Integer int1;
     Long long1;
+    Short short2;
+    Integer int2;
+    Long long2;
     Float float1;
     Double double1;
     BytesWritable bytes1;
@@ -59,29 +62,32 @@ public class OrcTestUtils {
     List<InnerStruct> list = new ArrayList<InnerStruct>();
     Map<Text, InnerStruct> map = new HashMap<Text, InnerStruct>();
 
-    public BigRowTwoStrings(Boolean b1, Byte b2, Short s1, Integer i1, Long l1, Float f1,
-        Double d1, BytesWritable b3, String s2, String s3, MiddleStruct m1, List<InnerStruct> l2,
-        Map<Text, InnerStruct> m2) {
+    public ReallyBigRow(Boolean b1, Byte b2, Short s1, Integer i1, Long l1, Short s2, Integer i2,
+        Long l2, Float f1, Double d1, BytesWritable b3, String s3, String s4, MiddleStruct m1,
+        List<InnerStruct> l3, Map<Text, InnerStruct> m2) {
       this.boolean1 = b1;
       this.byte1 = b2;
       this.short1 = s1;
       this.int1 = i1;
       this.long1 = l1;
+      this.short2 = s2;
+      this.int2 = i2;
+      this.long2 = l2;
       this.float1 = f1;
       this.double1 = d1;
       this.bytes1 = b3;
-      if (s2 == null) {
+      if (s3 == null) {
         this.string1 = null;
       } else {
-        this.string1 = new Text(s2);
+        this.string1 = new Text(s3);
       }
-      if (s3 == null) {
+      if (s4 == null) {
         this.string2 = null;
       } else {
-        this.string2 = new Text(s3);
+        this.string2 = new Text(s4);
       }
       this.middle = m1;
-      this.list = l2;
+      this.list = l3;
       this.map = m2;
     }
   }

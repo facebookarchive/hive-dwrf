@@ -720,7 +720,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     private int bufferIndex = 0;
     private long bufferedBytes = 0;
     private final int recomputeStripeEncodingInterval;
-    private int numElements = 0;
 
 
     IntegerTreeWriter(int columnId,
@@ -803,9 +802,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
         Long val = buffer[i];
         buffer[i] = null;
         if (val != null) {
-          if (!determineEncodingStripe() && !useDictionaryEncoding) {
-              rawDataArray.add(val);
-              numElements++;
+          if (useDirectEncoding()) {
+            rawDataArray.add(val);
           } else {
             rows.add(dictionary.add(val));
           }
@@ -821,6 +819,14 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     boolean getUseDictionaryEncoding() {
       return (rows.size() > 0 &&
           (float)(dictionary.size()) / (float)rows.size() <= dictionaryKeySizeThreshold);
+    }
+
+    /**
+     * Returns true iff the encoding is not being determined using this stripe, and
+     * the previously determined encoding was direct.
+     */
+    private boolean useDirectEncoding() {
+      return !determineEncodingStripe() && !useDictionaryEncoding;
     }
 
     @Override
@@ -861,8 +867,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       // need to build the first index entry out here, to handle the case of
       // not having any values.
 
-      if (!determineEncodingStripe() && !useDictionaryEncoding) {
-        length = numElements;
+      if (useDirectEncoding()) {
+        length = rawDataArray.size();
       }
       // write the values translated into the dump order.
       for(int i = 0; i <= length; ++i) {
@@ -903,7 +909,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       dictionary.clear();
       rows.clear();
       rawDataArray.clear();
-      numElements = 0;
       savedRowIndex.clear();
       rowIndexValueCount.clear();
       recordPosition(rowIndexPosition);
@@ -938,7 +943,11 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       savedRowIndex.add(rowIndexEntry.build());
       rowIndexEntry.clear();
       recordPosition(rowIndexPosition);
-      rowIndexValueCount.add(Long.valueOf(rows.size()));
+      if (useDirectEncoding()) {
+        rowIndexValueCount.add(Long.valueOf(rawDataArray.size()));
+      } else {
+        rowIndexValueCount.add(Long.valueOf(rows.size()));
+      }
     }
 
     @Override
