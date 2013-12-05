@@ -930,6 +930,133 @@ public class TestOrcFile {
     }
   }
 
+  private void compareRowsWithoutNextIsNull(OrcStruct row, RandomRowInputs inputs, int rowNumber,
+      boolean withNulls) throws Exception {
+
+    ReallyBigRow expected;
+    if (withNulls) {
+      expected = createRandomRowWithNulls(inputs.intValues, inputs.doubleValues,
+        inputs.stringValues, inputs.byteValues, inputs.words, rowNumber);
+    } else {
+      expected = createRandomRow(inputs.intValues, inputs.doubleValues,
+          inputs.stringValues, inputs.byteValues, inputs.words, rowNumber);
+    }
+
+    BooleanWritable boolean1 = (BooleanWritable) ((OrcLazyBoolean) row.getFieldValue(0)).materialize();
+    if (boolean1 == null) {
+      assertNull(expected.boolean1);
+    } else {
+      assertEquals(expected.boolean1.booleanValue(), boolean1.get());
+    }
+
+    ByteWritable byte1 = (ByteWritable) ((OrcLazyByte) row.getFieldValue(1)).materialize();
+    if (byte1 == null) {
+      assertNull(expected.byte1);
+    } else {
+      assertEquals(expected.byte1.byteValue(), byte1.get());
+    }
+
+    ShortWritable short1 = (ShortWritable) ((OrcLazyShort) row.getFieldValue(2)).materialize();
+    if (short1 == null) {
+      assertNull(expected.short1);
+    } else {
+      assertEquals(expected.short1.shortValue(), short1.get());
+    }
+
+    IntWritable int1 = (IntWritable) ((OrcLazyInt) row.getFieldValue(3)).materialize();
+    if (int1 == null) {
+      assertNull(expected.int1);
+    } else {
+      assertEquals(expected.int1.intValue(), int1.get());
+    }
+
+    LongWritable long1 = (LongWritable) ((OrcLazyLong) row.getFieldValue(4)).materialize();
+    if (long1 == null) {
+      assertNull(expected.long1);
+    } else {
+      assertEquals(expected.long1.longValue(), long1.get());
+    }
+
+    ShortWritable short2 = (ShortWritable) ((OrcLazyShort) row.getFieldValue(5)).materialize();
+    if (short2 == null) {
+      assertNull(expected.short2);
+    } else {
+      assertEquals(expected.short2.shortValue(), short2.get());
+    }
+
+    IntWritable int2 = (IntWritable) ((OrcLazyInt) row.getFieldValue(6)).materialize();
+    if (int2 == null) {
+      assertNull(expected.int2);
+    } else {
+      assertEquals(expected.int2.intValue(), int2.get());
+    }
+
+    LongWritable long2 = (LongWritable) ((OrcLazyLong) row.getFieldValue(7)).materialize();
+    if (long2 == null) {
+      assertNull(expected.long2);
+    } else {
+      assertEquals(expected.long2.longValue(), long2.get());
+    }
+
+    FloatWritable float1 = (FloatWritable) ((OrcLazyFloat) row.getFieldValue(8)).materialize();
+    if (float1 == null) {
+      assertNull(expected.float1);
+    } else {
+      assertEquals(expected.float1.floatValue(), float1.get(), 0.0001);
+    }
+
+    DoubleWritable double1 = (DoubleWritable) ((OrcLazyDouble) row.getFieldValue(9)).materialize();
+    if (double1 == null) {
+      assertNull(expected.double1);
+    } else {
+      assertEquals(expected.double1.doubleValue(), double1.get(), 0.0001);
+    }
+
+    BytesWritable bytes1 = (BytesWritable) ((OrcLazyBinary) row.getFieldValue(10)).materialize();
+    if (bytes1 == null) {
+      assertNull(expected.bytes1);
+    } else {
+      assertEquals(expected.bytes1, bytes1);
+    }
+
+    Text string1 = (Text) ((OrcLazyString) row.getFieldValue(11)).materialize();
+    if (string1 == null) {
+      assertNull(expected.string1);
+    } else {
+      assertEquals(expected.string1, string1);
+    }
+
+    Text string2 = (Text) ((OrcLazyString) row.getFieldValue(12)).materialize();
+    if (string2 == null) {
+      assertNull(expected.string2);
+    } else {
+      assertEquals(expected.string2, string2);
+    }
+
+    OrcStruct middle = (OrcStruct) ((OrcLazyStruct) row.getFieldValue(13)).materialize();
+    if (middle == null) {
+      assertNull(expected.middle);
+    } else {
+      List<InnerStruct> expectedList = expected.middle.list;
+      List<OrcStruct> actualList = (List) middle.getFieldValue(0);
+      compareList(expectedList, actualList);
+    }
+
+    List list = (List) ((OrcLazyList) row.getFieldValue(14)).materialize();
+    if (list == null) {
+      assertNull(expected.list);
+    } else {
+      compareList(expected.list, list);
+    }
+
+    Map map = (Map) ((OrcLazyMap) row.getFieldValue(15)).materialize();
+    if (map == null) {
+      assertNull(expected.map);
+    } else {
+      compareMap(expected.map, map);
+    }
+  }
+
   @Test
   public void testSeek() throws Exception {
     final int COUNT=32768;
@@ -949,7 +1076,7 @@ public class TestOrcFile {
     rows.close();
   }
 
-  private void readEveryNthRow(int n) throws Exception {
+  private void readEveryNthRow(int n, boolean withoutNextIsNull) throws Exception {
     final int COUNT=32768;
     RandomRowInputs inputs = writeRandomRows(COUNT);
     ReaderWriterProfiler.setProfilerOptions(conf);
@@ -963,7 +1090,11 @@ public class TestOrcFile {
       lazyRow = (OrcLazyStruct) rows.next(lazyRow);
       if (i % n == 0) {
         row = (OrcStruct) lazyRow.materialize();
-        compareRows(row, inputs, i, false);
+        if (withoutNextIsNull) {
+          compareRowsWithoutNextIsNull(row, inputs, i, false);
+        } else {
+          compareRows(row, inputs, i, false);
+        }
       }
     }
     rows.close();
@@ -971,27 +1102,132 @@ public class TestOrcFile {
 
   @Test
   public void testEveryRow() throws Exception {
-    readEveryNthRow(1);
+    readEveryNthRow(1, false);
+  }
+
+  @Test
+  public void testEveryOtherRow() throws Exception {
+    readEveryNthRow(2, false);
+  }
+
+  @Test
+  public void testEveryThirdRow() throws Exception {
+    readEveryNthRow(3, false);
+  }
+
+  @Test
+  public void testEveryFourthRow() throws Exception {
+    readEveryNthRow(4, false);
+  }
+
+  @Test
+  public void testEveryFifthRow() throws Exception {
+    readEveryNthRow(5, false);
+  }
+
+  @Test
+  public void testEverySixthRow() throws Exception {
+    readEveryNthRow(6, false);
+  }
+
+  @Test
+  public void testEverySeventhRow() throws Exception {
+    readEveryNthRow(7, false);
+  }
+
+  @Test
+  public void testEveryEighthRow() throws Exception {
+    readEveryNthRow(8, false);
+  }
+
+  @Test
+  public void testEveryNinthRow() throws Exception {
+    readEveryNthRow(9, false);
   }
 
   @Test
   public void testEveryTenthRow() throws Exception {
-    readEveryNthRow(10);
+    readEveryNthRow(10, false);
   }
 
   @Test
   public void testEveryHundredthRow() throws Exception {
-    readEveryNthRow(100);
+    readEveryNthRow(100, false);
   }
 
   @Test
   public void testEveryThousandthRow() throws Exception {
-    readEveryNthRow(1000);
+    readEveryNthRow(1000, false);
   }
 
   @Test
   public void testEveryTenThousandthRow() throws Exception {
-    readEveryNthRow(10000);
+    readEveryNthRow(10000, false);
+  }
+
+  @Test
+  public void testEveryRowWithoutNextIsNull() throws Exception {
+    readEveryNthRow(1, true);
+  }
+
+  @Test
+  public void testEveryOtherRowWithoutNextIsNull() throws Exception {
+    readEveryNthRow(2, true);
+  }
+
+  @Test
+  public void testEveryThirdRowWithoutNextIsNull() throws Exception {
+    readEveryNthRow(3, true);
+  }
+
+  @Test
+  public void testEveryFourthRowWithoutNextIsNull() throws Exception {
+    readEveryNthRow(4, true);
+  }
+
+  @Test
+  public void testEveryFifthRowWithoutNextIsNull() throws Exception {
+    readEveryNthRow(5, true);
+  }
+
+  @Test
+  public void testEverySixthRowWithoutNextIsNull() throws Exception {
+    readEveryNthRow(6, true);
+  }
+
+  @Test
+  public void testEverySeventhRowWithoutNextIsNull() throws Exception {
+    readEveryNthRow(7, true);
+  }
+
+  @Test
+  public void testEveryEighthRowWithoutNextIsNull() throws Exception {
+    readEveryNthRow(8, true);
+  }
+
+  @Test
+  public void testEveryNinthRowWithoutNextIsNull() throws Exception {
+    readEveryNthRow(9, true);
+  }
+
+  @Test
+  public void testEveryTenthRowWithoutNextIsNull() throws Exception {
+    readEveryNthRow(10, true);
+  }
+
+  @Test
+  public void testEveryHundredthRowWithoutNextIsNull() throws Exception {
+    readEveryNthRow(100, true);
+  }
+
+  @Test
+  public void testEveryThousandthRowWithoutNextIsNull() throws Exception {
+    readEveryNthRow(1000, true);
+  }
+
+  @Test
+  public void testEveryTenThousandthRowWithoutNextIsNull() throws Exception {
+    readEveryNthRow(10000, true);
   }
 
   private RandomRowInputs writeRandomRowsWithNulls(int count) throws IOException {
@@ -1035,7 +1271,7 @@ public class TestOrcFile {
     return inputs;
   }
 
-  private void readEveryNthRowWithNulls(int n) throws Exception {
+  private void readEveryNthRowWithNulls(int n, boolean withoutNextIsNull) throws Exception {
     final int COUNT=32768;
     RandomRowInputs inputs = writeRandomRowsWithNulls(COUNT);
     Reader reader = OrcFile.createReader(fs, testFilePath);
@@ -1047,7 +1283,11 @@ public class TestOrcFile {
       rows.next(lazyRow);
       if (i % n == 0) {
         row = (OrcStruct) lazyRow.materialize();
-        compareRows(row, inputs, i, true);
+        if (withoutNextIsNull) {
+          compareRowsWithoutNextIsNull(row, inputs, i, true);
+        } else {
+          compareRows(row, inputs, i, true);
+        }
       }
     }
     rows.close();
@@ -1055,27 +1295,132 @@ public class TestOrcFile {
 
   @Test
   public void testEveryRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(1);
+    readEveryNthRowWithNulls(1, false);
+  }
+
+  @Test
+  public void testEveryOtherRowWithNulls() throws Exception {
+    readEveryNthRowWithNulls(2, false);
+  }
+
+  @Test
+  public void testEveryThirdRowWithNulls() throws Exception {
+    readEveryNthRowWithNulls(3, false);
+  }
+
+  @Test
+  public void testEveryFourthRowWithNulls() throws Exception {
+    readEveryNthRowWithNulls(4, false);
+  }
+
+  @Test
+  public void testEveryFifthRowWithNulls() throws Exception {
+    readEveryNthRowWithNulls(5, false);
+  }
+
+  @Test
+  public void testEverySixthRowWithNulls() throws Exception {
+    readEveryNthRowWithNulls(6, false);
+  }
+
+  @Test
+  public void testEverySeventhRowWithNulls() throws Exception {
+    readEveryNthRowWithNulls(7, false);
+  }
+
+  @Test
+  public void testEveryEighthRowWithNulls() throws Exception {
+    readEveryNthRowWithNulls(8, false);
+  }
+
+  @Test
+  public void testEveryNinthRowWithNulls() throws Exception {
+    readEveryNthRowWithNulls(9, false);
   }
 
   @Test
   public void testEveryTenthRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(10);
+    readEveryNthRowWithNulls(10, false);
   }
 
   @Test
   public void testEveryHundredthRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(100);
+    readEveryNthRowWithNulls(100, false);
   }
 
   @Test
   public void testEveryThousandthRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(1000);
+    readEveryNthRowWithNulls(1000, false);
   }
 
   @Test
   public void testEveryTenThousandthRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(10000);
+    readEveryNthRowWithNulls(10000, false);
+  }
+
+  @Test
+  public void testEveryRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRowWithNulls(1, true);
+  }
+
+  @Test
+  public void testEveryOtherRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRowWithNulls(2, true);
+  }
+
+  @Test
+  public void testEveryThirdRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRowWithNulls(3, true);
+  }
+
+  @Test
+  public void testEveryFourthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRowWithNulls(4, true);
+  }
+
+  @Test
+  public void testEveryFifthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRowWithNulls(5, true);
+  }
+
+  @Test
+  public void testEverySixthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRowWithNulls(6, true);
+  }
+
+  @Test
+  public void testEverySeventhRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRowWithNulls(7, true);
+  }
+
+  @Test
+  public void testEveryEighthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRowWithNulls(8, true);
+  }
+
+  @Test
+  public void testEveryNinthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRowWithNulls(9, true);
+  }
+
+  @Test
+  public void testEveryTenthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRowWithNulls(10, true);
+  }
+
+  @Test
+  public void testEveryHundredthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRowWithNulls(100, true);
+  }
+
+  @Test
+  public void testEveryThousandthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRowWithNulls(1000, true);
+  }
+
+  @Test
+  public void testEveryTenThousandthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRowWithNulls(10000, true);
   }
 
   private void compareInner(InnerStruct expect,

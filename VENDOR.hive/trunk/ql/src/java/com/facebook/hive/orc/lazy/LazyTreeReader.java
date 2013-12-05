@@ -166,9 +166,11 @@ public abstract class LazyTreeReader {
     if (currentRow != previousPresentRow + 1) {
       long rowInStripe = currentRow - rowBaseInStripe - 1;
       int rowIndexEntry = computeRowIndexEntry(currentRow);
-      if (rowIndexEntry != computeRowIndexEntry(previousRow) || currentRow < previousPresentRow) {
-        previousPositionProvider = new PositionProviderImpl(index.getEntry(rowIndexEntry));
-        present.seek(previousPositionProvider);
+      if (rowIndexEntry != computeRowIndexEntry(previousPresentRow) ||
+          currentRow < previousPresentRow) {
+        // Since we're resetting numNulls we need to seek to the appropriate row not just in the
+        // present stream, but in all streams for the column
+        seek(rowIndexEntry, currentRow < previousPresentRow);
         numNonNulls = countNonNulls(rowInStripe - (rowIndexEntry * rowIndexStride));
       } else {
         numNonNulls += countNonNulls(currentRow - previousPresentRow - 1);
@@ -209,13 +211,18 @@ public abstract class LazyTreeReader {
    */
   protected void seek(int rowIndexEntry, boolean backwards) throws IOException {
     if (backwards || rowIndexEntry != computeRowIndexEntry(previousRow)) {
-      if (backwards || rowIndexEntry != computeRowIndexEntry(previousPresentRow)) {
+      // if present is null we need to initialize the previousPositionProvider
+      if (present == null || backwards || rowIndexEntry != computeRowIndexEntry(previousPresentRow)) {
         previousPositionProvider = new PositionProviderImpl(index.getEntry(rowIndexEntry));
         if (present != null) {
           present.seek(previousPositionProvider);
+          // Update previousPresentRow because the state is now as if that were the case
+          previousPresentRow = rowIndexEntry * rowIndexStride - 1;
         }
       }
       seek(previousPositionProvider);
+      // Update previousRow because the state is now as if that were the case
+      previousRow = rowIndexEntry * rowIndexStride - 1;
     }
   }
 
@@ -235,30 +242,41 @@ public abstract class LazyTreeReader {
     if (currentRow != previousPresentRow) {
       nextIsNull(currentRow);
     }
-    if (currentRow != previousRow + 1 && valuePresent) {
-      numNonNulls--;
-      long rowInStripe = currentRow - rowBaseInStripe - 1;
-      int rowIndexEntry = computeRowIndexEntry(currentRow);
-      if (rowIndexEntry != computeRowIndexEntry(previousRow) || currentRow < previousRow) {
-        if (present == null) {
-          previousPositionProvider = new PositionProviderImpl(index.getEntry(rowIndexEntry));
-          numNonNulls = countNonNulls(rowInStripe - (rowIndexEntry * rowIndexStride));
+
+    if (valuePresent) {
+      if (currentRow != previousRow + 1) {
+        numNonNulls--;
+        long rowInStripe = currentRow - rowBaseInStripe - 1;
+        int rowIndexEntry = computeRowIndexEntry(currentRow);
+        // if previous == rowIndexEntry * rowIndexStride - 1 even though they are in different
+        // index strides seeking will only leaves us where we are.
+        if ((previousRow != rowIndexEntry * rowIndexStride  - 1 &&
+            rowIndexEntry != computeRowIndexEntry(previousRow)) || currentRow < previousRow) {
+          if (present == null) {
+            previousPositionProvider = new PositionProviderImpl(index.getEntry(rowIndexEntry));
+            numNonNulls = countNonNulls(rowInStripe - (rowIndexEntry * rowIndexStride));
+          }
+          seek(rowIndexEntry, currentRow <= previousRow);
+          skipRows(numNonNulls);
+        } else {
+           if (present == null) {
+             // If present is null, it means there are no nulls in this column
+             // so the number of nonNulls is the number of rows being skipped
+             numNonNulls = currentRow - previousRow - 1;
+           }
+          skipRows(numNonNulls);
         }
-        seek(rowIndexEntry, currentRow <= previousRow);
-        skipRows(numNonNulls);
-      } else {
-         if (present == null) {
-           // If present is null, it means there are no nulls in this column
-           // so the number of nonNulls is the number of rows being skipped
-           numNonNulls = currentRow - previousRow - 1;
-         }
-        skipRows(numNonNulls);
+        seeked = true;
       }
-      seeked = true;
+
+      numNonNulls = 0;
     }
 
-    numNonNulls = 0;
-    previousRow = currentRow;
+    // If numNonNulls is not 0 then the current value must be null and some number of non null
+    // values have been skipped, to ensure that those values are skipped, hold previousRow
+    if (numNonNulls == 0) {
+      previousRow = currentRow;
+    }
     return seeked;
   }
 
@@ -268,6 +286,7 @@ public abstract class LazyTreeReader {
     this.previousRow = rowBaseInStripe;
     this.previousPresentRow = rowBaseInStripe;
     this.rowBaseInStripe = rowBaseInStripe;
+    this.numNonNulls = 0;
 
     InStream in = streams.get(new StreamName(columnId,
         OrcProto.Stream.Kind.PRESENT));
