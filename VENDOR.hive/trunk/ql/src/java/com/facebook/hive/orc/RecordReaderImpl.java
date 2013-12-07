@@ -27,6 +27,8 @@ import java.util.Map;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
+
 import com.facebook.hive.orc.lazy.LazyBinaryTreeReader;
 import com.facebook.hive.orc.lazy.LazyBooleanTreeReader;
 import com.facebook.hive.orc.lazy.LazyByteTreeReader;
@@ -58,7 +60,6 @@ import com.facebook.hive.orc.lazy.OrcLazyString;
 import com.facebook.hive.orc.lazy.OrcLazyStruct;
 import com.facebook.hive.orc.lazy.OrcLazyTimestamp;
 import com.facebook.hive.orc.lazy.OrcLazyUnion;
-import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 
 class RecordReaderImpl implements RecordReader {
   private final FSDataInputStream file;
@@ -125,7 +126,7 @@ class RecordReaderImpl implements RecordReader {
         structFields[i] = createLazyObject(subtype, types, included);
       }
     }
-    return new OrcLazyRow(structFields);
+    return new OrcLazyRow(structFields, type.getFieldNamesList());
   }
 
   LazyTreeReader createLazyTreeReader(int columnId,
@@ -163,7 +164,7 @@ class RecordReaderImpl implements RecordReader {
             structFields[i] = createLazyTreeReader(subtype, types, included);
           }
         }
-        return new LazyStructTreeReader(columnId, rowIndexStride, structFields);
+        return new LazyStructTreeReader(columnId, rowIndexStride, structFields, type.getFieldNamesList());
       case LIST:
         OrcProto.Type subType = types.get(columnId);
         LazyTreeReader elementReader = createLazyTreeReader(type.getSubtypes(0), types, included);

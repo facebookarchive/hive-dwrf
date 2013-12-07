@@ -13,10 +13,12 @@ import com.facebook.hive.orc.OrcProto.RowIndex;
 public class OrcLazyRow extends OrcLazyStruct {
 
   private OrcLazyObject[] fields;
+  private final List<String> fieldNames;
 
-  public OrcLazyRow(OrcLazyObject[] fields) {
+  public OrcLazyRow(OrcLazyObject[] fields, List<String> fieldNames) {
     super(null);
     this.fields = fields;
+    this.fieldNames = fieldNames;
   }
 
   @Override
@@ -44,9 +46,9 @@ public class OrcLazyRow extends OrcLazyStruct {
     OrcStruct previousRow;
     if (previous != null) {
       previousRow = (OrcStruct) previous;
-      previousRow.setNumFields(fields.length);
+      previousRow.setFieldNames(fieldNames);
     } else {
-      previousRow = new OrcStruct(fields.length);
+      previousRow = new OrcStruct(fieldNames);
     }
     for (int i = 0; i < fields.length; i++) {
       previousRow.setFieldValue(i, fields[i]);

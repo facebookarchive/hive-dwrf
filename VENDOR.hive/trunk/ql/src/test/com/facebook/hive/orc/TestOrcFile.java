@@ -538,7 +538,7 @@ public class TestOrcFile {
     ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
         1000, CompressionKind.NONE, 100, 10000);
-    OrcStruct row = new OrcStruct(2);
+    OrcStruct row = new OrcStruct(types.get(0).getFieldNamesList());
     OrcUnion union = new OrcUnion();
     row.setFieldValue(1, union);
     row.setFieldValue(0, Timestamp.valueOf("2000-03-12 15:00:00"));
@@ -914,14 +914,19 @@ public class TestOrcFile {
       assertNull(expected.middle);
     } else {
       List<InnerStruct> expectedList = expected.middle.list;
+      OrcStruct actualMiddle = (OrcStruct) ((OrcLazyStruct) row.getFieldValue(13)).materialize();
       List<OrcStruct> actualList =
-          (List) ((OrcStruct) ((OrcLazyStruct) row.getFieldValue(13)).materialize()).getFieldValue(0);
-      compareList(expectedList, actualList);
+          (List) actualMiddle.getFieldValue(0);
+      compareListOfStructs(expectedList, actualList);
+      List<String> actualFieldNames = actualMiddle.getFieldNames();
+      List<String> expectedFieldNames = new ArrayList<String>();
+      expectedFieldNames.add("list");
+      compareLists(expectedFieldNames, actualFieldNames);
     }
     if (((OrcLazyObject) row.getFieldValue(14)).nextIsNull()) {
       assertNull(expected.list);
     } else {
-      compareList(expected.list, (List) ((OrcLazyList) row.getFieldValue(14)).materialize());
+      compareListOfStructs(expected.list, (List) ((OrcLazyList) row.getFieldValue(14)).materialize());
     }
     if (((OrcLazyObject) row.getFieldValue(15)).nextIsNull()) {
       assertNull(expected.map);
@@ -1039,14 +1044,18 @@ public class TestOrcFile {
     } else {
       List<InnerStruct> expectedList = expected.middle.list;
       List<OrcStruct> actualList = (List) middle.getFieldValue(0);
-      compareList(expectedList, actualList);
+      compareListOfStructs(expectedList, actualList);
+      List<String> actualFieldNames = middle.getFieldNames();
+      List<String> expectedFieldNames = new ArrayList<String>();
+      expectedFieldNames.add("list");
+      compareLists(expectedFieldNames, actualFieldNames);
     }
 
     List list = (List) ((OrcLazyList) row.getFieldValue(14)).materialize();
     if (list == null) {
       assertNull(expected.list);
     } else {
-      compareList(expected.list, list);
+      compareListOfStructs(expected.list, list);
     }
 
     Map map = (Map) ((OrcLazyMap) row.getFieldValue(15)).materialize();
@@ -1277,10 +1286,10 @@ public class TestOrcFile {
     Reader reader = OrcFile.createReader(fs, testFilePath);
     assertEquals(COUNT, reader.getNumberOfRows());
     RecordReader rows = reader.rows(null);
-    OrcLazyRow lazyRow = new OrcLazyRow(null);
+    OrcLazyRow lazyRow = null;
     OrcStruct row = null;
     for(int i=0; i < COUNT; i++) {
-      rows.next(lazyRow);
+      lazyRow = (OrcLazyRow) rows.next(lazyRow);
       if (i % n == 0) {
         row = (OrcStruct) lazyRow.materialize();
         if (withoutNextIsNull) {
@@ -1437,12 +1446,17 @@ public class TestOrcFile {
     }
   }
 
-  private void compareList(List<InnerStruct> expect,
+  private void compareListOfStructs(List<InnerStruct> expect,
                            List<OrcStruct> actual) throws Exception {
     assertEquals(expect.size(), actual.size());
     for(int j=0; j < expect.size(); ++j) {
       compareInner(expect.get(j), actual.get(j));
     }
+  }
+
+  private void compareLists(List expect, List actual) throws Exception {
+    assertEquals(expect.size(), actual.size());
+    assertTrue(expect.containsAll(actual));
   }
 
   private void compareMap(Map<Text, InnerStruct> expect, Map<Text, OrcStruct> actual)

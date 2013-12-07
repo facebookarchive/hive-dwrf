@@ -25,7 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.facebook.hive.orc.lazy.OrcLazyObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -39,12 +38,21 @@ import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.io.Writable;
 
+import com.facebook.hive.orc.lazy.OrcLazyObjectInspectorUtils;
+
 public final class OrcStruct implements Writable {
 
   private Object[] fields;
+  private List<String> fieldNames;
 
-  public OrcStruct(int children) {
-    fields = new Object[children];
+  public OrcStruct() {
+    this.fields = new Object[0];
+    this.fieldNames = new ArrayList<String>();
+  }
+
+  public OrcStruct(List<String> fieldNames) {
+    this.fields = new Object[fieldNames.size()];
+    this.fieldNames = fieldNames;
   }
 
   public Object getFieldValue(int fieldIndex) {
@@ -59,18 +67,28 @@ public final class OrcStruct implements Writable {
     return fields.length;
   }
 
+  public List<String> getFieldNames() {
+    return fieldNames;
+  }
+
   /**
-   * Change the number of fields in the struct. No effect if the number of
+   * Change the names and number of fields in the struct. No effect if the number of
    * fields is the same. The old field values are copied to the new array.
    * @param numFields the new number of fields
    */
-  public void setNumFields(int numFields) {
-    if (fields.length != numFields) {
+  public void setFieldNames(List<String> fieldNames) {
+    this.fieldNames = fieldNames;
+    if (fields.length != fieldNames.size()) {
       Object[] oldFields = fields;
-      fields = new Object[numFields];
+      fields = new Object[fieldNames.size()];
       System.arraycopy(oldFields, 0, fields, 0,
-          Math.min(oldFields.length, numFields));
+          Math.min(oldFields.length, fieldNames.size()));
     }
+  }
+
+  public void appendField(String fieldName) {
+    fieldNames.add(fieldName);
+    setFieldNames(fieldNames);
   }
 
    @Override
@@ -247,7 +265,7 @@ public final class OrcStruct implements Writable {
 
     @Override
     public Object create() {
-      return new OrcStruct(0);
+      return new OrcStruct();
     }
 
     @Override
@@ -257,7 +275,7 @@ public final class OrcStruct implements Writable {
       int offset = ((Field) field).offset;
       // if the offset is bigger than our current number of fields, grow it
       if (orcStruct.getNumFields() <= offset) {
-        orcStruct.setNumFields(offset+1);
+        orcStruct.appendField(((Field) field).getFieldName());
       }
       orcStruct.setFieldValue(offset, fieldValue);
       return struct;

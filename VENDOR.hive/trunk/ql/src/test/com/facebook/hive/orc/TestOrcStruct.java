@@ -25,7 +25,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.facebook.hive.orc.lazy.OrcLazyObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -34,13 +33,15 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.junit.Test;
 
+import com.facebook.hive.orc.lazy.OrcLazyObjectInspectorUtils;
+
 public class TestOrcStruct {
 
   @Test
   public void testStruct() throws Exception {
-    OrcStruct st1 = new OrcStruct(4);
-    OrcStruct st2 = new OrcStruct(4);
-    OrcStruct st3 = new OrcStruct(3);
+    OrcStruct st1 = new OrcStruct();
+    OrcStruct st2 = new OrcStruct();
+    OrcStruct st3 = new OrcStruct();
     st1.setFieldValue(0, "hop");
     st1.setFieldValue(1, "on");
     st1.setFieldValue(2, "pop");
@@ -82,7 +83,7 @@ public class TestOrcStruct {
     assertEquals(null,
         inspector.getAllStructFieldRefs().get(0).getFieldComment());
     assertEquals(null, inspector.getStructFieldRef("UNKNOWN"));
-    OrcStruct s1 = new OrcStruct(13);
+    OrcStruct s1 = new OrcStruct();
     for(int i=0; i < 13; ++i) {
       s1.setFieldValue(i, i);
     }

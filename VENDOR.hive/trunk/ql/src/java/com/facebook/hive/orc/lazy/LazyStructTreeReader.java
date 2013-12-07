@@ -14,10 +14,13 @@ import com.facebook.hive.orc.OrcProto.RowIndex;
 public class LazyStructTreeReader extends LazyTreeReader {
 
   private final LazyTreeReader[] fields;
+  private final List<String> fieldNames;
 
-  public LazyStructTreeReader(int columnId, long rowIndexStride, LazyTreeReader[] fields) throws IOException {
+  public LazyStructTreeReader(int columnId, long rowIndexStride, LazyTreeReader[] fields,
+      List<String> fieldNames) throws IOException {
     super(columnId, rowIndexStride);
     this.fields = fields;
+    this.fieldNames = fieldNames;
   }
 
   @Override
@@ -34,14 +37,14 @@ public class LazyStructTreeReader extends LazyTreeReader {
     OrcStruct result = null;
     if (valuePresent) {
       if (previous == null) {
-        result = new OrcStruct(fields.length);
+        result = new OrcStruct(fieldNames);
       } else {
         result = (OrcStruct) previous;
 
         // If the input format was initialized with a file with a
         // different number of fields, the number of fields needs to
         // be updated to the correct number
-        result.setNumFields(fields.length);
+        result.setFieldNames(fieldNames);
       }
       for(int i=0; i < fields.length; ++i) {
         if (fields[i] != null) {
