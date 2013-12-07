@@ -10,6 +10,7 @@ import com.facebook.hive.orc.OrcProto;
 import com.facebook.hive.orc.PositionProvider;
 import com.facebook.hive.orc.PositionProviderImpl;
 import com.facebook.hive.orc.StreamName;
+import com.facebook.hive.orc.WriterImpl;
 import com.facebook.hive.orc.OrcProto.RowIndex;
 
 public abstract class LazyTreeReader {
@@ -24,6 +25,8 @@ public abstract class LazyTreeReader {
   protected long previousPresentRow;
   private long numNonNulls;
   protected PositionProviderImpl previousPositionProvider = null;
+  // Is the present stream (if it exists) compressed or not
+  private boolean presentCompressed;
 
   protected abstract void seek(PositionProvider index) throws IOException;
 
@@ -176,6 +179,12 @@ public abstract class LazyTreeReader {
         numNonNulls += countNonNulls(currentRow - previousPresentRow - 1);
       }
     }
+
+    // If this is the first row in a row index stride update the number of non-null values to 0
+    if ((currentRow - rowBaseInStripe - 1) % rowIndexStride == 0) {
+      numNonNulls = 0;
+    }
+
     previousPresentRow = currentRow;
   }
 
@@ -211,13 +220,20 @@ public abstract class LazyTreeReader {
    */
   protected void seek(int rowIndexEntry, boolean backwards) throws IOException {
     if (backwards || rowIndexEntry != computeRowIndexEntry(previousRow)) {
-      // if present is null we need to initialize the previousPositionProvider
-      if (present == null || backwards || rowIndexEntry != computeRowIndexEntry(previousPresentRow)) {
-        previousPositionProvider = new PositionProviderImpl(index.getEntry(rowIndexEntry));
-        if (present != null) {
-          present.seek(previousPositionProvider);
-          // Update previousPresentRow because the state is now as if that were the case
-          previousPresentRow = rowIndexEntry * rowIndexStride - 1;
+      // initialize the previousPositionProvider
+      previousPositionProvider = new PositionProviderImpl(index.getEntry(rowIndexEntry));
+      // if the present stream exists and we are seeking backwards or to a new row Index entry
+      // the present stream needs to seek
+      if (present != null && (backwards || rowIndexEntry != computeRowIndexEntry(previousPresentRow))) {
+        present.seek(previousPositionProvider);
+        // Update previousPresentRow because the state is now as if that were the case
+        previousPresentRow = rowIndexEntry * rowIndexStride - 1;
+      } else if (present != null) {
+        // Pretend like the present stream adjusted the index
+        int numSkips = presentCompressed ? WriterImpl.COMPRESSED_PRESENT_STREAM_INDEX_ENTRIES :
+          WriterImpl.UNCOMPRESSED_PRESENT_STREAM_INDEX_ENTRIES;
+        for (int i = 0; i < numSkips; i++) {
+          previousPositionProvider.getNext();
         }
       }
       seek(previousPositionProvider);
@@ -270,13 +286,9 @@ public abstract class LazyTreeReader {
       }
 
       numNonNulls = 0;
-    }
-
-    // If numNonNulls is not 0 then the current value must be null and some number of non null
-    // values have been skipped, to ensure that those values are skipped, hold previousRow
-    if (numNonNulls == 0) {
       previousRow = currentRow;
     }
+
     return seeked;
   }
 
@@ -295,6 +307,7 @@ public abstract class LazyTreeReader {
       valuePresent = true;
     } else {
       present = new BitFieldReader(in);
+      presentCompressed = in.isCompressed();
     }
   }
 }

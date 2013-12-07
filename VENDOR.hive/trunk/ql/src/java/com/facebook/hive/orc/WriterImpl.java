@@ -85,6 +85,10 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
   public static final int INT_BYTE_SIZE = 4;
   public static final int LONG_BYTE_SIZE = 8;
 
+  // Specifies how many index entries are created for a present stream
+  public static final int UNCOMPRESSED_PRESENT_STREAM_INDEX_ENTRIES = 3;
+  public static final int COMPRESSED_PRESENT_STREAM_INDEX_ENTRIES = 4;
+
   private final FileSystem fs;
   private final Path path;
   private final long stripeSize;
@@ -486,7 +490,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
         OrcProto.RowIndexEntry.Builder entry = rowIndex.getEntryBuilder(i);
         List<Long> positions = entry.getPositionsList();
         // bit streams use 3 positions if uncompressed, 4 if compressed
-        positions = positions.subList(isCompressed ? 4 : 3, positions.size());
+        positions = positions.subList(isCompressed ? COMPRESSED_PRESENT_STREAM_INDEX_ENTRIES :
+          UNCOMPRESSED_PRESENT_STREAM_INDEX_ENTRIES, positions.size());
         entry.clearPositions();
         entry.addAllPositions(positions);
       }

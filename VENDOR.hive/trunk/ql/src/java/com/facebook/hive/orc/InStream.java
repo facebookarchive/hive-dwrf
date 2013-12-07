@@ -82,6 +82,11 @@ public abstract class InStream extends InputStream {
       return "uncompressed stream " + name + " base: " + base +
          " offset: " + offset + " limit: " + limit;
     }
+
+    @Override
+    public boolean isCompressed() {
+      return false;
+    }
   }
 
   private static class CompressedStream extends InStream {
@@ -205,6 +210,11 @@ public abstract class InStream extends InputStream {
               " uncompressed: " + uncompressed.position() + " to " +
                   uncompressed.limit());
     }
+
+    @Override
+    public boolean isCompressed() {
+      return true;
+    }
   }
 
   protected InStream(boolean useVInts) {
@@ -233,4 +243,6 @@ public abstract class InStream extends InputStream {
   public boolean useVInts() {
     return useVInts;
   }
+
+  public abstract boolean isCompressed();
 }
