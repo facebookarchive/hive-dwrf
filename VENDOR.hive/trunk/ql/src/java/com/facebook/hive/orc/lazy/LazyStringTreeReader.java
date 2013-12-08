@@ -79,9 +79,6 @@ public class LazyStringTreeReader extends LazyTreeReader {
 
   @Override
   public Object get(long currentRow, Object previous) throws IOException {
-    if (currentRow >= 2470000) {
-      System.out.println(currentRow);
-    }
     return reader.get(currentRow, previous);
   }
 }
