@@ -39,9 +39,14 @@ public class TestOrcStruct {
 
   @Test
   public void testStruct() throws Exception {
-    OrcStruct st1 = new OrcStruct();
-    OrcStruct st2 = new OrcStruct();
-    OrcStruct st3 = new OrcStruct();
+    List<String> fieldNames = new ArrayList<String>();
+    for (int i = 0; i < 4; i++) {
+      fieldNames.add("field" + i);
+    }
+    OrcStruct st1 = new OrcStruct(fieldNames);
+    OrcStruct st2 = new OrcStruct(fieldNames);
+    fieldNames.remove(3);
+    OrcStruct st3 = new OrcStruct(fieldNames);
     st1.setFieldValue(0, "hop");
     st1.setFieldValue(1, "on");
     st1.setFieldValue(2, "pop");
@@ -83,7 +88,11 @@ public class TestOrcStruct {
     assertEquals(null,
         inspector.getAllStructFieldRefs().get(0).getFieldComment());
     assertEquals(null, inspector.getStructFieldRef("UNKNOWN"));
-    OrcStruct s1 = new OrcStruct();
+    List<String> fieldNames = new ArrayList<String>();
+    for (int i = 0; i < 13; i++) {
+      fieldNames.add("field" + i);
+    }
+    OrcStruct s1 = new OrcStruct(fieldNames);
     for(int i=0; i < 13; ++i) {
       s1.setFieldValue(i, i);
     }
