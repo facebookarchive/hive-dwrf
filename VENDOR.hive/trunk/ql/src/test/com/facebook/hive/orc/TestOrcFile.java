@@ -808,7 +808,7 @@ public class TestOrcFile {
       intValues[2*i] = rand.nextLong();
       intValues[2*i+1] = rand.nextLong();
       stringValues[2*i] = words[rand.nextInt(words.length)];
-      stringValues[2*i+1] = stringValues[2*i];
+      stringValues[2*i+1] = words[rand.nextInt(words.length)];
     }
     for(int i=0; i < count; ++i) {
       doubleValues[i] = rand.nextDouble();
@@ -826,14 +826,27 @@ public class TestOrcFile {
     return inputs;
   }
 
-  private void compareRows(OrcStruct row, RandomRowInputs inputs, int rowNumber, boolean withNulls) throws Exception {
-    ReallyBigRow expected;
-    if (withNulls) {
-      expected = createRandomRowWithNulls(inputs.intValues, inputs.doubleValues,
-        inputs.stringValues, inputs.byteValues, inputs.words, rowNumber);
-    } else {
-      expected = createRandomRow(inputs.intValues, inputs.doubleValues,
-          inputs.stringValues, inputs.byteValues, inputs.words, rowNumber);
+  private static enum NumberOfNulls {
+    // No nulls
+    NONE,
+    // Every nth value is null
+    SOME,
+    // Every nth value is NOT null
+    MANY
+  }
+
+  private void compareRows(OrcStruct row, RandomRowInputs inputs, int rowNumber, NumberOfNulls numNulls) throws Exception {
+    ReallyBigRow expected = null ;
+    switch (numNulls) {
+      case MANY:
+      case SOME:
+        expected = createRandomRowWithNulls(inputs.intValues, inputs.doubleValues,
+        inputs.stringValues, inputs.byteValues, inputs.words, rowNumber, numNulls);
+        break;
+      case NONE:
+        expected = createRandomRow(inputs.intValues, inputs.doubleValues,
+            inputs.stringValues, inputs.byteValues, inputs.words, rowNumber);
+        break;
     }
     if (((OrcLazyObject) row.getFieldValue(0)).nextIsNull()) {
       assertNull(expected.boolean1);
@@ -936,15 +949,19 @@ public class TestOrcFile {
   }
 
   private void compareRowsWithoutNextIsNull(OrcStruct row, RandomRowInputs inputs, int rowNumber,
-      boolean withNulls) throws Exception {
+      NumberOfNulls numNulls) throws Exception {
 
-    ReallyBigRow expected;
-    if (withNulls) {
-      expected = createRandomRowWithNulls(inputs.intValues, inputs.doubleValues,
-        inputs.stringValues, inputs.byteValues, inputs.words, rowNumber);
-    } else {
-      expected = createRandomRow(inputs.intValues, inputs.doubleValues,
-          inputs.stringValues, inputs.byteValues, inputs.words, rowNumber);
+    ReallyBigRow expected = null;
+    switch (numNulls) {
+      case MANY:
+      case SOME:
+        expected = createRandomRowWithNulls(inputs.intValues, inputs.doubleValues,
+        inputs.stringValues, inputs.byteValues, inputs.words, rowNumber, numNulls);
+        break;
+      case NONE:
+        expected = createRandomRow(inputs.intValues, inputs.doubleValues,
+            inputs.stringValues, inputs.byteValues, inputs.words, rowNumber);
+        break;
     }
 
     BooleanWritable boolean1 = (BooleanWritable) ((OrcLazyBoolean) row.getFieldValue(0)).materialize();
@@ -1080,14 +1097,24 @@ public class TestOrcFile {
       rows.seekToRow(i);
       lazyRow = (OrcLazyStruct) rows.next(lazyRow);
       row = (OrcStruct) lazyRow.materialize();
-      compareRows(row, inputs, i, false);
+      compareRows(row, inputs, i, NumberOfNulls.NONE);
     }
     rows.close();
   }
 
-  private void readEveryNthRow(int n, boolean withoutNextIsNull) throws Exception {
+  private void readEveryNthRow(int n, boolean withoutNextIsNull, NumberOfNulls numNulls) throws Exception {
     final int COUNT=32768;
-    RandomRowInputs inputs = writeRandomRows(COUNT);
+    RandomRowInputs inputs = null;
+    switch (numNulls) {
+      case NONE:
+        inputs = writeRandomRows(COUNT);
+        break;
+      case SOME:
+      case MANY:
+        inputs = writeRandomRowsWithNulls(COUNT, numNulls);
+        break;
+    }
+
     ReaderWriterProfiler.setProfilerOptions(conf);
     Reader reader = OrcFile.createReader(fs, testFilePath);
     assertEquals(COUNT, reader.getNumberOfRows());
@@ -1100,9 +1127,9 @@ public class TestOrcFile {
       if (i % n == 0) {
         row = (OrcStruct) lazyRow.materialize();
         if (withoutNextIsNull) {
-          compareRowsWithoutNextIsNull(row, inputs, i, false);
+          compareRowsWithoutNextIsNull(row, inputs, i, numNulls);
         } else {
-          compareRows(row, inputs, i, false);
+          compareRows(row, inputs, i, numNulls);
         }
       }
     }
@@ -1111,135 +1138,135 @@ public class TestOrcFile {
 
   @Test
   public void testEveryRow() throws Exception {
-    readEveryNthRow(1, false);
+    readEveryNthRow(1, false, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryOtherRow() throws Exception {
-    readEveryNthRow(2, false);
+    readEveryNthRow(2, false, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryThirdRow() throws Exception {
-    readEveryNthRow(3, false);
+    readEveryNthRow(3, false, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryFourthRow() throws Exception {
-    readEveryNthRow(4, false);
+    readEveryNthRow(4, false, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryFifthRow() throws Exception {
-    readEveryNthRow(5, false);
+    readEveryNthRow(5, false, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEverySixthRow() throws Exception {
-    readEveryNthRow(6, false);
+    readEveryNthRow(6, false, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEverySeventhRow() throws Exception {
-    readEveryNthRow(7, false);
+    readEveryNthRow(7, false, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryEighthRow() throws Exception {
-    readEveryNthRow(8, false);
+    readEveryNthRow(8, false, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryNinthRow() throws Exception {
-    readEveryNthRow(9, false);
+    readEveryNthRow(9, false, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryTenthRow() throws Exception {
-    readEveryNthRow(10, false);
+    readEveryNthRow(10, false, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryHundredthRow() throws Exception {
-    readEveryNthRow(100, false);
+    readEveryNthRow(100, false, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryThousandthRow() throws Exception {
-    readEveryNthRow(1000, false);
+    readEveryNthRow(1000, false, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryTenThousandthRow() throws Exception {
-    readEveryNthRow(10000, false);
+    readEveryNthRow(10000, false, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryRowWithoutNextIsNull() throws Exception {
-    readEveryNthRow(1, true);
+    readEveryNthRow(1, true, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryOtherRowWithoutNextIsNull() throws Exception {
-    readEveryNthRow(2, true);
+    readEveryNthRow(2, true, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryThirdRowWithoutNextIsNull() throws Exception {
-    readEveryNthRow(3, true);
+    readEveryNthRow(3, true, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryFourthRowWithoutNextIsNull() throws Exception {
-    readEveryNthRow(4, true);
+    readEveryNthRow(4, true, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryFifthRowWithoutNextIsNull() throws Exception {
-    readEveryNthRow(5, true);
+    readEveryNthRow(5, true, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEverySixthRowWithoutNextIsNull() throws Exception {
-    readEveryNthRow(6, true);
+    readEveryNthRow(6, true, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEverySeventhRowWithoutNextIsNull() throws Exception {
-    readEveryNthRow(7, true);
+    readEveryNthRow(7, true, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryEighthRowWithoutNextIsNull() throws Exception {
-    readEveryNthRow(8, true);
+    readEveryNthRow(8, true, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryNinthRowWithoutNextIsNull() throws Exception {
-    readEveryNthRow(9, true);
+    readEveryNthRow(9, true, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryTenthRowWithoutNextIsNull() throws Exception {
-    readEveryNthRow(10, true);
+    readEveryNthRow(10, true, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryHundredthRowWithoutNextIsNull() throws Exception {
-    readEveryNthRow(100, true);
+    readEveryNthRow(100, true, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryThousandthRowWithoutNextIsNull() throws Exception {
-    readEveryNthRow(1000, true);
+    readEveryNthRow(1000, true, NumberOfNulls.NONE);
   }
 
   @Test
   public void testEveryTenThousandthRowWithoutNextIsNull() throws Exception {
-    readEveryNthRow(10000, true);
+    readEveryNthRow(10000, true, NumberOfNulls.NONE);
   }
 
-  private RandomRowInputs writeRandomRowsWithNulls(int count) throws IOException {
+  private RandomRowInputs writeRandomRowsWithNulls(int count, NumberOfNulls numNulls) throws IOException {
     ObjectInspector inspector;
     synchronized (TestOrcFile.class) {
       inspector = ObjectInspectorFactory.getReflectionObjectInspector
@@ -1262,7 +1289,7 @@ public class TestOrcFile {
       intValues[2*i] = rand.nextLong();
       intValues[2*i+1] = rand.nextLong();
       stringValues[2*i] = words[rand.nextInt(words.length)];
-      stringValues[2*i+1] = stringValues[2*i];
+      stringValues[2*i+1] = words[rand.nextInt(words.length)];
     }
     for(int i=0; i < count; ++i) {
       doubleValues[i] = rand.nextDouble();
@@ -1272,7 +1299,7 @@ public class TestOrcFile {
     }
     for(int i=0; i < count; ++i) {
       ReallyBigRow bigrow = createRandomRowWithNulls(intValues, doubleValues, stringValues,
-          byteValues, words, i);
+          byteValues, words, i, numNulls);
       writer.addRow(bigrow);
     }
     writer.close();
@@ -1280,9 +1307,149 @@ public class TestOrcFile {
     return inputs;
   }
 
-  private void readEveryNthRowWithNulls(int n, boolean withoutNextIsNull) throws Exception {
+  @Test
+  public void testEveryRowWithNulls() throws Exception {
+    readEveryNthRow(1, false, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryOtherRowWithNulls() throws Exception {
+    readEveryNthRow(2, false, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryThirdRowWithNulls() throws Exception {
+    readEveryNthRow(3, false, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryFourthRowWithNulls() throws Exception {
+    readEveryNthRow(4, false, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryFifthRowWithNulls() throws Exception {
+    readEveryNthRow(5, false, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEverySixthRowWithNulls() throws Exception {
+    readEveryNthRow(6, false, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEverySeventhRowWithNulls() throws Exception {
+    readEveryNthRow(7, false, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryEighthRowWithNulls() throws Exception {
+    readEveryNthRow(8, false, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryNinthRowWithNulls() throws Exception {
+    readEveryNthRow(9, false, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryTenthRowWithNulls() throws Exception {
+    readEveryNthRow(10, false, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryHundredthRowWithNulls() throws Exception {
+    readEveryNthRow(100, false, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryThousandthRowWithNulls() throws Exception {
+    readEveryNthRow(1000, false, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryTenThousandthRowWithNulls() throws Exception {
+    readEveryNthRow(10000, false, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRow(1, true, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryOtherRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRow(2, true, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryThirdRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRow(3, true, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryFourthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRow(4, true, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryFifthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRow(5, true, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEverySixthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRow(6, true, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEverySeventhRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRow(7, true, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryEighthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRow(8, true, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryNinthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRow(9, true, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryTenthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRow(10, true, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryHundredthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRow(100, true, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryThousandthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRow(1000, true, NumberOfNulls.SOME);
+  }
+
+  @Test
+  public void testEveryTenThousandthRowWithNullsWithoutNextIsNull() throws Exception {
+    readEveryNthRow(10000, true, NumberOfNulls.SOME);
+  }
+
+  private void skipEveryNthRow(int n, boolean withoutNextIsNull, NumberOfNulls numNulls) throws Exception {
     final int COUNT=32768;
-    RandomRowInputs inputs = writeRandomRowsWithNulls(COUNT);
+    RandomRowInputs inputs = null;
+    switch (numNulls) {
+      case NONE:
+        inputs = writeRandomRows(COUNT);
+        break;
+      case SOME:
+      case MANY:
+        inputs = writeRandomRowsWithNulls(COUNT, numNulls);
+        break;
+    }
+
     Reader reader = OrcFile.createReader(fs, testFilePath);
     assertEquals(COUNT, reader.getNumberOfRows());
     RecordReader rows = reader.rows(null);
@@ -1290,12 +1457,12 @@ public class TestOrcFile {
     OrcStruct row = null;
     for(int i=0; i < COUNT; i++) {
       lazyRow = (OrcLazyRow) rows.next(lazyRow);
-      if (i % n == 0) {
+      if (i % n != 0) {
         row = (OrcStruct) lazyRow.materialize();
         if (withoutNextIsNull) {
-          compareRowsWithoutNextIsNull(row, inputs, i, true);
+          compareRowsWithoutNextIsNull(row, inputs, i, numNulls);
         } else {
-          compareRows(row, inputs, i, true);
+          compareRows(row, inputs, i, numNulls);
         }
       }
     }
@@ -1303,133 +1470,133 @@ public class TestOrcFile {
   }
 
   @Test
-  public void testEveryRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(1, false);
+  public void testEveryRowWithLotsOfNulls() throws Exception {
+    skipEveryNthRow(1, false, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryOtherRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(2, false);
+  public void testEveryOtherRowWithLotsOfNulls() throws Exception {
+    skipEveryNthRow(2, false, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryThirdRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(3, false);
+  public void testEveryThirdRowWithLotsOfNulls() throws Exception {
+    skipEveryNthRow(3, false, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryFourthRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(4, false);
+  public void testEveryFourthRowWithLotsOfNulls() throws Exception {
+    skipEveryNthRow(4, false, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryFifthRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(5, false);
+  public void testEveryFifthRowWithLotsOfNulls() throws Exception {
+    skipEveryNthRow(5, false, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEverySixthRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(6, false);
+  public void testEverySixthRowWithLotsOfNulls() throws Exception {
+    skipEveryNthRow(6, false, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEverySeventhRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(7, false);
+  public void testEverySeventhRowWithLotsOfNulls() throws Exception {
+    skipEveryNthRow(7, false, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryEighthRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(8, false);
+  public void testEveryEighthRowWithLotsOfNulls() throws Exception {
+    skipEveryNthRow(8, false, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryNinthRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(9, false);
+  public void testEveryNinthRowWithLotsOfNulls() throws Exception {
+    skipEveryNthRow(9, false, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryTenthRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(10, false);
+  public void testEveryTenthRowWithLotsOfNulls() throws Exception {
+    skipEveryNthRow(10, false, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryHundredthRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(100, false);
+  public void testEveryHundredthRowWithLotsOfNulls() throws Exception {
+    skipEveryNthRow(100, false, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryThousandthRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(1000, false);
+  public void testEveryThousandthRowWithLotsOfNulls() throws Exception {
+    skipEveryNthRow(1000, false, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryTenThousandthRowWithNulls() throws Exception {
-    readEveryNthRowWithNulls(10000, false);
+  public void testEveryTenThousandthRowWithLotsOfNulls() throws Exception {
+    skipEveryNthRow(10000, false, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryRowWithNullsWithoutNextIsNull() throws Exception {
-    readEveryNthRowWithNulls(1, true);
+  public void testEveryRowWithLotsOfNullsWithoutNextIsNull() throws Exception {
+    skipEveryNthRow(1, true, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryOtherRowWithNullsWithoutNextIsNull() throws Exception {
-    readEveryNthRowWithNulls(2, true);
+  public void testEveryOtherRowWithLotsOfNullsWithoutNextIsNull() throws Exception {
+    skipEveryNthRow(2, true, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryThirdRowWithNullsWithoutNextIsNull() throws Exception {
-    readEveryNthRowWithNulls(3, true);
+  public void testEveryThirdRowWithLotsOfNullsWithoutNextIsNull() throws Exception {
+    skipEveryNthRow(3, true, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryFourthRowWithNullsWithoutNextIsNull() throws Exception {
-    readEveryNthRowWithNulls(4, true);
+  public void testEveryFourthRowWithLotsOfNullsWithoutNextIsNull() throws Exception {
+    skipEveryNthRow(4, true, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryFifthRowWithNullsWithoutNextIsNull() throws Exception {
-    readEveryNthRowWithNulls(5, true);
+  public void testEveryFifthRowWithLotsOfNullsWithoutNextIsNull() throws Exception {
+    skipEveryNthRow(5, true, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEverySixthRowWithNullsWithoutNextIsNull() throws Exception {
-    readEveryNthRowWithNulls(6, true);
+  public void testEverySixthRowWithLotsOfNullsWithoutNextIsNull() throws Exception {
+    skipEveryNthRow(6, true, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEverySeventhRowWithNullsWithoutNextIsNull() throws Exception {
-    readEveryNthRowWithNulls(7, true);
+  public void testEverySeventhRowWithLotsOfNullsWithoutNextIsNull() throws Exception {
+    skipEveryNthRow(7, true, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryEighthRowWithNullsWithoutNextIsNull() throws Exception {
-    readEveryNthRowWithNulls(8, true);
+  public void testEveryEighthRowWithLotsOfNullsWithoutNextIsNull() throws Exception {
+    skipEveryNthRow(8, true, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryNinthRowWithNullsWithoutNextIsNull() throws Exception {
-    readEveryNthRowWithNulls(9, true);
+  public void testEveryNinthRowWithLotsOfNullsWithoutNextIsNull() throws Exception {
+    skipEveryNthRow(9, true, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryTenthRowWithNullsWithoutNextIsNull() throws Exception {
-    readEveryNthRowWithNulls(10, true);
+  public void testEveryTenthRowWithLotsOfNullsWithoutNextIsNull() throws Exception {
+    skipEveryNthRow(10, true, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryHundredthRowWithNullsWithoutNextIsNull() throws Exception {
-    readEveryNthRowWithNulls(100, true);
+  public void testEveryHundredthRowWithLotsOfNullsWithoutNextIsNull() throws Exception {
+    skipEveryNthRow(100, true, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryThousandthRowWithNullsWithoutNextIsNull() throws Exception {
-    readEveryNthRowWithNulls(1000, true);
+  public void testEveryThousandthRowWithLotsOfNullsWithoutNextIsNull() throws Exception {
+    skipEveryNthRow(1000, true, NumberOfNulls.MANY);
   }
 
   @Test
-  public void testEveryTenThousandthRowWithNullsWithoutNextIsNull() throws Exception {
-    readEveryNthRowWithNulls(10000, true);
+  public void testEveryTenThousandthRowWithLotsOfNullsWithoutNextIsNull() throws Exception {
+    skipEveryNthRow(10000, true, NumberOfNulls.MANY);
   }
 
   private void compareInner(InnerStruct expect,
@@ -1482,29 +1649,30 @@ public class TestOrcFile {
   }
 
   private ReallyBigRow createRandomRowWithNulls(long[] intValues, double[] doubleValues,
-      String[] stringValues, BytesWritable[] byteValues, String[] words, int i) {
-    Boolean booleanVal = intValues[i] % 10 == 0 ? null : (intValues[i] & 1) == 0;
-    Byte byteVal = intValues[i] % 11 == 0 ? null : (byte) intValues[i];
-    Short shortVal = intValues[i] % 12 == 0 ? null : (short) intValues[i];
-    Integer intVal = intValues[i] % 13 == 0 ? null : (int) intValues[i];
-    Long longVal = intValues[i] % 14 == 0 ? null : intValues[i];
-    Float floatVal = intValues[i] % 15 == 0 ? null : (float) doubleValues[i];
-    Double doubleVal = intValues[i] % 16 == 0 ? null : doubleValues[i];
-    BytesWritable bytesVal = intValues[i] % 17 == 0 ? null : byteValues[i];
-    String strVal = intValues[i] % 18 == 0 ? null : stringValues[i];
-    InnerStruct inner = intValues[i] % 19 == 0 ? null : new InnerStruct(
-        intValues[i] % 10 == 0 ? null : (int) intValues[i],
-        intValues[i] % 11 == 0 ? null : stringValues[i]);
-    InnerStruct inner2 = intValues[i] % 12 == 0 ? null : new InnerStruct(
-        intValues[i] % 13 == 0 ? null : (int) (intValues[i] >> 32),
-        intValues[i] % 14 == 0 ? null : words[i % words.length] + "-x");
-    MiddleStruct middle = intValues[i] % 15 == 0 ? null : new MiddleStruct(inner, inner2);
-    List<InnerStruct> list = intValues[i] % 16 == 0 ? null : list(inner, inner2);
-    Map<Text, InnerStruct> map = intValues[i] % 17 == 0 ? null : map(inner, inner2);
-    String strVal2 = intValues[i] % 18 == 0 ? null : Integer.toHexString(i);
-    Short shortVal2 = intValues[i] % 19 == 0 ? null : (short) (intValues[i] % 10);
-    Integer intVal2 = intValues[i] % 10 == 0 ? null : (int) (intValues[i] % 10);
-    Long longVal2 = intValues[i] % 11 == 0 ? null : (long) (intValues[i] % 10);
+      String[] stringValues, BytesWritable[] byteValues, String[] words, int i, NumberOfNulls numNulls) {
+    boolean lotsOfNulls = numNulls == NumberOfNulls.MANY;
+    Boolean booleanVal = intValues[i] % 10 == 0 ^ lotsOfNulls ? null : (intValues[i] & 1) == 0;
+    Byte byteVal = intValues[i] % 11 == 0 ^ lotsOfNulls ? null : (byte) intValues[i];
+    Short shortVal = intValues[i] % 12 == 0 ^ lotsOfNulls  ? null : (short) intValues[i];
+    Integer intVal = intValues[i] % 13 == 0 ^ lotsOfNulls  ? null : (int) intValues[i];
+    Long longVal = intValues[i] % 14 == 0 ^ lotsOfNulls  ? null : intValues[i];
+    Float floatVal = intValues[i] % 15 == 0 ^ lotsOfNulls  ? null : (float) doubleValues[i];
+    Double doubleVal = intValues[i] % 16 == 0 ^ lotsOfNulls  ? null : doubleValues[i];
+    BytesWritable bytesVal = intValues[i] % 17 == 0 ^ lotsOfNulls  ? null : byteValues[i];
+    String strVal = intValues[i] % 18 == 0 ^ lotsOfNulls  ? null : stringValues[i];
+    InnerStruct inner = intValues[i] % 19 == 0 ^ lotsOfNulls  ? null : new InnerStruct(
+        intValues[i] % 10 == 0 ^ lotsOfNulls  ? null : (int) intValues[i],
+        intValues[i] % 11 == 0 ^ lotsOfNulls  ? null : stringValues[i]);
+    InnerStruct inner2 = intValues[i] % 12 == 0 ^ lotsOfNulls  ? null : new InnerStruct(
+        intValues[i] % 13 == 0 ^ lotsOfNulls  ? null : (int) (intValues[i] >> 32),
+        intValues[i] % 14 == 0 ^ lotsOfNulls  ? null : words[i % words.length] + "-x");
+    MiddleStruct middle = intValues[i] % 15 == 0 ^ lotsOfNulls  ? null : new MiddleStruct(inner, inner2);
+    List<InnerStruct> list = intValues[i] % 16 == 0 ^ lotsOfNulls  ? null : list(inner, inner2);
+    Map<Text, InnerStruct> map = intValues[i] % 17 == 0 ^ lotsOfNulls  ? null : map(inner, inner2);
+    String strVal2 = intValues[i] % 18 == 0 ^ lotsOfNulls  ? null : Integer.toHexString(i);
+    Short shortVal2 = intValues[i] % 19 == 0 ^ lotsOfNulls  ? null : (short) (intValues[i] % 10);
+    Integer intVal2 = intValues[i] % 10 == 0 ^ lotsOfNulls  ? null : (int) (intValues[i] % 10);
+    Long longVal2 = intValues[i] % 11 == 0 ^ lotsOfNulls  ? null : (long) (intValues[i] % 10);
     return new ReallyBigRow(booleanVal, byteVal, shortVal, intVal, longVal, shortVal2, intVal2,
         longVal2, floatVal, doubleVal, bytesVal, strVal, strVal2, middle, list, map);
   }
