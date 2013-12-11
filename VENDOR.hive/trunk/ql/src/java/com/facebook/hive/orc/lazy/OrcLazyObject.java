@@ -11,8 +11,8 @@ import org.apache.hadoop.io.Writable;
 
 import com.facebook.hive.orc.InStream;
 import com.facebook.hive.orc.OrcProto;
-import com.facebook.hive.orc.OrcProto.RowIndex;
 import com.facebook.hive.orc.StreamName;
+import com.facebook.hive.orc.OrcProto.RowIndex;
 
 
 public abstract class OrcLazyObject implements Writable {
@@ -97,5 +97,15 @@ public abstract class OrcLazyObject implements Writable {
 
   public void seekToRow(long rowNumber) throws IOException {
     currentRow = rowNumber;
+  }
+
+  @Override
+  public int hashCode() {
+    try {
+      materialize();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+    return nextIsNull ? 0 : previous.hashCode();
   }
 }
