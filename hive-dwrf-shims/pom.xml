@@ -52,22 +52,33 @@
   </dependencies>
 
   <build>
-    <sourceDirectory>../VENDOR.hive/trunk</sourceDirectory>
+    <sourceDirectory>../VENDOR.hive/trunk/ql/src/java</sourceDirectory>
 
     <plugins>
       <plugin>
         <artifactId>maven-compiler-plugin</artifactId>
         <configuration>
-          <includes>
-            <include>common/**/*.java</include>
-            <include>serde/**/*.java</include>
-            <include>ql/src/java/org/apache/hadoop/hive/ql/io/slice/**/*.java</include>
-            <include>ql/src/java/org/apache/hadoop/hive/ql/exec/**/*.java</include>
-          </includes>
+          <excludes><exclude>com/**</exclude></excludes>
           <compilerArguments combine.self="override">
             <bootclasspath>${jdk6.bootclasspath}</bootclasspath>
           </compilerArguments>
         </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.codehaus.mojo</groupId>
+        <artifactId>build-helper-maven-plugin</artifactId>
+        <executions>
+          <execution>
+            <phase>generate-sources</phase>
+            <goals><goal>add-source</goal></goals>
+            <configuration>
+              <sources>
+                <source>../VENDOR.hive/trunk/common/src/java</source>
+                <source>../VENDOR.hive/trunk/serde/src/java</source>
+              </sources>
+            </configuration>
+          </execution>
+        </executions>
       </plugin>
     </plugins>
   </build>
