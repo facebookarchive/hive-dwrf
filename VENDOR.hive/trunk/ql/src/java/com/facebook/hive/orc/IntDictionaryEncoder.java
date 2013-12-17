@@ -34,7 +34,7 @@ class IntDictionaryEncoder extends DictionaryEncoder {
   private final boolean useVInts;
 
   protected final DynamicLongArray keys = new DynamicLongArray();
-  protected final Long2IntOpenHashMapWithByteSize dictionary = new Long2IntOpenHashMapWithByteSize();
+  protected Long2IntOpenHashMapWithByteSize dictionary = new Long2IntOpenHashMapWithByteSize();
 
   public IntDictionaryEncoder(int numBytes, boolean useVInts) {
     super();
@@ -109,7 +109,7 @@ class IntDictionaryEncoder extends DictionaryEncoder {
   @Override
   public void clear() {
     keys.clear();
-    dictionary.clear();
+    dictionary = new Long2IntOpenHashMapWithByteSize();
     numElements = 0;
   }
 
