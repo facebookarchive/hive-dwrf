@@ -97,6 +97,9 @@ public abstract class InStream extends InputStream {
     private final int bufferSize;
     private ByteBuffer uncompressed = null;
     private final CompressionCodec codec;
+    // The previous offset, which is equivalent to the starting location of the
+    // current buffer's compressed data in the stream
+    private int previousOffset;
     private int offset;
     private final int base;
     private final int limit;
@@ -112,12 +115,14 @@ public abstract class InStream extends InputStream {
       this.codec = codec;
       this.bufferSize = bufferSize;
       base = input.arrayOffset() + input.position();
+      previousOffset = 0;
       offset = base;
       limit = input.arrayOffset() + input.limit();
     }
 
     private void readHeader() throws IOException {
       if (limit - offset > OutStream.HEADER_SIZE) {
+        previousOffset = offset;
         int chunkLength = ((0xff & array[offset + 2]) << 15) |
           ((0xff & array[offset + 1]) << 7) | ((0xff & array[offset]) >> 1);
         if (chunkLength > bufferSize) {
@@ -194,12 +199,20 @@ public abstract class InStream extends InputStream {
 
     @Override
     public void seek(PositionProvider index) throws IOException {
-      offset = base + (int) index.getNext();
+      int newOffset = base + (int) index.getNext();
       int uncompBytes = (int) index.getNext();
       if (uncompBytes != 0) {
-        readHeader();
-        uncompressed.position(uncompressed.position() + uncompBytes);
+        // If uncompressed has been initialized and the offset we're seeking to is the same as the offset
+        // we're reading, no need to re-decompress
+        if (previousOffset != newOffset || uncompressed == null) {
+          offset = newOffset;
+          readHeader();
+        }
+        // If the data was not compressed the starting position is the position of the data in the stream
+        // Otherwise it's 0
+        uncompressed.position((isUncompressedOriginal ? newOffset + OutStream.HEADER_SIZE : 0) + uncompBytes);
       } else if (uncompressed != null) {
+        offset = newOffset;
         uncompressed.position(uncompressed.limit());
       }
     }
