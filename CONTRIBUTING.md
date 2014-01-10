@@ -1,6 +1,6 @@
 # Contributing to DWRF
 
-We are currently not acception pull requests.  DWRF is a fork of the ORC file format which is part of the Apache Hive project, please submit your contributions there.
+We are currently not accepting pull requests.  DWRF is a fork of the ORC file format which is part of the Apache Hive project, please submit your contributions there.
 
 http://hive.apache.org
 
