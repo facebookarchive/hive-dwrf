@@ -1,3 +1,5 @@
+//  Copyright (c) 2013, Facebook, Inc.  All rights reserved.
+
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
