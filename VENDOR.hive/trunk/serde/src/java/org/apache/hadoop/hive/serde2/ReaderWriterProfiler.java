@@ -31,16 +31,23 @@ import org.apache.hadoop.mapred.Reporter;
 // on it, and Presto uses open source Hive.
 public class ReaderWriterProfiler {
   public static enum Counter {
-    DECOMPRESSION_TIME(0),
-    COMPRESSION_TIME(1),
-    SERIALIZATION_TIME(2),
-    DESERIALIZATION_TIME(3),
-    DECODING_TIME(4),
-    ENCODING_TIME(5);
+    DECOMPRESSION_TIME(0, Type.READ),
+    COMPRESSION_TIME(1, Type.WRITE),
+    SERIALIZATION_TIME(2, Type.WRITE),
+    DESERIALIZATION_TIME(3, Type.READ),
+    DECODING_TIME(4, Type.READ),
+    ENCODING_TIME(5, Type.WRITE);
+
+    public static enum Type {
+      READ,
+      WRITE;
+    }
 
     private int value;
-    private Counter(int v) {
+    private Type type;
+    private Counter(int v, Type type) {
       value = v;
+      this.type = type;
     }
   }
   public static enum ReadWriteCounter {
@@ -66,6 +73,11 @@ public class ReaderWriterProfiler {
   protected static int [] ended = new int[6];
   protected static int [] started = new int[6];
   protected static long [] profileTimes = new long[6];
+  protected static long [] profileTypeStart = new long[2];
+  protected static int [] profileTypeStarted = new int[2];
+  protected static int [] typeEnded = new int[2];
+  protected static int [] typeStarted = new int[2];
+  protected static long [] profileTypeTimes = new long[2];
   public static final Log LOG = LogFactory
       .getLog(ReaderWriterProfiler.class.getName());
 
@@ -129,12 +141,9 @@ public class ReaderWriterProfiler {
         logReporter.incrCounter(c, profileTimes[c.value]);
       }
     }
-    long read = profileTimes[Counter.DECOMPRESSION_TIME.value] +
-      profileTimes[Counter.DESERIALIZATION_TIME.value] +
-      profileTimes[Counter.DECODING_TIME.value];
-    long write = profileTimes[Counter.COMPRESSION_TIME.value] +
-      profileTimes[Counter.SERIALIZATION_TIME.value] +
-      profileTimes[Counter.ENCODING_TIME.value];
+
+    long read = profileTypeTimes[Counter.Type.READ.ordinal()];
+    long write = profileTypeTimes[Counter.Type.WRITE.ordinal()];
     if (logReporter != null) {
       LOG.info("read time: " + read);
       LOG.info("write time: " + write);
@@ -166,21 +175,39 @@ public class ReaderWriterProfiler {
 
     @Override
     protected void startProfiler(Counter c) {
+      long cpuTime = -1;
       if (profileStarted[c.value] == 0) {
         started[c.value] += 1;
-        profileStart[c.value] = getCpuTime(mainThreadId);
+        cpuTime = getCpuTime(mainThreadId);
+        profileStart[c.value] = cpuTime;
+      }
+      if (profileTypeStarted[c.type.ordinal()] == 0) {
+        typeStarted[c.type.ordinal()] += 1;
+        if (cpuTime == -1) {
+          cpuTime = getCpuTime(mainThreadId);
+        }
+        profileTypeStart[c.type.ordinal()] = cpuTime;
       }
       profileStarted[c.value] += 1;
+      profileTypeStarted[c.type.ordinal()] += 1;
     }
 
     @Override
     protected void endProfiler(Counter c) {
       profileStarted[c.value] -= 1;
+      profileTypeStarted[c.type.ordinal()] -= 1;
+      long cpuTime = -1;
       if (profileStarted[c.value] == 0) {
-        long end = 0;
-        end = getCpuTime(mainThreadId);
-        profileTimes[c.value] += end - profileStart[c.value];
+        cpuTime = getCpuTime(mainThreadId);
+        profileTimes[c.value] += cpuTime - profileStart[c.value];
         ended[c.value] += 1;
+      }
+      if (profileTypeStarted[c.type.ordinal()] == 0) {
+        if (cpuTime == -1) {
+          cpuTime = getCpuTime(mainThreadId);
+        }
+        profileTypeTimes[c.type.ordinal()] += cpuTime - profileTypeStart[c.type.ordinal()];
+        typeEnded[c.type.ordinal()] += 1;
       }
     }
   }
@@ -190,21 +217,39 @@ public class ReaderWriterProfiler {
     @Override
     protected void startProfiler(Counter c) {
 
+      long time = -1;
       if (profileStarted[c.value] == 0) {
         started[c.value] += 1;
-        profileStart[c.value] = System.nanoTime();
+        time = System.nanoTime();
+        profileStart[c.value] = time;
+      }
+      if (profileTypeStarted[c.type.ordinal()] == 0) {
+        typeStarted[c.type.ordinal()] += 1;
+        if (time == -1) {
+          time = System.nanoTime();
+        }
+        profileTypeStart[c.type.ordinal()] = time;
       }
       profileStarted[c.value] += 1;
+      profileTypeStarted[c.type.ordinal()] += 1;
     }
 
     @Override
     protected void endProfiler(Counter c) {
       profileStarted[c.value] -= 1;
+      profileTypeStarted[c.type.ordinal()] -= 1;
+      long time = -1;
       if (profileStarted[c.value] == 0) {
-        long end = 0;
-        end = System.nanoTime();
-        profileTimes[c.value] += end - profileStart[c.value];
+        time = System.nanoTime();
+        profileTimes[c.value] += time - profileStart[c.value];
         ended[c.value] += 1;
+      }
+      if (profileTypeStarted[c.type.ordinal()] == 0) {
+        if (time == -1) {
+          time = System.nanoTime();
+        }
+        profileTypeTimes[c.type.ordinal()] += time - profileTypeStart[c.type.ordinal()];
+        typeEnded[c.type.ordinal()] += 1;
       }
     }
   }
