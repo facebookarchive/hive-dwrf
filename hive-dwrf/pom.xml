@@ -100,21 +100,29 @@
       </testResource>
     </testResources>
     <plugins>
-      <plugin>
-        <groupId>org.codehaus.mojo</groupId>
-        <artifactId>build-helper-maven-plugin</artifactId>
-        <executions>
-          <execution>
-            <phase>generate-sources</phase>
-            <goals><goal>add-source</goal></goals>
-            <configuration>
-              <sources>
-                <source>../VENDOR.hive/trunk/ql/src/gen/protobuf/gen-java</source>
-              </sources>
-            </configuration>
-          </execution>
-        </executions>
-      </plugin>
+      <plugin> 
+        <artifactId>maven-antrun-plugin</artifactId> 
+        <executions> 
+          <execution> 
+            <id>generate-sources</id> 
+            <phase>generate-sources</phase> 
+            <configuration> 
+              <tasks> 
+                <mkdir dir="../VENDOR.hive/trunk/ql/src/gen/protobuf/gen-java"/> 
+                <exec executable="protoc"> 
+                  <arg value="--java_out=../VENDOR.hive/trunk/ql/src/gen/protobuf/gen-java"/>
+                  <arg value="-I=../VENDOR.hive/trunk/ql/src/protobuf/com/facebook/hive/orc"/>
+                  <arg value="../VENDOR.hive/trunk/ql/src/protobuf/com/facebook/hive/orc/orc_proto.proto"/> 
+                </exec> 
+              </tasks> 
+              <sourceRoot>../VENDOR.hive/trunk/ql/src/gen/protobuf/gen-java</sourceRoot>
+            </configuration> 
+            <goals> 
+              <goal>run</goal> 
+            </goals> 
+          </execution> 
+        </executions> 
+      </plugin> 
     </plugins>
   </build>
 </project>
