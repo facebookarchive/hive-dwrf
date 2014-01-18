@@ -38,11 +38,13 @@
     <dependency>
       <groupId>com.facebook.presto.hadoop</groupId>
       <artifactId>hadoop-cdh4</artifactId>
+      <optional>true</optional>
     </dependency>
 
     <dependency>
       <groupId>com.facebook.presto.hive</groupId>
       <artifactId>hive-apache</artifactId>
+      <optional>true</optional>
     </dependency>
 
     <dependency>
