@@ -711,7 +711,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
   private static class IntegerTreeWriter extends TreeWriter {
     private final PositionedOutputStream output;
     private final RunLengthIntegerWriter lengthOutput;
-    private final DynamicLongArray rawDataArray = new DynamicLongArray();
     private final DynamicIntArray rows = new DynamicIntArray();
     private final List<OrcProto.RowIndexEntry> savedRowIndex =
         new ArrayList<OrcProto.RowIndexEntry>();
@@ -727,7 +726,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     private int bufferIndex = 0;
     private long bufferedBytes = 0;
     private final int recomputeStripeEncodingInterval;
-
+    PositionedOutputStream rowOutput;
 
     IntegerTreeWriter(int columnId,
                       ObjectInspector inspector,
@@ -809,8 +808,9 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
         Long val = buffer[i];
         buffer[i] = null;
         if (val != null) {
-          if (useDirectEncoding()) {
-            rawDataArray.add(val);
+          if (useCarriedOverDirectEncoding()) {
+            SerializationUtils.writeIntegerType(rowOutput,
+                val, numBytes, true, useVInts);
           } else {
             rows.add(dictionary.add(val));
           }
@@ -832,14 +832,13 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
      * Returns true iff the encoding is not being determined using this stripe, and
      * the previously determined encoding was direct.
      */
-    private boolean useDirectEncoding() {
+    private boolean useCarriedOverDirectEncoding() {
       return !determineEncodingStripe() && !useDictionaryEncoding;
     }
 
     @Override
     void writeStripe(OrcProto.StripeFooter.Builder builder,
                      int requiredIndexEntries) throws IOException {
-      final PositionedOutputStream rowOutput;
       if (determineEncodingStripe()) {
         useDictionaryEncoding = getUseDictionaryEncoding();
       }
@@ -847,7 +846,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
         rowOutput =
           new RunLengthIntegerWriter(writer.createStream(id,
           OrcProto.Stream.Kind.DATA), false, INT_BYTE_SIZE, useVInts);
-      } else {
+      } else if (determineEncodingStripe()){
         rowOutput = writer.createStream(id,
           OrcProto.Stream.Kind.DATA);
       }
@@ -874,33 +873,27 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       // need to build the first index entry out here, to handle the case of
       // not having any values.
 
-      if (useDirectEncoding()) {
-        length = rawDataArray.size();
-      }
-      // write the values translated into the dump order.
-      for(int i = 0; i <= length; ++i) {
-        // now that we are writing out the row values, we can finalize the
-        // row index
-        if (buildIndex) {
-          while (i == rowIndexValueCount.get(rowIndexEntry) &&
-              rowIndexEntry < savedRowIndex.size()) {
-            OrcProto.RowIndexEntry.Builder base =
-                savedRowIndex.get(rowIndexEntry++).toBuilder();
-            rowOutput.getPosition(new RowIndexPositionRecorder(base));
-            rowIndex.addEntry(base.build());
+      if (!useCarriedOverDirectEncoding()) {
+        // write the values translated into the dump order.
+        for(int i = 0; i <= length; ++i) {
+          // now that we are writing out the row values, we can finalize the
+          // row index
+          if (buildIndex) {
+            while (i == rowIndexValueCount.get(rowIndexEntry) &&
+                rowIndexEntry < savedRowIndex.size()) {
+              OrcProto.RowIndexEntry.Builder base =
+                  savedRowIndex.get(rowIndexEntry++).toBuilder();
+              rowOutput.getPosition(new RowIndexPositionRecorder(base));
+              rowIndex.addEntry(base.build());
+            }
           }
-        }
 
-        if (i < length) {
-          if (useDictionaryEncoding && dumpOrder != null) {
-            rowOutput.write(dumpOrder[rows.get(i)]);
-          } else {
-            if (determineEncodingStripe()) {
-              SerializationUtils.writeIntegerType(rowOutput,
-                  dictionary.getValue(rows.get(i)), numBytes, true, useVInts);
+          if (i < length) {
+            if (useDictionaryEncoding && dumpOrder != null) {
+              rowOutput.write(dumpOrder[rows.get(i)]);
             } else {
               SerializationUtils.writeIntegerType(rowOutput,
-                  rawDataArray.get(i), numBytes, true, useVInts);
+                  dictionary.getValue(rows.get(i)), numBytes, true, useVInts);
             }
           }
         }
@@ -915,10 +908,13 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       rowOutput.flush();
       dictionary.clear();
       rows.clear();
-      rawDataArray.clear();
       savedRowIndex.clear();
       rowIndexValueCount.clear();
       recordPosition(rowIndexPosition);
+      if (useCarriedOverDirectEncoding())  {
+        rowOutput = writer.createStream(id, OrcProto.Stream.Kind.DATA);
+        rowOutput.getPosition(rowIndexPosition);
+      }
       rowIndexValueCount.add(0L);
     }
 
@@ -947,11 +943,15 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       OrcProto.RowIndexEntry.Builder rowIndexEntry = getRowIndexEntry();
       rowIndexEntry.setStatistics(indexStatistics.serialize());
       indexStatistics.reset();
-      savedRowIndex.add(rowIndexEntry.build());
+      if (useCarriedOverDirectEncoding()) {
+        getRowIndex().addEntry(rowIndexEntry);
+      } else {
+        savedRowIndex.add(rowIndexEntry.build());
+      }
       rowIndexEntry.clear();
       recordPosition(rowIndexPosition);
-      if (useDirectEncoding()) {
-        rowIndexValueCount.add(Long.valueOf(rawDataArray.size()));
+      if (useCarriedOverDirectEncoding()) {
+        rowOutput.getPosition(rowIndexPosition);
       } else {
         rowIndexValueCount.add(Long.valueOf(rows.size()));
       }
@@ -959,7 +959,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     long estimateMemory() {
-      return rows.size() * 4 + dictionary.getByteSize() + bufferedBytes + rawDataArray.getSizeInBytes();
+      return rows.size() * 4 + dictionary.getByteSize() + bufferedBytes +
+          (rowOutput == null ? 0 : rowOutput.getBufferSize());
     }
 
   }
