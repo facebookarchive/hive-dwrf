@@ -21,6 +21,9 @@ package com.facebook.hive.orc;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.util.HashMap;
+import java.util.Map;
+
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 
 class OutStream extends PositionedOutputStream {
@@ -35,6 +38,13 @@ class OutStream extends PositionedOutputStream {
   }
 
   static final int HEADER_SIZE = 3;
+
+  // If the OutStream is flushing the last compressed ByteBuffer, we don't need to reallocate
+  // a new one, we can just share the same one over and over between streams because it gets
+  // cleared right away.  It is a mapping from the size of the buffer to the buffer.
+  private static final Map<Integer, ByteBuffer> COMPRESSED_FOR_REUSE =
+    new HashMap<Integer, ByteBuffer>();
+
   private final String name;
   private final OutputReceiver receiver;
   // if enabled the stream will be suppressed when writing stripe
@@ -76,14 +86,19 @@ class OutStream extends PositionedOutputStream {
     this.codec = codec;
     this.receiver = receiver;
     this.suppress = false;
+
+    if (!COMPRESSED_FOR_REUSE.containsKey(bufferSize + HEADER_SIZE)) {
+      COMPRESSED_FOR_REUSE.put(bufferSize + HEADER_SIZE,
+          ByteBuffer.allocate(bufferSize + HEADER_SIZE));
+    }
   }
 
   public void clear() throws IOException {
     uncompressedBytes = 0;
     compressedBytes = 0;
-    compressed = null;
     overflow = null;
     current = null;
+    compressed = null;
     suppress = false;
   }
 
@@ -135,7 +150,7 @@ class OutStream extends PositionedOutputStream {
       getNewInputBuffer();
     }
     if (current.remaining() < 1) {
-      spill();
+      spill(false);
     }
     uncompressedBytes += 1;
     current.put((byte) i);
@@ -151,7 +166,7 @@ class OutStream extends PositionedOutputStream {
     uncompressedBytes += remaining;
     length -= remaining;
     while (length != 0) {
-      spill();
+      spill(false);
       offset += remaining;
       remaining = Math.min(current.remaining(), length);
       current.put(bytes, offset, remaining);
@@ -160,7 +175,7 @@ class OutStream extends PositionedOutputStream {
     }
   }
 
-  private void spill() throws java.io.IOException {
+  private void spill(boolean reuseBuffer) throws java.io.IOException {
     ReaderWriterProfiler.start(ReaderWriterProfiler.Counter.COMPRESSION_TIME);
     // if there isn't anything in the current buffer, don't spill
     if (current == null || current.position() == (codec == null ? 0 : HEADER_SIZE)) {
@@ -173,7 +188,12 @@ class OutStream extends PositionedOutputStream {
       getNewInputBuffer();
     } else {
       if (compressed == null) {
-        compressed = getNewOutputBuffer();
+        if (reuseBuffer) {
+          compressed = COMPRESSED_FOR_REUSE.get(bufferSize + HEADER_SIZE);
+          compressed.clear();
+        } else {
+          compressed = getNewOutputBuffer();
+        }
       } else if (overflow == null) {
         overflow = getNewOutputBuffer();
       }
@@ -234,6 +254,7 @@ class OutStream extends PositionedOutputStream {
     ReaderWriterProfiler.end(ReaderWriterProfiler.Counter.COMPRESSION_TIME);
   }
 
+  @Override
   void getPosition(PositionRecorder recorder) throws IOException {
     if (codec == null) {
       recorder.addPosition(uncompressedBytes);
@@ -245,7 +266,17 @@ class OutStream extends PositionedOutputStream {
 
   @Override
   public void flush() throws IOException {
-    spill();
+    flush(false);
+  }
+
+  @Override
+  /**
+   * @param reuseBuffer If this is set to true, the compressed data will be flushed to a reusable
+   *                    buffer, make sure to flush the buffers to disk before flushing any other
+   *                    stream.
+   */
+  public void flush(boolean reuseBuffer) throws IOException {
+    spill(reuseBuffer);
     if (compressed != null && compressed.position() != 0) {
       compressed.flip();
       receiver.output(compressed);

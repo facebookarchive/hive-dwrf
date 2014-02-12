@@ -19,12 +19,17 @@ package com.facebook.hive.orc;
 
 import static junit.framework.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
+import static org.mockito.Matchers.anyDouble;
 import static org.mockito.Matchers.doubleThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
+import java.io.IOException;
 import java.lang.management.ManagementFactory;
+
+import junit.framework.Assert;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -42,6 +47,10 @@ public class TestMemoryManager {
     public boolean checkMemory(double newScale) {
       return false;
     }
+
+    @Override
+    public void enterLowMemoryMode() throws IOException {
+    }
   }
 
   @Test
@@ -53,17 +62,17 @@ public class TestMemoryManager {
     assertEquals(Math.round(ManagementFactory.getMemoryMXBean().
         getHeapMemoryUsage().getMax() * 0.5), poolSize);
     assertEquals(1.0, mgr.getAllocationScale(), 0.00001);
-    mgr.addWriter(new Path("p1"), 1000, callback);
+    mgr.addWriter(new Path("p1"), 1000, callback, 1000);
     assertEquals(1.0, mgr.getAllocationScale(), 0.00001);
-    mgr.addWriter(new Path("p1"), poolSize / 2, callback);
+    mgr.addWriter(new Path("p1"), poolSize / 2, callback, poolSize / 2);
     assertEquals(1.0, mgr.getAllocationScale(), 0.00001);
-    mgr.addWriter(new Path("p2"), poolSize / 2, callback);
+    mgr.addWriter(new Path("p2"), poolSize / 2, callback, poolSize / 2);
     assertEquals(1.0, mgr.getAllocationScale(), 0.00001);
-    mgr.addWriter(new Path("p3"), poolSize / 2, callback);
+    mgr.addWriter(new Path("p3"), poolSize / 2, callback, poolSize / 2);
     assertEquals(0.6666667, mgr.getAllocationScale(), 0.00001);
-    mgr.addWriter(new Path("p4"), poolSize / 2, callback);
+    mgr.addWriter(new Path("p4"), poolSize / 2, callback, poolSize / 2);
     assertEquals(0.5, mgr.getAllocationScale(), 0.000001);
-    mgr.addWriter(new Path("p4"), 3 * poolSize / 2, callback);
+    mgr.addWriter(new Path("p4"), 3 * poolSize / 2, callback, poolSize / 2);
     assertEquals(0.3333333, mgr.getAllocationScale(), 0.000001);
     mgr.removeWriter(new Path("p1"));
     mgr.removeWriter(new Path("p2"));
@@ -118,7 +127,7 @@ public class TestMemoryManager {
     MemoryManager.Callback[] calls = new MemoryManager.Callback[20];
     for(int i=0; i < calls.length; ++i) {
       calls[i] = mock(MemoryManager.Callback.class);
-      mgr.addWriter(new Path(Integer.toString(i)), pool/4, calls[i]);
+      mgr.addWriter(new Path(Integer.toString(i)), pool/4, calls[i], pool / 4);
     }
     // add enough rows to get the memory manager to check the limits
     for(int i=0; i < 10000; ++i) {
@@ -127,6 +136,156 @@ public class TestMemoryManager {
     for(int call=0; call < calls.length; ++call) {
       verify(calls[call], times(2))
           .checkMemory(doubleThat(closeTo(0.2, ERROR)));
+    }
+  }
+
+  private static class MemoryManagerForTest extends MemoryManager {
+
+    public MemoryManagerForTest(Configuration conf) {
+      super(conf);
+    }
+
+    public double getAllocationMultiplierForPath(Path path) {
+      return writerList.get(path).allocationMultiplier;
+    }
+  }
+
+  private void initializeLowMemoryModeTest(MemoryManagerForTest mgr,
+      MemoryManager.Callback[] calls) throws Exception {
+    long pool = mgr.getTotalMemoryPool();
+    for(int i=0; i < calls.length; ++i) {
+      calls[i] = mock(MemoryManager.Callback.class);
+      when(calls[i].checkMemory(anyDouble())).thenReturn(i % 2 == 0);
+
+      // Each writer requests 1/4 of the pool, so by the 5th one, 1/4 of the pool - 1 should be
+      // greater than the amount of memory the manager can actually allocate to that pool
+      mgr.addWriter(new Path(Integer.toString(i)), pool / 4, calls[i], pool / 4 - 1);
+    }
+    for (int i = 0; i < 5; i++) {
+      verify(calls[i], times(1)).enterLowMemoryMode();
+    }
+    for (int i = 5; i < calls.length; i++) {
+      verify(calls[i], times(0)).enterLowMemoryMode();
+    }
+    // add enough rows to get the memory manager to check the limits twice
+    for (int i=0; i < 10000; i++) {
+      mgr.addedRow();
+    }
+  }
+
+  @Test
+  public void testLowMemoryMode() throws Exception {
+    Configuration conf = new Configuration();
+    MemoryManagerForTest mgr = new MemoryManagerForTest(conf);
+    MemoryManager.Callback[] calls = new MemoryManager.Callback[8];
+
+    initializeLowMemoryModeTest(mgr, calls);
+
+    for(int i = 0; i < calls.length; i++) {
+      if (i % 2 == 0) {
+        Assert.assertEquals("Popular writers not getting more memory", 1.5,
+            mgr.getAllocationMultiplierForPath(new Path(Integer.toString(i))));
+      } else {
+        Assert.assertEquals("Unpopular writers hanging onto memory", 0.5,
+            mgr.getAllocationMultiplierForPath(new Path(Integer.toString(i))));
+      }
+    }
+  }
+
+  @Test
+  public void testLowMemoryModeBidirectional() throws Exception {
+
+    Configuration conf = new Configuration();
+    MemoryManagerForTest mgr = new MemoryManagerForTest(conf);
+    MemoryManager.Callback[] calls = new MemoryManager.Callback[8];
+
+    initializeLowMemoryModeTest(mgr, calls);
+
+    // add enough rows to get the memory manager to check the limits again
+    for (int i = 0; i < 5000; i++) {
+      mgr.addedRow();
+    }
+
+    for(int i = 0; i < calls.length; i++) {
+      if (i % 2 == 0) {
+        Assert.assertEquals("Popular writers not getting more memory", 1.75,
+            mgr.getAllocationMultiplierForPath(new Path(Integer.toString(i))));
+      } else {
+        Assert.assertEquals("Unpopular writers hanging onto memory", 0.25,
+            mgr.getAllocationMultiplierForPath(new Path(Integer.toString(i))));
+      }
+    }
+
+    // Switch it around
+    for(int i=0; i < calls.length; ++i) {
+      when(calls[i].checkMemory(anyDouble())).thenReturn(i % 2 != 0);
+    }
+
+    // add enough rows to get the memory manager to check the limits again
+    for (int i = 0; i < 5000; i++) {
+      mgr.addedRow();
+    }
+
+    for(int i = 0; i < calls.length; i++) {
+      if (i % 2 == 0) {
+        Assert.assertEquals("Popular writers not getting more memory", 1.75,
+            mgr.getAllocationMultiplierForPath(new Path(Integer.toString(i))));
+      } else {
+        Assert.assertEquals("Unpopular writers hanging onto memory", 0.25,
+            mgr.getAllocationMultiplierForPath(new Path(Integer.toString(i))));
+      }
+    }
+
+    // add enough rows to get the memory manager to check the limits again
+    for (int i = 0; i < 5000; i++) {
+      mgr.addedRow();
+    }
+
+    for(int i = 0; i < calls.length; i++) {
+      if (i % 2 == 0) {
+        Assert.assertEquals("Popular writers not getting more memory", 0.875,
+            mgr.getAllocationMultiplierForPath(new Path(Integer.toString(i))));
+      } else {
+        Assert.assertEquals("Unpopular writers hanging onto memory", 1.125,
+            mgr.getAllocationMultiplierForPath(new Path(Integer.toString(i))));
+      }
+    }
+  }
+
+  @Test
+  public void testLowMemoryModeMinRespected() throws Exception {
+
+    Configuration conf = new Configuration();
+    MemoryManagerForTest mgr = new MemoryManagerForTest(conf);
+    MemoryManager.Callback[] calls = new MemoryManager.Callback[8];
+
+    initializeLowMemoryModeTest(mgr, calls);
+
+    // Add rows until the allocation is so small, dividing it by 2 again would dip below the min
+    int n = 1;
+    while ((mgr.getTotalMemoryPool() / 4) * mgr.getAllocationScale() * (0.875 / (2 * n)) >
+        OrcConf.getLongVar(conf, OrcConf.ConfVars.HIVE_ORC_FILE_MIN_MEMORY_ALLOCATION)) {
+      for (int i = 0; i < 5000; i++) {
+        mgr.addedRow();
+      }
+      n++;
+    }
+
+    // Store the old values of the multipliers
+    double[] oldMultipliers = new double[calls.length];
+    for (int i = 0; i < calls.length; i++) {
+      oldMultipliers[i] = mgr.getAllocationMultiplierForPath(new Path(Integer.toString(i)));
+    }
+
+    // Add rows to try to tempt the MemoryManager to reallocate the memory again
+    for (int i = 0; i < 5000; i++) {
+      mgr.addedRow();
+    }
+
+    // Verify it didn't
+    for(int i = 0; i < calls.length; i++) {
+      Assert.assertEquals("Minimum memory allocation not respected", oldMultipliers[i],
+          mgr.getAllocationMultiplierForPath(new Path(Integer.toString(i))));
     }
   }
 }

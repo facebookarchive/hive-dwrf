@@ -144,4 +144,10 @@ class RunLengthIntegerWriter extends PositionedOutputStream {
   long getBufferSize() {
     return output.getBufferSize();
   }
+
+  @Override
+  void flush(boolean reuseBuffer) throws IOException {
+    writeValues();
+    output.flush(reuseBuffer);
+  }
 }

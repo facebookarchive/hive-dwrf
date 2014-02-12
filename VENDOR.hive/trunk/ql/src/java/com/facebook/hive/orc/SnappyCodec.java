@@ -20,12 +20,17 @@
 
 package com.facebook.hive.orc;
 
-import org.iq80.snappy.Snappy;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.apache.hadoop.conf.Configuration;
+import org.iq80.snappy.Snappy;
+
 class SnappyCodec implements CompressionCodec {
+
+  @Override
+  public void reloadConfigurations(Configuration conf) {
+  }
 
   @Override
   public boolean compress(ByteBuffer in, ByteBuffer out,

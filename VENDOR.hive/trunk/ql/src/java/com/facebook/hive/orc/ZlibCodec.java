@@ -29,7 +29,7 @@ import org.apache.hadoop.conf.Configuration;
 
 class ZlibCodec implements CompressionCodec {
 
-  private final int compressionLevel;
+  private int compressionLevel;
 
   public ZlibCodec() {
     compressionLevel = Deflater.DEFAULT_COMPRESSION;
@@ -41,6 +41,10 @@ class ZlibCodec implements CompressionCodec {
     } else {
       compressionLevel = OrcConf.getIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ZLIB_COMPRESSION_LEVEL);
     }
+  }
+
+  public void reloadConfigurations(Configuration conf) {
+    compressionLevel = OrcConf.getIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ZLIB_COMPRESSION_LEVEL);
   }
 
   @Override

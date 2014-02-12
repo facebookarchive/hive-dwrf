@@ -37,4 +37,6 @@ abstract class PositionedOutputStream extends OutputStream {
    * @return the number of bytes used by buffers.
    */
   abstract long getBufferSize();
+
+  abstract void flush(boolean reuseBuffer) throws IOException;
 }

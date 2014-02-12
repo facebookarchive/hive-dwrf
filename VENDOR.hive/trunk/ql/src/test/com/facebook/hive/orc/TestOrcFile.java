@@ -839,15 +839,19 @@ public class TestOrcFile {
     }
   }
 
-  private RandomRowInputs writeRandomRows(int count) throws IOException {
+  private RandomRowInputs writeRandomRows(int count, boolean lowMemoryMode) throws IOException {
     ObjectInspector inspector;
     synchronized (TestOrcFile.class) {
       inspector = ObjectInspectorFactory.getReflectionObjectInspector
           (ReallyBigRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector, 200000,
-        CompressionKind.ZLIB, 65536, 1000, new MemoryManager(conf));
+    // If low memory mode is on, reduce the stripe size, this is the amount of memory the writer
+    // requests and if the amount of memory needed to initialize the writer exceeds this, it will
+    // enter low memory mode
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        lowMemoryMode ? 200000 : 4000000, CompressionKind.ZLIB, 65536, 1000,
+        new MemoryManager(conf));
     Random rand = new Random(42);
     RandomRowInputs inputs = new RandomRowInputs(count);
     long[] intValues = inputs.intValues;
@@ -1140,7 +1144,29 @@ public class TestOrcFile {
   @Test
   public void testSeek() throws Exception {
     final int COUNT=32768;
-    RandomRowInputs inputs = writeRandomRows(COUNT);
+    RandomRowInputs inputs = writeRandomRows(COUNT, false);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Reader reader = OrcFile.createReader(fs, testFilePath);
+    assertEquals(COUNT, reader.getNumberOfRows());
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    for(int i=COUNT-1; i >= 0; --i) {
+      rows.seekToRow(i);
+      lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+      row = (OrcStruct) lazyRow.materialize();
+      if (i == 28999) {
+        System.out.println(i);
+      }
+      compareRows(row, inputs, i, NumberOfNulls.NONE);
+    }
+    rows.close();
+  }
+
+  @Test
+  public void testSeekLowMemory() throws Exception {
+    final int COUNT=32768;
+    RandomRowInputs inputs = writeRandomRows(COUNT, true);
     ReaderWriterProfiler.setProfilerOptions(conf);
     Reader reader = OrcFile.createReader(fs, testFilePath);
     assertEquals(COUNT, reader.getNumberOfRows());
@@ -1161,11 +1187,11 @@ public class TestOrcFile {
     RandomRowInputs inputs = null;
     switch (numNulls) {
       case NONE:
-        inputs = writeRandomRows(COUNT);
+        inputs = writeRandomRows(COUNT, false);
         break;
       case SOME:
       case MANY:
-        inputs = writeRandomRowsWithNulls(COUNT, numNulls);
+        inputs = writeRandomRowsWithNulls(COUNT, numNulls, false);
         break;
     }
 
@@ -1320,15 +1346,17 @@ public class TestOrcFile {
     readEveryNthRow(10000, true, NumberOfNulls.NONE);
   }
 
-  private RandomRowInputs writeRandomRowsWithNulls(int count, NumberOfNulls numNulls) throws IOException {
+  private RandomRowInputs writeRandomRowsWithNulls(int count, NumberOfNulls numNulls,
+      boolean lowMemoryMode) throws IOException {
     ObjectInspector inspector;
     synchronized (TestOrcFile.class) {
       inspector = ObjectInspectorFactory.getReflectionObjectInspector
           (ReallyBigRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector, 200000,
-        CompressionKind.ZLIB, 65536, 1000, new MemoryManager(conf));
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        lowMemoryMode ? 200000 : 4000000, CompressionKind.ZLIB, 65536, 1000,
+         new MemoryManager(conf));
     Random rand = new Random(42);
     RandomRowInputs inputs = new RandomRowInputs(count);
     long[] intValues = inputs.intValues;
@@ -1496,11 +1524,11 @@ public class TestOrcFile {
     RandomRowInputs inputs = null;
     switch (numNulls) {
       case NONE:
-        inputs = writeRandomRows(COUNT);
+        inputs = writeRandomRows(COUNT, false);
         break;
       case SOME:
       case MANY:
-        inputs = writeRandomRowsWithNulls(COUNT, numNulls);
+        inputs = writeRandomRowsWithNulls(COUNT, numNulls, false);
         break;
     }
 
@@ -1747,7 +1775,7 @@ public class TestOrcFile {
 
     @Override
     void addWriter(Path path, long requestedAllocation,
-                   MemoryManager.Callback callback) {
+                   MemoryManager.Callback callback, long initialAllocation) {
       this.path = path;
       this.lastAllocation = requestedAllocation;
       this.callback = callback;
@@ -1801,9 +1829,9 @@ public class TestOrcFile {
     for(StripeInformation stripe: reader.getStripes()) {
       i += 1;
       assertTrue("stripe " + i + " is too long at " + stripe.getDataLength(),
-          stripe.getDataLength() < 5000);
+          stripe.getDataLength() < 6000);
     }
-    assertEquals(25, i);
+    assertEquals(5, i);
     assertEquals(2500, reader.getNumberOfRows());
   }
 }

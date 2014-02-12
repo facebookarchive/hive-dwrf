@@ -22,7 +22,9 @@ package com.facebook.hive.orc;
 
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.commons.logging.Log;
@@ -50,15 +52,24 @@ class MemoryManager {
    */
   private static final int ROWS_BETWEEN_CHECKS = 5000;
   private final long totalMemoryPool;
-  private final Map<Path, WriterInfo> writerList =
+  protected final Map<Path, WriterInfo> writerList =
       new HashMap<Path, WriterInfo>();
   private long totalAllocation = 0;
   private double currentScale = 1;
   private int rowsAddedSinceCheck = 0;
+  // Indicates whether or not there are so many writer instances/columns that the amount of
+  // memory one needs to start up, exceeds the amount of memory allocated.
+  private boolean lowMemoryMode = false;
+  private final long minAllocation;
 
-  private static class WriterInfo {
+  protected static class WriterInfo {
     long allocation;
     Callback callback;
+    // Flag to indicate if this writer was flushed the last time memory was checked
+    boolean flushedLastCheck = true;
+    // This value is multiplied by the allocation to get an allocation adjusted based on how often
+    // this writer gets flushed
+    double allocationMultiplier = 1;
     WriterInfo(long allocation, Callback callback) {
       this.allocation = allocation;
       this.callback = callback;
@@ -73,6 +84,14 @@ class MemoryManager {
      * @throws IOException
      */
     boolean checkMemory(double newScale) throws IOException;
+
+    /**
+     * If the initial amount of memory needed by a writer is greater than the amount allocated,
+     * call this to try to get the writers to use less memory to avoid an OOM
+     * @return
+     * @throws IOException
+     */
+    void enterLowMemoryMode() throws IOException;
   }
 
   /**
@@ -84,6 +103,7 @@ class MemoryManager {
     double maxLoad = OrcConf.getFloatVar(conf, OrcConf.ConfVars.HIVE_ORC_FILE_MEMORY_POOL);
     totalMemoryPool = Math.round(ManagementFactory.getMemoryMXBean().
         getHeapMemoryUsage().getMax() * maxLoad);
+    minAllocation = OrcConf.getLongVar(conf, OrcConf.ConfVars.HIVE_ORC_FILE_MIN_MEMORY_ALLOCATION);
   }
 
   /**
@@ -91,9 +111,10 @@ class MemoryManager {
    * as a unique key to ensure that we don't get duplicates.
    * @param path the file that is being written
    * @param requestedAllocation the requested buffer size
+   * @param initialAllocation the current size of the buffer
    */
   synchronized void addWriter(Path path, long requestedAllocation,
-                              Callback callback) throws IOException {
+                              Callback callback, long initialAllocation) throws IOException {
     WriterInfo oldVal = writerList.get(path);
     // this should always be null, but we handle the case where the memory
     // manager wasn't told that a writer wasn't still in use and the task
@@ -109,6 +130,20 @@ class MemoryManager {
       oldVal.callback = callback;
     }
     updateScale(true);
+
+    // If we're not already in low memory mode, and the initial allocation already exceeds the
+    // allocation, enter low memory mode to try to avoid an OOM
+    if (!lowMemoryMode && requestedAllocation * currentScale <= initialAllocation) {
+      lowMemoryMode = true;
+      LOG.info("ORC: Switching to low memory mode");
+      for (WriterInfo writer : writerList.values()) {
+        writer.callback.enterLowMemoryMode();
+      }
+    }
+  }
+
+  public boolean isLowMemoryMode() {
+    return lowMemoryMode;
   }
 
   /**
@@ -152,6 +187,11 @@ class MemoryManager {
     }
   }
 
+  // A list of writers to share allocations taken from writers which don't need them
+  private final List<WriterInfo> writersForAllocation = new ArrayList<WriterInfo>();
+  // A list of writers to take allocations from and give to more needy writers
+  private final List<WriterInfo> writersForDeallocation = new ArrayList<WriterInfo>();
+
   /**
    * Notify all of the writers that they should check their memory usage.
    * @throws IOException
@@ -159,12 +199,61 @@ class MemoryManager {
   private void notifyWriters() throws IOException {
     LOG.debug("Notifying writers after " + rowsAddedSinceCheck);
     for(WriterInfo writer: writerList.values()) {
-      boolean flushed = writer.callback.checkMemory(currentScale);
+      boolean flushed = writer.callback.checkMemory(currentScale * writer.allocationMultiplier);
+
+      if (lowMemoryMode) {
+        // If we're in low memory mode and a writer
+        // 1) flushes twice in a row, mark it as needy
+        // 2) doesn't flush twice in a row, mark it for a decreased allocation
+        if (!flushed && !writer.flushedLastCheck) {
+          writersForDeallocation.add(writer);
+        } else if (flushed && writer.flushedLastCheck){
+          writersForAllocation.add(writer);
+        }
+        writer.flushedLastCheck = flushed;
+      }
       if (LOG.isDebugEnabled() && flushed) {
         LOG.debug("flushed " + writer.toString());
       }
     }
+
+    if (lowMemoryMode) {
+      reallocateMemory(writersForAllocation, writersForDeallocation);
+      writersForDeallocation.clear();
+      writersForAllocation.clear();
+    }
+
     rowsAddedSinceCheck = 0;
+  }
+
+  private void reallocateMemory(List<WriterInfo> writersForAllocation, List<WriterInfo> writersForDeallocation) {
+    if (writersForDeallocation.size() > 0 && writersForAllocation.size() > 0) {
+      // If there were some needy writers and some writers that could spare some allocation,
+      // redistribute the memory from the bourgeoisie to the proletariat
+      double memoryToReallocate = 0;
+      for (WriterInfo writer : writersForDeallocation) {
+        // Divide the allocation of rich writers which can spare by 2
+        double newAllocationMultiplier = writer.allocationMultiplier / 2;
+        double reallocation = writer.allocation * currentScale * newAllocationMultiplier;
+
+        // Only take the allocation if the writer will still have at least the minimum allocation
+        if (reallocation >= minAllocation) {
+          writer.allocationMultiplier /= 2;
+          memoryToReallocate += reallocation;
+        }
+      }
+
+      double memoryToReallocatePerWriter = memoryToReallocate / writersForAllocation.size();
+      for (WriterInfo writer : writersForAllocation) {
+        // Reallocate the spoils
+        // This is just some algebra
+        // (allocation * currentScale * multiplier) + reallocation = (allocation * currentScale * X)
+        // where X is the new multiplier
+        writer.allocationMultiplier =
+          ((writer.allocation * currentScale * writer.allocationMultiplier)
+              + memoryToReallocatePerWriter) / (writer.allocation * currentScale);
+      }
+    }
   }
 
   /**

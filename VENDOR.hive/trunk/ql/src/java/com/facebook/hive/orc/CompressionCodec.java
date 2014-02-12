@@ -22,6 +22,8 @@ package com.facebook.hive.orc;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import org.apache.hadoop.conf.Configuration;
+
 interface CompressionCodec {
   /**
    * Compress the in buffer to the out buffer.
@@ -41,4 +43,6 @@ interface CompressionCodec {
    * @throws IOException
    */
   void decompress(ByteBuffer in, ByteBuffer out) throws IOException;
+
+  void reloadConfigurations(Configuration conf);
 }
