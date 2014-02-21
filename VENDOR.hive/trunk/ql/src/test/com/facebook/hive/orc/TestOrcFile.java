@@ -139,7 +139,7 @@ public class TestOrcFile {
         null, null, null, null, null, null, null, null));
     writer.close();
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Reader reader = OrcFile.createReader(fs, testFilePath);
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
     RecordReader rows = reader.rows(null);
     OrcLazyStruct lazyRow = null;
     OrcStruct row = null;
@@ -196,7 +196,7 @@ public class TestOrcFile {
         map(inner(5,"chani"), inner(1,"mauddib"))));
     writer.close();
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Reader reader = OrcFile.createReader(fs, testFilePath);
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
 
     // check the stats
     ColumnStatistics[] stats = reader.getStatistics();
@@ -445,7 +445,7 @@ public class TestOrcFile {
     }
     writer.close();
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Reader reader = OrcFile.createReader(fs, testFilePath);
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
 
     // check out the statistics
     ColumnStatistics[] stats = reader.getStatistics();
@@ -507,7 +507,7 @@ public class TestOrcFile {
         1000, CompressionKind.NONE, 100, 10000);
     writer.close();
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Reader reader = OrcFile.createReader(fs, testFilePath);
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
     assertEquals(false, reader.rows(null).hasNext());
     assertEquals(CompressionKind.NONE, reader.getCompression());
     assertEquals(0, reader.getNumberOfRows());
@@ -541,7 +541,7 @@ public class TestOrcFile {
     writer.addUserMetadata("clobber", byteBuf(5,7,11,13,17,19));
     writer.close();
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Reader reader = OrcFile.createReader(fs, testFilePath);
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
     assertEquals(byteBuf(5,7,11,13,17,19), reader.getMetadataValue("clobber"));
     assertEquals(byteBuf(1,2,3,4,5,6,7,-1,-2,127,-128),
         reader.getMetadataValue("my.meta"));
@@ -635,7 +635,7 @@ public class TestOrcFile {
     writer.addRow(row);
     writer.close();
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Reader reader = OrcFile.createReader(fs, testFilePath);
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
     assertEquals(false, reader.getMetadataKeys().iterator().hasNext());
     assertEquals(5309, reader.getNumberOfRows());
     int stripeCount = 0;
@@ -758,7 +758,7 @@ public class TestOrcFile {
           Integer.toHexString(rand.nextInt())));
     }
     writer.close();
-    Reader reader = OrcFile.createReader(fs, testFilePath);
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
     RecordReader rows = reader.rows(null);
     rand = new Random(12);
     OrcLazyStruct row = null;
@@ -799,7 +799,7 @@ public class TestOrcFile {
     }
     writer.close();
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Reader reader = OrcFile.createReader(fs, testFilePath);
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
     assertEquals(50000, reader.getNumberOfRows());
     assertEquals(0, reader.getRowIndexStride());
     StripeInformation stripe = reader.getStripes().iterator().next();
@@ -1146,7 +1146,7 @@ public class TestOrcFile {
     final int COUNT=32768;
     RandomRowInputs inputs = writeRandomRows(COUNT, false);
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Reader reader = OrcFile.createReader(fs, testFilePath);
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
     assertEquals(COUNT, reader.getNumberOfRows());
     RecordReader rows = reader.rows(null);
     OrcLazyStruct lazyRow = null;
@@ -1155,9 +1155,6 @@ public class TestOrcFile {
       rows.seekToRow(i);
       lazyRow = (OrcLazyStruct) rows.next(lazyRow);
       row = (OrcStruct) lazyRow.materialize();
-      if (i == 28999) {
-        System.out.println(i);
-      }
       compareRows(row, inputs, i, NumberOfNulls.NONE);
     }
     rows.close();
@@ -1168,7 +1165,7 @@ public class TestOrcFile {
     final int COUNT=32768;
     RandomRowInputs inputs = writeRandomRows(COUNT, true);
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Reader reader = OrcFile.createReader(fs, testFilePath);
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
     assertEquals(COUNT, reader.getNumberOfRows());
     RecordReader rows = reader.rows(null);
     OrcLazyStruct lazyRow = null;
@@ -1196,7 +1193,7 @@ public class TestOrcFile {
     }
 
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Reader reader = OrcFile.createReader(fs, testFilePath);
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
     assertEquals(COUNT, reader.getNumberOfRows());
     RecordReader rows = reader.rows(null);
     OrcLazyStruct lazyRow = null;
@@ -1532,7 +1529,7 @@ public class TestOrcFile {
         break;
     }
 
-    Reader reader = OrcFile.createReader(fs, testFilePath);
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
     assertEquals(COUNT, reader.getNumberOfRows());
     RecordReader rows = reader.rows(null);
     OrcLazyRow lazyRow = null;
@@ -1824,7 +1821,7 @@ public class TestOrcFile {
     writer.close();
     assertEquals(null, memory.path);
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Reader reader = OrcFile.createReader(fs, testFilePath);
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
     int i = 0;
     for(StripeInformation stripe: reader.getStripes()) {
       i += 1;

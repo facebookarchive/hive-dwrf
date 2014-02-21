@@ -25,14 +25,15 @@ import java.sql.Timestamp;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.hadoop.hive.serde2.io.TimestampWritable;
+
 import com.facebook.hive.orc.InStream;
 import com.facebook.hive.orc.OrcProto;
-import com.facebook.hive.orc.PositionProvider;
 import com.facebook.hive.orc.RunLengthIntegerReader;
 import com.facebook.hive.orc.StreamName;
 import com.facebook.hive.orc.WriterImpl;
 import com.facebook.hive.orc.OrcProto.RowIndex;
-import org.apache.hadoop.hive.serde2.io.TimestampWritable;
+import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 
 public class LazyTimestampTreeReader extends LazyTreeReader {
 
@@ -51,12 +52,22 @@ public class LazyTimestampTreeReader extends LazyTreeReader {
         OrcProto.Stream.Kind.DATA)), true, WriterImpl.LONG_BYTE_SIZE);
     nanos = new RunLengthIntegerReader(streams.get(new StreamName(columnId,
         OrcProto.Stream.Kind.NANO_DATA)), false, WriterImpl.LONG_BYTE_SIZE);
+    if (indexes[columnId] != null) {
+      loadIndeces(indexes[columnId].getEntryList(), 0);
+    }
   }
 
   @Override
-  public void seek(PositionProvider index) throws IOException {
+  public void seek(int index) throws IOException {
     data.seek(index);
     nanos.seek(index);
+  }
+
+  @Override
+  public int loadIndeces(List<RowIndexEntry> rowIndexEntries, int startIndex) {
+    int updatedStartIndex = super.loadIndeces(rowIndexEntries, startIndex);
+    updatedStartIndex = data.loadIndeces(rowIndexEntries, updatedStartIndex);
+    return nanos.loadIndeces(rowIndexEntries, updatedStartIndex);
   }
 
   @Override

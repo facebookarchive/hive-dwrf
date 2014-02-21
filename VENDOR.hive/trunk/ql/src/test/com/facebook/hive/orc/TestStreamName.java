@@ -18,9 +18,9 @@
 
 package com.facebook.hive.orc;
 
-import org.junit.Test;
-
 import static org.junit.Assert.assertEquals;
+
+import org.junit.Test;
 
 public class TestStreamName {
 
@@ -39,10 +39,10 @@ public class TestStreamName {
     assertEquals(true, s1.equals(s1p));
     assertEquals(true, s1.compareTo(null) < 0);
     assertEquals(false, s1.equals(null));
-    assertEquals(true, s1.compareTo(s2) < 0);
+    assertEquals(true, s1.compareTo(s2) > 0);
     assertEquals(true, s2.compareTo(s3) < 0);
-    assertEquals(true, s3.compareTo(s4) < 0);
-    assertEquals(true, s4.compareTo(s1p) > 0);
+    assertEquals(true, s3.compareTo(s4) > 0);
+    assertEquals(true, s4.compareTo(s1p) < 0);
     assertEquals(0, s1p.compareTo(s1));
   }
 }

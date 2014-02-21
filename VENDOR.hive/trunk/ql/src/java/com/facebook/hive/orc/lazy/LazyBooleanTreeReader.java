@@ -24,13 +24,14 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.hadoop.io.BooleanWritable;
+
 import com.facebook.hive.orc.BitFieldReader;
 import com.facebook.hive.orc.InStream;
 import com.facebook.hive.orc.OrcProto;
-import com.facebook.hive.orc.PositionProvider;
 import com.facebook.hive.orc.StreamName;
 import com.facebook.hive.orc.OrcProto.RowIndex;
-import org.apache.hadoop.io.BooleanWritable;
+import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 
 public class LazyBooleanTreeReader extends LazyTreeReader {
 
@@ -46,11 +47,20 @@ public class LazyBooleanTreeReader extends LazyTreeReader {
     super.startStripe(streams, encodings, indexes, rowBaseInStripe);
     reader = new BitFieldReader(streams.get(new StreamName(columnId,
         OrcProto.Stream.Kind.DATA)));
+    if (indexes[columnId] != null) {
+      loadIndeces(indexes[columnId].getEntryList(), 0);
+    }
   }
 
   @Override
-  public void seek(PositionProvider index) throws IOException {
+  public void seek(int index) throws IOException {
     reader.seek(index);
+  }
+
+  @Override
+  public int loadIndeces(List<RowIndexEntry> rowIndexEntries, int startIndex) {
+    int updatedStartIndex = super.loadIndeces(rowIndexEntries, startIndex);
+    return reader.loadIndeces(rowIndexEntries, updatedStartIndex);
   }
 
   @Override

@@ -21,6 +21,9 @@ package com.facebook.hive.orc;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.util.List;
+
+import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 
 /**
  * A reader that reads a sequence of bytes. A control byte is read before
@@ -34,6 +37,7 @@ public class RunLengthByteReader {
   private int numLiterals = 0;
   private int used = 0;
   private boolean repeat = false;
+  private int[] indeces;
 
   public RunLengthByteReader(InStream input) throws IOException {
     this.input = input;
@@ -84,9 +88,9 @@ public class RunLengthByteReader {
     return result;
   }
 
-  public void seek(PositionProvider index) throws IOException {
+  public void seek(int index) throws IOException {
     input.seek(index);
-    int consumed = (int) index.getNext();
+    int consumed = (int) indeces[index];
     if (consumed != 0) {
       // a loop is required for cases where we break the run into two parts
       while (consumed > 0) {
@@ -98,6 +102,24 @@ public class RunLengthByteReader {
       used = 0;
       numLiterals = 0;
     }
+  }
+
+  /**
+   * Read in the number of bytes consumed at each index entry and store it,
+   * also call loadIndeces on child stream and return the index of the next
+   * streams indexes.
+   */
+  public int loadIndeces(List<RowIndexEntry> rowIndexEntries, int startIndex) {
+    int updatedStartIndex = input.loadIndeces(rowIndexEntries, startIndex);
+
+    int numIndeces = rowIndexEntries.size();
+    indeces = new int[numIndeces + 1];
+    int i = 0;
+    for (RowIndexEntry rowIndexEntry : rowIndexEntries) {
+      indeces[i] = (int) rowIndexEntry.getPositions(updatedStartIndex);
+      i++;
+    }
+    return updatedStartIndex + 1;
   }
 
   public void skip(long items) throws IOException {

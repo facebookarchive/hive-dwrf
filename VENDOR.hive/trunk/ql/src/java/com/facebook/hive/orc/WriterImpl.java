@@ -25,6 +25,7 @@ import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -61,6 +62,7 @@ import org.apache.hadoop.io.BytesWritable;
 import org.apache.hadoop.io.Text;
 
 import com.facebook.hive.orc.OrcConf.ConfVars;
+import com.facebook.hive.orc.OrcProto.Stream.Kind;
 import com.google.protobuf.ByteString;
 import com.google.protobuf.CodedOutputStream;
 
@@ -320,7 +322,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     }
   }
 
-  private static class RowIndexPositionRecorder implements PositionRecorder {
+  static class RowIndexPositionRecorder implements PositionRecorder {
     private final OrcProto.RowIndexEntry.Builder builder;
 
     RowIndexPositionRecorder(OrcProto.RowIndexEntry.Builder builder) {
@@ -732,7 +734,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
 
   private static class IntegerTreeWriter extends TreeWriter {
     private final PositionedOutputStream output;
-    private final RunLengthIntegerWriter lengthOutput;
     private DynamicIntArray rows;
     private final List<OrcProto.RowIndexEntry> savedRowIndex =
         new ArrayList<OrcProto.RowIndexEntry>();
@@ -776,8 +777,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       }
       output = writer.createStream(id,
           OrcProto.Stream.Kind.DICTIONARY_DATA);
-      lengthOutput = new RunLengthIntegerWriter(
-          writer.createStream(id, OrcProto.Stream.Kind.LENGTH), false, INT_BYTE_SIZE, useVInts);
 
       dictionaryKeySizeThreshold = OrcConf.getFloatVar(conf,
           OrcConf.ConfVars.HIVE_ORC_DICTIONARY_NUMERIC_KEY_SIZE_THRESHOLD);
@@ -790,6 +789,9 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       recordPosition(rowIndexPosition);
       rowIndexValueCount.add(0L);
       buildIndex = writer.buildIndex();
+      if (buildIndex && lowMemoryMode) {
+        rowOutput.getPosition(rowIndexPosition);
+      }
     }
 
     boolean determineEncodingStripe() {
@@ -904,8 +906,10 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       // writes it out.
       super.writeStripe(builder, requiredIndexEntries);
       if (useDictionaryEncoding) {
+        output.unsuppress();
         output.flush();
-        lengthOutput.flush();
+      } else {
+        output.suppress();
       }
       rowOutput.flush();
       savedRowIndex.clear();
@@ -1179,6 +1183,10 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       recordPosition(rowIndexPosition);
       rowIndexValueCount.add(0L);
       buildIndex = writer.buildIndex();
+      if (buildIndex && lowMemoryMode) {
+        rowOutput.getPosition(rowIndexPosition);
+        directLengthOutput.getPosition(rowIndexPosition);
+      }
     }
 
     boolean determineEncodingStripe() {
@@ -1363,9 +1371,15 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       super.writeStripe(builder, requiredIndexEntries);
       rowOutput.flush();
       if (useDictionaryEncoding) {
+        stringOutput.unsuppress();
+        lengthOutput.unsuppress();
+        directLengthOutput.suppress();
         stringOutput.flush();
         lengthOutput.flush();
       } else {
+        directLengthOutput.unsuppress();
+        stringOutput.suppress();
+        lengthOutput.suppress();
         directLengthOutput.flush();
       }
 
@@ -2014,6 +2028,42 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     rawWriter.write(data);
   }
 
+  // Before we write out the streams to disk, do some clean up.  For now this consists of two
+  // things:
+  // 1) Ignore any suppressed streams, this is done by not including them in the return list
+  //    and clearing their contents
+  // 2) If a stream has dictionary data, put the length stream before the dictionary data in the
+  //    DICTIONARY area.  This is because this more closely matches the order in which we actually
+  //    read the data.
+  private List<Map.Entry<StreamName, BufferedStream>> cleanUpStreams() throws IOException {
+    List<Map.Entry<StreamName, BufferedStream>> streamList =
+      new ArrayList<Map.Entry<StreamName, BufferedStream>>(streams.size());
+    Map<StreamName, Integer> indexMap = new HashMap<StreamName, Integer>(streams.size());
+
+    int increment = 0;
+
+    for(Map.Entry<StreamName, BufferedStream> pair: streams.entrySet()) {
+      if (!pair.getValue().isSuppressed()) {
+        StreamName name = pair.getKey();
+        if (name.getKind() == Kind.LENGTH) {
+          Integer index = indexMap.get(new StreamName(name.getColumn(), Kind.DICTIONARY_DATA));
+          if (index != null) {
+            streamList.add(index + increment, pair);
+            increment++;
+            continue;
+          }
+        }
+
+        indexMap.put(name, new Integer(streamList.size()));
+        streamList.add(pair);
+      } else {
+        pair.getValue().clear();
+      }
+    }
+
+    return streamList;
+  }
+
   private void flushStripe() throws IOException {
     ensureWriter();
 
@@ -2038,22 +2088,21 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       long start = rawWriter.getPos();
       long section = start;
       long indexEnd = start;
-      for(Map.Entry<StreamName, BufferedStream> pair: streams.entrySet()) {
+      List<Map.Entry<StreamName, BufferedStream>> streamList = cleanUpStreams();
+      for (Map.Entry<StreamName, BufferedStream> pair : streamList) {
         BufferedStream stream = pair.getValue();
-        if (!stream.isSuppressed()) {
-          stream.flush(true);
-          stream.spillTo(rawWriter);
-          long end = rawWriter.getPos();
-          StreamName name = pair.getKey();
-          builder.addStreams(OrcProto.Stream.newBuilder()
-              .setColumn(name.getColumn())
-              .setKind(name.getKind())
-              .setLength(end-section)
-              .setUseVInts(useVInts));
-          section = end;
-          if (StreamName.Area.INDEX == name.getArea()) {
-            indexEnd = end;
-          }
+        stream.flush(true);
+        stream.spillTo(rawWriter);
+        long end = rawWriter.getPos();
+        StreamName name = pair.getKey();
+        builder.addStreams(OrcProto.Stream.newBuilder()
+            .setColumn(name.getColumn())
+            .setKind(name.getKind())
+            .setLength(end-section)
+            .setUseVInts(useVInts));
+        section = end;
+        if (StreamName.Area.INDEX == name.getArea()) {
+          indexEnd = end;
         }
         stream.clear();
       }

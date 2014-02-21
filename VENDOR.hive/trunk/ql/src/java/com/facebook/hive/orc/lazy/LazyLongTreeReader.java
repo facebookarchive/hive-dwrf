@@ -50,5 +50,8 @@ public class LazyLongTreeReader extends LazyIntTreeReader {
             encodings.get(columnId).getKind());
     }
     reader.startStripe(streams, encodings, indexes, rowBaseInStripe);
+    if (indexes[columnId] != null) {
+      loadIndeces(indexes[columnId].getEntryList(), 0);
+    }
   }
 }

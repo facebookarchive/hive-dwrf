@@ -27,7 +27,6 @@ import java.util.Map;
 import com.facebook.hive.orc.InStream;
 import com.facebook.hive.orc.OrcProto;
 import com.facebook.hive.orc.OrcStruct;
-import com.facebook.hive.orc.PositionProvider;
 import com.facebook.hive.orc.StreamName;
 import com.facebook.hive.orc.OrcProto.RowIndex;
 
@@ -87,6 +86,9 @@ public class LazyStructTreeReader extends LazyTreeReader {
         fields[i].startStripe(streams, encodings, indexes, rowBaseInStripe);
       }
     }
+    if (indexes[columnId] != null) {
+      loadIndeces(indexes[columnId].getEntryList(), 0);
+    }
   }
 
   @Override
@@ -100,7 +102,7 @@ public class LazyStructTreeReader extends LazyTreeReader {
   }
 
   @Override
-  protected void seek(PositionProvider index) throws IOException {
+  protected void seek(int index) throws IOException {
     // Most tree readers have streams besides the present stream, e.g. the data for a simple type
     // or the length of a complex type.  The only data structs contain besides whether or not
     // they're null is the fields themselves, each of which has its own tree reader, so nothing

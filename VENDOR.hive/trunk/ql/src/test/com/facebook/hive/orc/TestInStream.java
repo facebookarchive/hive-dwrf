@@ -18,17 +18,18 @@
 
 package com.facebook.hive.orc;
 
-import org.junit.Test;
-
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.List;
-
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.fail;
 
+import java.io.IOException;
+import java.nio.ByteBuffer;
+
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
+import org.junit.Test;
+
+import com.facebook.hive.orc.OrcProto.RowIndex;
+import com.facebook.hive.orc.OrcProto.RowIndexEntry;
+import com.facebook.hive.orc.WriterImpl.RowIndexPositionRecorder;
 
 public class TestInStream {
 
@@ -42,30 +43,18 @@ public class TestInStream {
     }
   }
 
-  static class PositionCollector implements PositionProvider, PositionRecorder {
-    private List<Long> positions = new ArrayList<Long>();
-    private int index = 0;
-
-    @Override
-    public long getNext() {
-      return positions.get(index++);
-    }
-
-    @Override
-    public void addPosition(long offset) {
-      positions.add(offset);
-    }
-  }
-
   @Test
   public void testUncompressed() throws Exception {
     ReaderWriterProfiler.setProfilerOptions(null);
     OutputCollector collect = new OutputCollector();
     OutStream out = new OutStream("test", 100, null, collect);
-    PositionCollector[] positions = new PositionCollector[1024];
+    RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
+    RowIndexEntry.Builder rowIndexEntry = OrcProto.RowIndexEntry.newBuilder();
+    WriterImpl.RowIndexPositionRecorder rowIndexPosition = new RowIndexPositionRecorder(rowIndexEntry);
     for(int i=0; i < 1024; ++i) {
-      positions[i] = new PositionCollector();
-      out.getPosition(positions[i]);
+      out.getPosition(rowIndexPosition);
+      rowIndex.addEntry(rowIndexEntry.build());
+      rowIndexEntry.clear();
       out.write(i);
     }
     out.flush();
@@ -83,8 +72,9 @@ public class TestInStream {
       int x = in.read();
       assertEquals(i & 0xff, x);
     }
+    in.loadIndeces(rowIndex.build().getEntryList(), 0);
     for(int i=1023; i >= 0; --i) {
-      in.seek(positions[i]);
+      in.seek(i);
       assertEquals(i & 0xff, in.read());
     }
   }
@@ -95,10 +85,13 @@ public class TestInStream {
     OutputCollector collect = new OutputCollector();
     CompressionCodec codec = new ZlibCodec();
     OutStream out = new OutStream("test", 300, codec, collect);
-    PositionCollector[] positions = new PositionCollector[1024];
+    RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
+    RowIndexEntry.Builder rowIndexEntry = OrcProto.RowIndexEntry.newBuilder();
+    WriterImpl.RowIndexPositionRecorder rowIndexPosition = new RowIndexPositionRecorder(rowIndexEntry);
     for(int i=0; i < 1024; ++i) {
-      positions[i] = new PositionCollector();
-      out.getPosition(positions[i]);
+      out.getPosition(rowIndexPosition);
+      rowIndex.addEntry(rowIndexEntry.build());
+      rowIndexEntry.clear();
       out.write(i);
     }
     out.flush();
@@ -108,15 +101,16 @@ public class TestInStream {
     collect.buffer.setByteBuffer(inBuf, 0, collect.buffer.size());
     inBuf.flip();
     InStream in = InStream.create("test", inBuf, codec, 300);
-    assertEquals("compressed stream test base: 0 offset: 0 limit: 961",
+    assertEquals("compressed stream test base: 0 limit: 961 current stride: 1 compressed offset: 0",
         in.toString());
     for(int i=0; i < 1024; ++i) {
       int x = in.read();
       assertEquals(i & 0xff, x);
     }
     assertEquals(0, in.available());
+    in.loadIndeces(rowIndex.build().getEntryList(), 0);
     for(int i=1023; i >= 0; --i) {
-      in.seek(positions[i]);
+      in.seek(i);
       assertEquals(i & 0xff, in.read());
     }
   }
@@ -127,10 +121,7 @@ public class TestInStream {
     OutputCollector collect = new OutputCollector();
     CompressionCodec codec = new ZlibCodec();
     OutStream out = new OutStream("test", 500, codec, collect);
-    PositionCollector[] positions = new PositionCollector[1024];
     for(int i=0; i < 1024; ++i) {
-      positions[i] = new PositionCollector();
-      out.getPosition(positions[i]);
       out.write(i);
     }
     out.flush();

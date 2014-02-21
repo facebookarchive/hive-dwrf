@@ -25,14 +25,15 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.hadoop.io.Text;
+
 import com.facebook.hive.orc.InStream;
 import com.facebook.hive.orc.OrcProto;
-import com.facebook.hive.orc.PositionProvider;
 import com.facebook.hive.orc.RunLengthIntegerReader;
 import com.facebook.hive.orc.StreamName;
 import com.facebook.hive.orc.WriterImpl;
 import com.facebook.hive.orc.OrcProto.RowIndex;
-import org.apache.hadoop.io.Text;
+import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 
 class LazyStringDirectTreeReader extends LazyTreeReader {
   private InStream stream;
@@ -52,12 +53,22 @@ class LazyStringDirectTreeReader extends LazyTreeReader {
     lengths = new RunLengthIntegerReader(streams.get(new
         StreamName(columnId, OrcProto.Stream.Kind.LENGTH)),
         false, WriterImpl.INT_BYTE_SIZE);
+    if (indexes[columnId] != null) {
+      loadIndeces(indexes[columnId].getEntryList(), 0);
+    }
   }
 
   @Override
-  public void seek(PositionProvider index) throws IOException {
+  public void seek(int index) throws IOException {
     stream.seek(index);
     lengths.seek(index);
+  }
+
+  @Override
+  public int loadIndeces(List<RowIndexEntry> rowIndexEntries, int startIndex) {
+    int updatedStartIndex = super.loadIndeces(rowIndexEntries, startIndex);
+    updatedStartIndex = stream.loadIndeces(rowIndexEntries, updatedStartIndex);
+    return lengths.loadIndeces(rowIndexEntries, updatedStartIndex);
   }
 
   @Override

@@ -27,12 +27,13 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import com.facebook.hive.orc.lazy.OrcLazyRowObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 
+import com.facebook.hive.orc.lazy.OrcLazyRowObjectInspector;
 import com.google.protobuf.CodedInputStream;
 
 public final class ReaderImpl implements Reader {
@@ -41,6 +42,7 @@ public final class ReaderImpl implements Reader {
 
   private final FileSystem fileSystem;
   private final Path path;
+  private final Configuration conf;
   private final CompressionKind compressionKind;
   private final CompressionCodec codec;
   private final int bufferSize;
@@ -190,16 +192,16 @@ public final class ReaderImpl implements Reader {
     return result;
   }
 
-  public ReaderImpl(FileSystem fs, Path path) throws IOException {
+  public ReaderImpl(FileSystem fs, Path path, Configuration conf) throws IOException {
     this.fileSystem = fs;
     this.path = path;
+    this.conf = conf;
     FSDataInputStream file = fs.open(path);
     long size = fs.getFileStatus(path).getLen();
     int readSize = (int) Math.min(size, DIRECTORY_SIZE_GUESS);
-    file.seek(size - readSize);
     ByteBuffer buffer = ByteBuffer.allocate(readSize);
-    file.readFully(buffer.array(), buffer.arrayOffset() + buffer.position(),
-      buffer.remaining());
+    InStream.read(file, size - readSize, buffer.array(), buffer.arrayOffset() + buffer.position(),
+        buffer.remaining());
     int psLen = buffer.get(readSize - 1);
     int psOffset = readSize - 1 - psLen;
     CodedInputStream in = CodedInputStream.newInstance(buffer.array(),
@@ -224,22 +226,9 @@ public final class ReaderImpl implements Reader {
         throw new IllegalArgumentException("Unknown compression");
     }
     codec = WriterImpl.createCodec(compressionKind);
-    int extra = Math.max(0, psLen + 1 + footerSize - readSize);
-    if (extra > 0) {
-      file.seek(size - readSize - extra);
-      ByteBuffer extraBuf = ByteBuffer.allocate(extra + readSize);
-      file.readFully(extraBuf.array(),
-        extraBuf.arrayOffset() + extraBuf.position(), extra);
-      extraBuf.position(extra);
-      extraBuf.put(buffer);
-      buffer = extraBuf;
-      buffer.position(0);
-      buffer.limit(footerSize);
-    } else {
-      buffer.position(psOffset - footerSize);
-      buffer.limit(psOffset);
-    }
-    InputStream instream = InStream.create("footer", buffer, codec, bufferSize);
+
+    InputStream instream = InStream.create("footer", file, (int) (size - 1 - psLen - footerSize), footerSize,
+        codec, bufferSize);
     footer = OrcProto.Footer.parseFrom(instream);
     inspector = new OrcLazyRowObjectInspector(0, footer.getTypesList());
     file.close();
@@ -255,7 +244,7 @@ public final class ReaderImpl implements Reader {
                            ) throws IOException {
     return new RecordReaderImpl(this.getStripes(), fileSystem,  path, offset,
       length, footer.getTypesList(), codec, bufferSize,
-      include, footer.getRowIndexStride());
+      include, footer.getRowIndexStride(), conf);
   }
 
   @Override

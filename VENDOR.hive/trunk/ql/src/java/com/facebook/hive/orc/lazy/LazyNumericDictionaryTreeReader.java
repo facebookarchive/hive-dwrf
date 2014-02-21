@@ -26,12 +26,12 @@ import java.util.Map;
 
 import com.facebook.hive.orc.InStream;
 import com.facebook.hive.orc.OrcProto;
-import com.facebook.hive.orc.PositionProvider;
 import com.facebook.hive.orc.RunLengthIntegerReader;
 import com.facebook.hive.orc.SerializationUtils;
 import com.facebook.hive.orc.StreamName;
 import com.facebook.hive.orc.WriterImpl;
 import com.facebook.hive.orc.OrcProto.RowIndex;
+import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 
 abstract class LazyNumericDictionaryTreeReader extends LazyTreeReader {
   protected long[] dictionaryValues;
@@ -63,12 +63,20 @@ abstract class LazyNumericDictionaryTreeReader extends LazyTreeReader {
     // set up the row reader
     name = new StreamName(columnId, OrcProto.Stream.Kind.DATA);
     reader = new RunLengthIntegerReader(streams.get(name), false, getNumBytes());
-
+    if (indexes[columnId] != null) {
+      loadIndeces(indexes[columnId].getEntryList(), 0);
+    }
   }
 
   @Override
-  public void seek(PositionProvider index) throws IOException {
+  public void seek(int index) throws IOException {
     reader.seek(index);
+  }
+
+  @Override
+  public int loadIndeces(List<RowIndexEntry> rowIndexEntries, int startIndex) {
+    int updatedStartIndex = super.loadIndeces(rowIndexEntries, startIndex);
+    return reader.loadIndeces(rowIndexEntries, updatedStartIndex);
   }
 
   @Override

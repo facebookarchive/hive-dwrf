@@ -24,6 +24,9 @@ import java.io.OutputStream;
 
 abstract class PositionedOutputStream extends OutputStream {
 
+  //if enabled the stream will be suppressed when writing stripe
+  protected boolean suppress;
+
   /**
    * Record the current position to the recorder.
    * @param recorder the object that receives the position
@@ -39,4 +42,18 @@ abstract class PositionedOutputStream extends OutputStream {
   abstract long getBufferSize();
 
   abstract void flush(boolean reuseBuffer) throws IOException;
+
+  /**
+   * Set suppress flag
+   */
+  public void suppress() {
+    suppress = true;
+  }
+
+  /**
+   * Unset suppress flag
+   */
+  public void unsuppress() {
+    suppress = false;
+  }
 }

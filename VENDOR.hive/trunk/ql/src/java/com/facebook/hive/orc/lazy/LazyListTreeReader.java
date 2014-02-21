@@ -27,11 +27,11 @@ import java.util.Map;
 
 import com.facebook.hive.orc.InStream;
 import com.facebook.hive.orc.OrcProto;
-import com.facebook.hive.orc.PositionProvider;
 import com.facebook.hive.orc.RunLengthIntegerReader;
 import com.facebook.hive.orc.StreamName;
 import com.facebook.hive.orc.WriterImpl;
 import com.facebook.hive.orc.OrcProto.RowIndex;
+import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 
 public class LazyListTreeReader extends LazyTreeReader {
   private final LazyTreeReader elementReader;
@@ -86,11 +86,20 @@ public class LazyListTreeReader extends LazyTreeReader {
     elementReader.startStripe(streams, encodings, indexes, rowBaseInStripe);
     lengths = new RunLengthIntegerReader(streams.get(new StreamName(columnId,
         OrcProto.Stream.Kind.LENGTH)), false, WriterImpl.INT_BYTE_SIZE);
+    if (indexes[columnId] != null) {
+      loadIndeces(indexes[columnId].getEntryList(), 0);
+    }
   }
 
   @Override
-  public void seek(PositionProvider index) throws IOException {
+  public void seek(int index) throws IOException {
     lengths.seek(index);
+  }
+
+  @Override
+  public int loadIndeces(List<RowIndexEntry> rowIndexEntries, int startIndex) {
+    int updatedStartIndex = super.loadIndeces(rowIndexEntries, startIndex);
+    return lengths.loadIndeces(rowIndexEntries, updatedStartIndex);
   }
 
   public int nextLength() throws IOException {

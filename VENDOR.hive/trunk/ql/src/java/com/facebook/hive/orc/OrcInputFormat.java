@@ -30,7 +30,6 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.io.InputFormatChecker;
-import com.facebook.hive.orc.lazy.OrcLazyRow;
 import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.io.NullWritable;
@@ -40,6 +39,8 @@ import org.apache.hadoop.mapred.InputSplit;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordReader;
 import org.apache.hadoop.mapred.Reporter;
+
+import com.facebook.hive.orc.lazy.OrcLazyRow;
 
 /**
  * A MapReduce/Hive input format for ORC files.
@@ -163,7 +164,7 @@ public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcLazyRow>
     Path path = fileSplit.getPath();
     FileSystem fs = path.getFileSystem(conf);
     reporter.setStatus(fileSplit.toString());
-    return new OrcRecordReader(OrcFile.createReader(fs, path), conf,
+    return new OrcRecordReader(OrcFile.createReader(fs, path, conf), conf,
                                fileSplit.getStart(), fileSplit.getLength());
   }
 
@@ -176,7 +177,7 @@ public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcLazyRow>
     }
     for (FileStatus file : files) {
       try {
-        OrcFile.createReader(fs, file.getPath());
+        OrcFile.createReader(fs, file.getPath(), conf);
       } catch (IOException e) {
         return false;
       }

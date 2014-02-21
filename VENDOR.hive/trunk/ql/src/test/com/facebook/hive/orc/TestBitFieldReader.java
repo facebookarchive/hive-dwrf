@@ -17,13 +17,16 @@
  */
 package com.facebook.hive.orc;
 
+import static junit.framework.Assert.assertEquals;
+
 import java.nio.ByteBuffer;
 
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.junit.Test;
 
-import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
-
-import static junit.framework.Assert.assertEquals;
+import com.facebook.hive.orc.OrcProto.RowIndex;
+import com.facebook.hive.orc.OrcProto.RowIndexEntry;
+import com.facebook.hive.orc.WriterImpl.RowIndexPositionRecorder;
 
 public class TestBitFieldReader {
 
@@ -32,11 +35,13 @@ public class TestBitFieldReader {
     final int COUNT = 16384;
     BitFieldWriter out = new BitFieldWriter(
         new OutStream("test", 500, codec, collect), 1);
-    TestInStream.PositionCollector[] positions =
-        new TestInStream.PositionCollector[COUNT];
+    RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
+    RowIndexEntry.Builder rowIndexEntry = OrcProto.RowIndexEntry.newBuilder();
+    WriterImpl.RowIndexPositionRecorder rowIndexPosition = new RowIndexPositionRecorder(rowIndexEntry);
     for(int i=0; i < COUNT; ++i) {
-      positions[i] = new TestInStream.PositionCollector();
-      out.getPosition(positions[i]);
+      out.getPosition(rowIndexPosition);
+      rowIndex.addEntry(rowIndexEntry.build());
+      rowIndexEntry.clear();
       // test runs, non-runs
       if (i < COUNT / 2) {
         out.write(i & 1);
@@ -48,8 +53,7 @@ public class TestBitFieldReader {
     ByteBuffer inBuf = ByteBuffer.allocate(collect.buffer.size());
     collect.buffer.setByteBuffer(inBuf, 0, collect.buffer.size());
     inBuf.flip();
-    BitFieldReader in = new BitFieldReader(InStream.create("test", inBuf,
-        codec, 500));
+    BitFieldReader in = new BitFieldReader(InStream.create("test", inBuf, codec, 500));
     for(int i=0; i < COUNT; ++i) {
       int x = in.next();
       if (i < COUNT / 2) {
@@ -58,8 +62,9 @@ public class TestBitFieldReader {
         assertEquals((i/3) & 1, x);
       }
     }
+    in.loadIndeces(rowIndex.build().getEntryList(), 0);
     for(int i=COUNT-1; i >= 0; --i) {
-      in.seek(positions[i]);
+      in.seek(i);
       int x = in.next();
       if (i < COUNT / 2) {
         assertEquals(i & 1, x);

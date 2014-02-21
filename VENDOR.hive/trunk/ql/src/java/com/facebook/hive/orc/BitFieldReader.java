@@ -21,11 +21,16 @@ package com.facebook.hive.orc;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.util.List;
+
+import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 
 public class BitFieldReader {
   private final RunLengthByteReader input;
   private int current;
   private int bitsLeft;
+  // The number of consumed bytes at each index stride
+  private int[] indeces;
 
   public BitFieldReader(InStream input) throws IOException {
     this.input = new RunLengthByteReader(input);
@@ -53,9 +58,9 @@ public class BitFieldReader {
     return result & 1;
   }
 
-  public void seek(PositionProvider index) throws IOException {
+  public void seek(int index) throws IOException {
     input.seek(index);
-    int consumed = (int) index.getNext();
+    int consumed = (int) indeces[index];
     if (consumed > 8) {
       throw new IllegalArgumentException("Seek past end of byte at " +
           consumed + " in " + input);
@@ -65,6 +70,24 @@ public class BitFieldReader {
     } else {
       bitsLeft = 0;
     }
+  }
+
+  /**
+   * Read in the number of bytes consumed at each index entry and store it,
+   * also call loadIndeces on child stream and return the index of the next
+   * streams indexes.
+   */
+  public int loadIndeces(List<RowIndexEntry> rowIndexEntries, int startIndex) {
+    int updatedStartIndex = input.loadIndeces(rowIndexEntries, startIndex);
+
+    int numIndeces = rowIndexEntries.size();
+    indeces = new int[numIndeces + 1];
+    int i = 0;
+    for (RowIndexEntry rowIndexEntry : rowIndexEntries) {
+      indeces[i] = (int) rowIndexEntry.getPositions(updatedStartIndex);
+      i++;
+    }
+    return updatedStartIndex + 1;
   }
 
   public void skip(long items) throws IOException {

@@ -26,9 +26,9 @@ import java.util.Map;
 
 import com.facebook.hive.orc.InStream;
 import com.facebook.hive.orc.OrcProto;
-import com.facebook.hive.orc.PositionProvider;
 import com.facebook.hive.orc.StreamName;
 import com.facebook.hive.orc.OrcProto.RowIndex;
+import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 
 public class LazyStringTreeReader extends LazyTreeReader {
 
@@ -58,8 +58,14 @@ public class LazyStringTreeReader extends LazyTreeReader {
   }
 
   @Override
-  public void seek(PositionProvider index) throws IOException {
+  public void seek(int index) throws IOException {
     reader.seek(index);
+  }
+
+  @Override
+  public int loadIndeces(List<RowIndexEntry> rowIndexEntries, int startIndex) {
+    int updatedStartIndex = super.loadIndeces(rowIndexEntries, startIndex);
+    return reader.loadIndeces(rowIndexEntries, updatedStartIndex);
   }
 
   @Override

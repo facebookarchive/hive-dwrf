@@ -17,12 +17,16 @@
  */
 package com.facebook.hive.orc;
 
-import org.junit.Test;
+import static junit.framework.Assert.assertEquals;
 
 import java.nio.ByteBuffer;
 
-import static junit.framework.Assert.assertEquals;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
+import org.junit.Test;
+
+import com.facebook.hive.orc.OrcProto.RowIndex;
+import com.facebook.hive.orc.OrcProto.RowIndexEntry;
+import com.facebook.hive.orc.WriterImpl.RowIndexPositionRecorder;
 
 public class TestRunLengthByteReader {
 
@@ -33,11 +37,13 @@ public class TestRunLengthByteReader {
     ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthByteWriter out = new RunLengthByteWriter(new OutStream("test", 100,
         null, collect));
-    TestInStream.PositionCollector[] positions =
-        new TestInStream.PositionCollector[2048];
+    RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
+    RowIndexEntry.Builder rowIndexEntry = OrcProto.RowIndexEntry.newBuilder();
+    WriterImpl.RowIndexPositionRecorder rowIndexPosition = new RowIndexPositionRecorder(rowIndexEntry);
     for(int i=0; i < 2048; ++i) {
-      positions[i] = new TestInStream.PositionCollector();
-      out.getPosition(positions[i]);
+      out.getPosition(rowIndexPosition);
+      rowIndex.addEntry(rowIndexEntry.build());
+      rowIndexEntry.clear();
       if (i < 1024) {
         out.write((byte) (i/4));
       } else {
@@ -59,8 +65,9 @@ public class TestRunLengthByteReader {
         assertEquals(i & 0xff, x);
       }
     }
+    in.loadIndeces(rowIndex.build().getEntryList(), 0);
     for(int i=2047; i >= 0; --i) {
-      in.seek(positions[i]);
+      in.seek(i);
       int x = in.next() & 0xff;
       if (i < 1024) {
         assertEquals((i/4) & 0xff, x);
@@ -78,11 +85,13 @@ public class TestRunLengthByteReader {
     ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthByteWriter out = new RunLengthByteWriter(new OutStream("test", 500,
         codec, collect));
-    TestInStream.PositionCollector[] positions =
-        new TestInStream.PositionCollector[2048];
+    RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
+    RowIndexEntry.Builder rowIndexEntry = OrcProto.RowIndexEntry.newBuilder();
+    WriterImpl.RowIndexPositionRecorder rowIndexPosition = new RowIndexPositionRecorder(rowIndexEntry);
     for(int i=0; i < 2048; ++i) {
-      positions[i] = new TestInStream.PositionCollector();
-      out.getPosition(positions[i]);
+      out.getPosition(rowIndexPosition);
+      rowIndex.addEntry(rowIndexEntry.build());
+      rowIndexEntry.clear();
       if (i < 1024) {
         out.write((byte) (i/4));
       } else {
@@ -104,8 +113,9 @@ public class TestRunLengthByteReader {
         assertEquals(i & 0xff, x);
       }
     }
+    in.loadIndeces(rowIndex.build().getEntryList(), 0);
     for(int i=2047; i >= 0; --i) {
-      in.seek(positions[i]);
+      in.seek(i);
       int x = in.next() & 0xff;
       if (i < 1024) {
         assertEquals((i/4) & 0xff, x);

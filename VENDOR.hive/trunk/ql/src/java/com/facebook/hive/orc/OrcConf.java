@@ -50,6 +50,7 @@ public class OrcConf {
 
     HIVE_ORC_DICTIONARY_ENCODING_INTERVAL("hive.exec.orc.encoding.interval", 30),
     HIVE_ORC_USE_VINTS("hive.exec.orc.use.vints", true),
+    HIVE_ORC_READ_COMPRESSION_STRIDES("hive.orc.read.compression.strides", 5),
 
     // Maximum fraction of heap that can be used by ORC file writers
     HIVE_ORC_FILE_MEMORY_POOL("hive.exec.orc.memory.pool", 0.5f), // 50%

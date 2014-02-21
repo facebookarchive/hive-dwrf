@@ -22,9 +22,12 @@ import static junit.framework.Assert.assertEquals;
 import java.nio.ByteBuffer;
 import java.util.Random;
 
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.junit.Test;
 
-import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
+import com.facebook.hive.orc.OrcProto.RowIndex;
+import com.facebook.hive.orc.OrcProto.RowIndexEntry;
+import com.facebook.hive.orc.WriterImpl.RowIndexPositionRecorder;
 
 public class TestRunLengthIntegerReader {
 
@@ -33,16 +36,18 @@ public class TestRunLengthIntegerReader {
     ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthIntegerWriter out = new RunLengthIntegerWriter(
         new OutStream("test", 1000, codec, collect), true, 4, true);
-    TestInStream.PositionCollector[] positions =
-        new TestInStream.PositionCollector[4096];
+    RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
+    RowIndexEntry.Builder rowIndexEntry = OrcProto.RowIndexEntry.newBuilder();
+    WriterImpl.RowIndexPositionRecorder rowIndexPosition = new RowIndexPositionRecorder(rowIndexEntry);
     Random random = new Random(99);
     int[] junk = new int[2048];
     for(int i=0; i < junk.length; ++i) {
       junk[i] = random.nextInt();
     }
     for(int i=0; i < 4096; ++i) {
-      positions[i] = new TestInStream.PositionCollector();
-      out.getPosition(positions[i]);
+      out.getPosition(rowIndexPosition);
+      rowIndex.addEntry(rowIndexEntry.build());
+      rowIndexEntry.clear();
       // test runs, incrementing runs, non-runs
       if (i < 1024) {
         out.write(i/4);
@@ -69,8 +74,9 @@ public class TestRunLengthIntegerReader {
         assertEquals(junk[i-2048], x);
       }
     }
+    in.loadIndeces(rowIndex.build().getEntryList(), 0);
     for(int i=2047; i >= 0; --i) {
-      in.seek(positions[i]);
+      in.seek(i);
       int x = (int) in.next();
       if (i < 1024) {
         assertEquals(i/4, x);

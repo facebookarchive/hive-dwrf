@@ -20,6 +20,8 @@
 
 package com.facebook.hive.orc;
 
+import com.facebook.hive.orc.OrcProto.Stream.Kind;
+
 /**
  * The name of a stream within a stripe.
  */
@@ -28,7 +30,7 @@ public class StreamName implements Comparable<StreamName> {
   private final OrcProto.Stream.Kind kind;
 
   public static enum Area {
-    DATA, INDEX
+    DATA, DICTIONARY, INDEX
   }
 
   public StreamName(int column, OrcProto.Stream.Kind kind) {
@@ -59,7 +61,22 @@ public class StreamName implements Comparable<StreamName> {
     if (column != streamName.column) {
       return column < streamName.column ? -1 : 1;
     }
-    return kind.compareTo(streamName.kind);
+    return compareKinds(kind, streamName.kind);
+  }
+
+  // LENGTH is greater than DATA at the moment, but when we read the data we always read length
+  // first (because you have to know how much data to read).  Since this is an enum, we're kind of
+  // stuck with it, this is just a hack to work around that.
+  private int compareKinds(Kind kind1, Kind kind2) {
+    if (kind1 == Kind.LENGTH && kind2 == Kind.DATA) {
+      return -1;
+    }
+
+    if (kind1 == Kind.DATA && kind2 == Kind.LENGTH) {
+      return 1;
+    }
+
+    return kind1.compareTo(kind2);
   }
 
   public int getColumn() {
@@ -79,6 +96,8 @@ public class StreamName implements Comparable<StreamName> {
       case ROW_INDEX:
       case DICTIONARY_COUNT:
         return Area.INDEX;
+      case DICTIONARY_DATA:
+        return Area.DICTIONARY;
       default:
         return Area.DATA;
     }

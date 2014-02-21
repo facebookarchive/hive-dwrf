@@ -27,14 +27,11 @@ import java.util.Map;
 import com.facebook.hive.orc.BitFieldReader;
 import com.facebook.hive.orc.InStream;
 import com.facebook.hive.orc.OrcProto;
-import com.facebook.hive.orc.PositionProvider;
-import com.facebook.hive.orc.PositionProviderImpl;
 import com.facebook.hive.orc.StreamName;
-import com.facebook.hive.orc.WriterImpl;
 import com.facebook.hive.orc.OrcProto.RowIndex;
+import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 
 public abstract class LazyTreeReader {
-  protected RowIndex index;
   protected long rowIndexStride;
   protected long previousRow;
   protected final int columnId;
@@ -44,11 +41,9 @@ public abstract class LazyTreeReader {
   protected boolean valuePresent = true;
   protected long previousPresentRow;
   private long numNonNulls;
-  protected PositionProviderImpl previousPositionProvider = null;
-  // Is the present stream (if it exists) compressed or not
-  private boolean presentCompressed;
+  protected int previousRowIndexEntry = -1;
 
-  protected abstract void seek(PositionProvider index) throws IOException;
+  protected abstract void seek(int index) throws IOException;
 
   /**
    * in the next rows values, returns the number of values which are not null
@@ -241,22 +236,15 @@ public abstract class LazyTreeReader {
   protected void seek(int rowIndexEntry, boolean backwards) throws IOException {
     if (backwards || rowIndexEntry != computeRowIndexEntry(previousRow)) {
       // initialize the previousPositionProvider
-      previousPositionProvider = new PositionProviderImpl(index.getEntry(rowIndexEntry));
+      previousRowIndexEntry = rowIndexEntry;
       // if the present stream exists and we are seeking backwards or to a new row Index entry
       // the present stream needs to seek
       if (present != null && (backwards || rowIndexEntry != computeRowIndexEntry(previousPresentRow))) {
-        present.seek(previousPositionProvider);
+        present.seek(rowIndexEntry);
         // Update previousPresentRow because the state is now as if that were the case
         previousPresentRow = rowIndexEntry * rowIndexStride - 1;
-      } else if (present != null) {
-        // Pretend like the present stream adjusted the index
-        int numSkips = presentCompressed ? WriterImpl.COMPRESSED_PRESENT_STREAM_INDEX_ENTRIES :
-          WriterImpl.UNCOMPRESSED_PRESENT_STREAM_INDEX_ENTRIES;
-        for (int i = 0; i < numSkips; i++) {
-          previousPositionProvider.getNext();
-        }
       }
-      seek(previousPositionProvider);
+      seek(rowIndexEntry);
       // Update previousRow because the state is now as if that were the case
       previousRow = rowIndexEntry * rowIndexStride - 1;
     }
@@ -289,7 +277,7 @@ public abstract class LazyTreeReader {
         if ((previousRow != rowIndexEntry * rowIndexStride  - 1 &&
             rowIndexEntry != computeRowIndexEntry(previousRow)) || currentRow < previousRow) {
           if (present == null) {
-            previousPositionProvider = new PositionProviderImpl(index.getEntry(rowIndexEntry));
+            previousRowIndexEntry = rowIndexEntry;
             numNonNulls = countNonNulls(rowInStripe - (rowIndexEntry * rowIndexStride));
           }
           seek(rowIndexEntry, currentRow <= previousRow);
@@ -312,9 +300,20 @@ public abstract class LazyTreeReader {
     return seeked;
   }
 
+  /**
+   * Read any indeces that will be needed and return a startIndex after the values that have been
+   * read.
+   */
+  public int loadIndeces(List<RowIndexEntry> rowIndexEntries, int startIndex) {
+    if (present != null) {
+      return present.loadIndeces(rowIndexEntries, startIndex);
+    } else {
+      return startIndex;
+    }
+  }
+
   public void startStripe(Map<StreamName, InStream> streams, List<OrcProto.ColumnEncoding> encodings,
       RowIndex[] indexes, long rowBaseInStripe) throws IOException {
-    this.index = indexes[columnId];
     this.previousRow = rowBaseInStripe;
     this.previousPresentRow = rowBaseInStripe;
     this.rowBaseInStripe = rowBaseInStripe;
@@ -327,7 +326,6 @@ public abstract class LazyTreeReader {
       valuePresent = true;
     } else {
       present = new BitFieldReader(in);
-      presentCompressed = in.isCompressed();
     }
   }
 }
