@@ -104,6 +104,8 @@ class MemoryManager {
     totalMemoryPool = Math.round(ManagementFactory.getMemoryMXBean().
         getHeapMemoryUsage().getMax() * maxLoad);
     minAllocation = OrcConf.getLongVar(conf, OrcConf.ConfVars.HIVE_ORC_FILE_MIN_MEMORY_ALLOCATION);
+    lowMemoryMode = OrcConf.getBoolVar(conf,
+        OrcConf.ConfVars.HIVE_ORC_FILE_ENABLE_LOW_MEMORY_MODE);
   }
 
   /**

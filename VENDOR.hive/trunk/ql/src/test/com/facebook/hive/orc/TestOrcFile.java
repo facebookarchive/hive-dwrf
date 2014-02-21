@@ -846,11 +846,9 @@ public class TestOrcFile {
           (ReallyBigRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
     ReaderWriterProfiler.setProfilerOptions(conf);
-    // If low memory mode is on, reduce the stripe size, this is the amount of memory the writer
-    // requests and if the amount of memory needed to initialize the writer exceeds this, it will
-    // enter low memory mode
+    OrcConf.setBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_FILE_ENABLE_LOW_MEMORY_MODE, lowMemoryMode);
     Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
-        lowMemoryMode ? 200000 : 4000000, CompressionKind.ZLIB, 65536, 1000,
+        4000000, CompressionKind.ZLIB, 65536, 1000,
         new MemoryManager(conf));
     Random rand = new Random(42);
     RandomRowInputs inputs = new RandomRowInputs(count);
