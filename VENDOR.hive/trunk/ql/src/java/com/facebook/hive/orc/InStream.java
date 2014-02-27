@@ -382,15 +382,18 @@ public abstract class InStream extends InputStream {
       int uncompBytes = uncompressedIndeces[index];
       int newCompressedOffset = (int) (compressedIndeces[index] - (chunkStarts[compressedStrides[index]] - base));
       if (uncompBytes != 0 || uncompressed != null) {
+
+        boolean dataRead = false;
         // If uncompressed has been initialized and the offset we're seeking to is the same as the offset
         // we're reading, no need to re-decompress
         if (currentChunk - 1 != compressedStrides[index]) {
           currentChunk = compressedStrides[index];
           // currentStride has been updated, so force the data to be reread from disk
           readData();
+          dataRead = true;
         }
 
-        if (previousOffset != newCompressedOffset) {
+        if (dataRead || previousOffset != newCompressedOffset) {
           compressedOffset = newCompressedOffset;
           readHeader();
         }

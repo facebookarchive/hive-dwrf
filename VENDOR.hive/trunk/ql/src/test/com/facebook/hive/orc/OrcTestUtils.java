@@ -92,6 +92,14 @@ public class OrcTestUtils {
     }
   }
 
+  public static class DoubleRow {
+    Double double1;
+
+    public DoubleRow(double double1) {
+      this.double1 = double1;
+    }
+  }
+
   public static class BigRow {
     Boolean boolean1;
     Byte byte1;

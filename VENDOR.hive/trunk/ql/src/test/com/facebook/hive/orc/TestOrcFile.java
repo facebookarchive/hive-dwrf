@@ -72,6 +72,7 @@ import org.junit.Test;
 import org.junit.rules.TestName;
 
 import com.facebook.hive.orc.OrcTestUtils.BigRow;
+import com.facebook.hive.orc.OrcTestUtils.DoubleRow;
 import com.facebook.hive.orc.OrcTestUtils.InnerStruct;
 import com.facebook.hive.orc.OrcTestUtils.MiddleStruct;
 import com.facebook.hive.orc.OrcTestUtils.ReallyBigRow;
@@ -174,6 +175,87 @@ public class TestOrcFile {
     assertEquals(0, row.getFieldValue(11).hashCode());
   }
 
+
+
+  @Test
+  public void testSeekAcrossChunks() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (DoubleRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+
+    // Create a table consisting of a single column of doubles
+    // Add enough values to it to get 3 index strides (doubles are 8 bytes) more is ok
+    // Note that the compression buffer size and index stride length are very important
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector, 2097152,
+        CompressionKind.ZLIB, 262144, 10000);
+    Random rand = new Random(42);
+    double[] values = new double[131702];
+
+    // The first compression block is all 0's
+    for (int i = 0; i < 32768; i++) {
+      values[i] = 0;
+      writer.addRow(new DoubleRow(values[i]));
+    }
+
+    // The second compression block is random doubles
+    for (int i = 0; i < 32768; i++) {
+      values[i + 32768] = rand.nextDouble();
+      writer.addRow(new DoubleRow(values[i + 32768]));
+    }
+
+    // The third compression block is all 0's
+    // (important so it compresses to the same size as the first)
+    for (int i = 0; i < 32768; i++) {
+      values[i + 32768 + 32768] = 0;
+      writer.addRow(new DoubleRow(values[i + 32768 + 32768]));
+    }
+
+    // The fourth compression block is random
+    for (int i = 0; i < 32768; i++) {
+      values[i + 32768 + 32768 + 32768] = rand.nextDouble();
+      writer.addRow(new DoubleRow(values[i + 32768 + 32768 + 32768]));
+    }
+
+    writer.close();
+    OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_READ_COMPRESSION_STRIDES, 2);
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+
+    StructObjectInspector readerInspector = (StructObjectInspector) reader.getObjectInspector();
+    List<? extends StructField> fields = readerInspector.getAllStructFieldRefs();
+    DoubleObjectInspector columnInspector =
+      (DoubleObjectInspector) fields.get(0).getFieldObjectInspector();
+
+    RecordReader rows = reader.rows(null);
+    Object row = null;
+
+    // Skip enough values to get to the 2nd index stride in the first chunk
+    for (int i = 0; i < 40001; i++) {
+      row = rows.next(row);
+    }
+
+    // This will set previousOffset to be the size of the first compression block and the
+    // compressionOffset to some other value (doesn't matter what point is it's different from the
+    // start of the compression block)
+    assertEquals(values[40000], columnInspector.get(readerInspector.getStructFieldData(row,
+        fields.get(0))));
+
+    // Skip enough values to get to the 2nd index stride of the second chunk
+    for (int i = 0; i < 80000; i++) {
+      rows.next(row);
+    }
+
+    // When seek is called, previousOffset will equal newCompressedOffset since the former is the
+    // the length of the first compression block and the latter is the length of the third
+    // compression block (remember the chunks contain 2 index strides), so if we only check this
+    // (or for some other reason) we will not adjust compressedIndex, we will read the wrong data
+    assertEquals(values[120000], columnInspector.get(readerInspector.getStructFieldData(row, fields.get(0))));
+
+    rows.close();
+  }
+
   @Test
   public void test1() throws Exception {
     ObjectInspector inspector;
@@ -195,7 +277,6 @@ public class TestOrcFile {
         list(inner(100000000, "cat"), inner(-100000, "in"), inner(1234, "hat")),
         map(inner(5,"chani"), inner(1,"mauddib"))));
     writer.close();
-    ReaderWriterProfiler.setProfilerOptions(conf);
     Reader reader = OrcFile.createReader(fs, testFilePath, conf);
 
     // check the stats
