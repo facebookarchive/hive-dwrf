@@ -24,6 +24,8 @@ import java.io.IOException;
 
 import com.facebook.hive.orc.WriterImpl;
 import org.apache.hadoop.io.IntWritable;
+import com.facebook.hive.orc.lazy.OrcLazyObject.ValueNotPresentException;
+
 
 class LazyIntDictionaryTreeReader extends LazyNumericDictionaryTreeReader {
   LazyIntDictionaryTreeReader (int columnId, long rowIndexStride) {
@@ -35,18 +37,54 @@ class LazyIntDictionaryTreeReader extends LazyNumericDictionaryTreeReader {
     return WriterImpl.INT_BYTE_SIZE;
   }
 
+  private int latestIndex; //< Latest key that was read from reader.
+
+  /**
+   * Read an int value from the stream.
+   */
+  private int readInt() throws IOException {
+    latestIndex = (int) reader.next();
+    return  (int) dictionaryValues[latestIndex];
+  }
+
+  private int latestValue() {
+    return (int)dictionaryValues[latestIndex];
+  }
+
+  IntWritable createWritable(Object previous, int v) throws IOException {
+    IntWritable result = null;
+    if (previous == null) {
+      result = new IntWritable();
+    } else {
+      result = (IntWritable) previous;
+    }
+    result.set(v);
+    return result;
+  }
+
+  @Override
+  public Object createWritableFromLatest(Object previous) throws IOException {
+    return createWritable(previous, latestValue());
+  }
+
+  /**
+   * Give the next int as a primitive
+   */
+  @Override
+  public int nextInt(boolean readStream) throws IOException {
+    if (!readStream)
+      return latestValue();
+    if (!valuePresent)
+      throw new ValueNotPresentException("Cannot materialize int.");
+    return readInt();
+  }
+
+
   @Override
   public Object next(Object previous) throws IOException {
     IntWritable result = null;
     if (valuePresent) {
-      if (previous == null) {
-        result = new IntWritable();
-      } else {
-        result = (IntWritable) previous;
-      }
-      int key = (int) reader.next();
-      int resultVal = (int) dictionaryValues[key];
-      result.set((int) resultVal);
+      result = createWritable(previous, readInt());
     }
     return result;
   }

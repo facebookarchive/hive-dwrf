@@ -32,10 +32,12 @@ import com.facebook.hive.orc.SerializationUtils;
 import com.facebook.hive.orc.StreamName;
 import com.facebook.hive.orc.OrcProto.RowIndex;
 import com.facebook.hive.orc.OrcProto.RowIndexEntry;
+import com.facebook.hive.orc.lazy.OrcLazyObject.ValueNotPresentException;
 
 public class LazyFloatTreeReader extends LazyTreeReader {
 
   private InStream stream;
+  private float latestRead = 0; //< Last float that was read from stream.
 
   public LazyFloatTreeReader(int columnId, long rowIndexStride) {
     super(columnId, rowIndexStride);
@@ -64,16 +66,48 @@ public class LazyFloatTreeReader extends LazyTreeReader {
     return stream.loadIndeces(rowIndexEntries, updatedStartIndex);
   }
 
+  /**
+   * Read a float value from the stream.
+   */
+  private float readFloat() throws IOException {
+    latestRead = SerializationUtils.readFloat(stream);
+    return latestRead;
+  }
+
+
+  FloatWritable createWritable(Object previous, float value) throws IOException {
+    FloatWritable result = null;
+    if (previous == null) {
+      result = new FloatWritable();
+    } else {
+      result = (FloatWritable) previous;
+    }
+    result.set(value);
+    return result;
+  }
+
+  @Override
+  public Object createWritableFromLatest(Object previous) throws IOException {
+    return createWritable(previous, latestRead);
+  }
+
+  /**
+   * Give the next float as a primitive.
+   */
+  @Override
+  public float nextFloat(boolean readStream) throws IOException, ValueNotPresentException {
+    if (!readStream)
+      return latestRead;
+    if (!valuePresent)
+      throw new ValueNotPresentException("Cannot materialize float..");
+    return readFloat();
+  }
+
   @Override
   public Object next(Object previous) throws IOException {
     FloatWritable result = null;
     if (valuePresent) {
-      if (previous == null) {
-        result = new FloatWritable();
-      } else {
-        result = (FloatWritable) previous;
-      }
-      result.set(SerializationUtils.readFloat(stream));
+      result = createWritable(previous, readFloat());
     }
     return result;
   }

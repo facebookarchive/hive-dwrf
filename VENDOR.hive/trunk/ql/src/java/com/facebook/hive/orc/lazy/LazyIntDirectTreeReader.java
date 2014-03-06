@@ -25,23 +25,60 @@ import java.io.IOException;
 import com.facebook.hive.orc.SerializationUtils;
 import com.facebook.hive.orc.WriterImpl;
 import org.apache.hadoop.io.IntWritable;
+import com.facebook.hive.orc.lazy.OrcLazyObject.ValueNotPresentException;
+
 
 class LazyIntDirectTreeReader extends LazyNumericDirectTreeReader {
   LazyIntDirectTreeReader(int columnId, long rowIndexStride) {
     super(columnId, rowIndexStride);
   }
 
+  private int latestRead; //< Latest integer read from the stream.
+
+  /**
+   * Read an int value from the stream.
+   */
+  private int readInt() throws IOException {
+    latestRead = (int)SerializationUtils.readIntegerType(input, WriterImpl.INT_BYTE_SIZE,
+                                                         true, input.useVInts());
+    return latestRead;
+  }
+
+
+  IntWritable createWritable(Object previous, int v) throws IOException {
+    IntWritable result = null;
+    if (previous == null) {
+      result = new IntWritable();
+    } else {
+      result = (IntWritable) previous;
+    }
+    result.set(v);
+    return result;
+  }
+
+  @Override
+  public Object createWritableFromLatest(Object previous) throws IOException {
+    return createWritable(previous, latestRead);
+  }
+
+  /**
+   * Give the next int as a primitive
+   */
+  @Override
+  public int nextInt(boolean readStream) throws IOException {
+    if (!readStream)
+      return latestRead;
+    if (!valuePresent)
+      throw new ValueNotPresentException("Cannot materialize int.");
+    return readInt();
+  }
+
+
   @Override
   public Object next(Object previous) throws IOException {
     IntWritable result = null;
     if (valuePresent) {
-      if (previous == null) {
-        result = new IntWritable();
-      } else {
-        result = (IntWritable) previous;
-      }
-      result.set((int)SerializationUtils.readIntegerType(input, WriterImpl.INT_BYTE_SIZE,
-            true, input.useVInts()));
+      result = createWritable(previous, readInt());
     }
     return result;
   }

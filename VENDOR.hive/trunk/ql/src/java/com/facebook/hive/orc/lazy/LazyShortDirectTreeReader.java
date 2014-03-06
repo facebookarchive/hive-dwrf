@@ -25,23 +25,59 @@ import java.io.IOException;
 import com.facebook.hive.orc.SerializationUtils;
 import com.facebook.hive.orc.WriterImpl;
 import org.apache.hadoop.hive.serde2.io.ShortWritable;
+import com.facebook.hive.orc.lazy.OrcLazyObject.ValueNotPresentException;
 
 class LazyShortDirectTreeReader extends LazyNumericDirectTreeReader {
   LazyShortDirectTreeReader(int columnId, long rowIndexStride) {
     super(columnId, rowIndexStride);
   }
 
+  private short latestRead = 0; //< Latest integer read from the stream.
+
+  /**
+   * Read a short value from the stream.
+   */
+  private short readShort() throws IOException {
+    latestRead =
+      (short)SerializationUtils.readIntegerType(input, WriterImpl.SHORT_BYTE_SIZE,
+                                                true, input.useVInts());
+    return latestRead;
+  }
+
+
+  ShortWritable createWritable(Object previous, short v) throws IOException {
+    ShortWritable result = null;
+    if (previous == null) {
+      result = new ShortWritable();
+    } else {
+      result = (ShortWritable) previous;
+    }
+    result.set(v);
+    return result;
+  }
+
+  @Override
+  public Object createWritableFromLatest(Object previous) throws IOException {
+    return createWritable(previous, latestRead);
+  }
+
+  /**
+   * Give the next short as a primitive
+   */
+  @Override
+  public short nextShort(boolean readStream) throws IOException {
+    if (!readStream)
+      return latestRead;
+    if (!valuePresent)
+      throw new ValueNotPresentException("Cannot materialize short.");
+    return readShort();
+  }
+
   @Override
   public Object next(Object previous) throws IOException {
     ShortWritable result = null;
     if (valuePresent) {
-      if (previous == null) {
-        result = new ShortWritable();
-      } else {
-        result = (ShortWritable) previous;
-      }
-      result.set((short)SerializationUtils.readIntegerType(input, WriterImpl.SHORT_BYTE_SIZE,
-            true, input.useVInts()));
+      result = createWritable(previous, readShort());
     }
     return result;
   }

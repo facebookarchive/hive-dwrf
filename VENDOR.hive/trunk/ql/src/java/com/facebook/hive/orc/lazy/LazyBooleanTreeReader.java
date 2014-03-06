@@ -32,10 +32,12 @@ import com.facebook.hive.orc.OrcProto;
 import com.facebook.hive.orc.StreamName;
 import com.facebook.hive.orc.OrcProto.RowIndex;
 import com.facebook.hive.orc.OrcProto.RowIndexEntry;
+import com.facebook.hive.orc.lazy.OrcLazyObject.ValueNotPresentException;
 
 public class LazyBooleanTreeReader extends LazyTreeReader {
 
   private BitFieldReader reader = null;
+  private boolean latestRead = true; //< Latest value from stream.
 
   public LazyBooleanTreeReader(int columnId, long rowIndexStride) {
     super(columnId, rowIndexStride);
@@ -68,16 +70,43 @@ public class LazyBooleanTreeReader extends LazyTreeReader {
     reader.skip(numNonNullValues);
   }
 
+  boolean readBoolean() throws IOException {
+    latestRead = (reader.next() == 1);
+    return latestRead;
+  }
+
+
+  BooleanWritable createWritable(Object previous, boolean v) throws IOException {
+    BooleanWritable result = null;
+    if (previous == null) {
+      result = new BooleanWritable();
+    } else {
+      result = (BooleanWritable) previous;
+    }
+    result.set(v);
+    return result;
+  }
+
+  @Override
+  public Object createWritableFromLatest(Object previous) throws IOException {
+    return createWritable(previous, latestRead);
+  }
+
+  @Override
+  public boolean nextBoolean(boolean readStream) throws IOException {
+    if (!readStream)
+      return latestRead;
+    if (!valuePresent)
+      throw new ValueNotPresentException("Cannot materialize boolean.");
+    return readBoolean();
+
+  }
+
   @Override
   public Object next(Object previous) throws IOException {
     BooleanWritable result = null;
     if (valuePresent) {
-      if (previous == null) {
-        result = new BooleanWritable();
-      } else {
-        result = (BooleanWritable) previous;
-      }
-      result.set(reader.next() == 1);
+      result = createWritable(previous, readBoolean());
     }
     return result;
   }

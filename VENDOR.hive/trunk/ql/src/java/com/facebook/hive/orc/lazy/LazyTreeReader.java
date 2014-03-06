@@ -225,6 +225,68 @@ public abstract class LazyTreeReader {
   }
 
   /**
+   * When a client asks for a writable object after materializing a
+   * primitive, create a writable from previous value read from stream.
+   */
+  public Object createWritableFromLatest(Object previous) throws IOException {
+    throw new UnsupportedOperationException("createWritableFromLatest is unsupported");
+  }
+
+  public double getDouble(long currentRow) throws IOException {
+    seekToRow(currentRow);
+    return nextDouble(true);
+  }
+
+  public float getFloat(long currentRow) throws IOException {
+    seekToRow(currentRow);
+    return nextFloat(true);
+  }
+
+  public boolean getBoolean(long currentRow) throws IOException {
+    seekToRow(currentRow);
+    return nextBoolean(true);
+  }
+
+  public long getLong(long currentRow) throws IOException {
+    seekToRow(currentRow);
+    return nextLong(true);
+  }
+
+  public int getInt(long currentRow) throws IOException {
+    seekToRow(currentRow);
+    return nextInt(true);
+  }
+
+  public short getShort(long currentRow) throws IOException {
+    seekToRow(currentRow);
+    return nextShort(true);
+  }
+
+  public double nextDouble(boolean readStream) throws IOException {
+    throw new IOException("Cannot materialize double: not the right type.");
+  }
+
+  public float nextFloat(boolean readStream) throws IOException {
+    throw new IOException("Cannot materialize float: not the right type.");
+  }
+
+  public boolean nextBoolean(boolean readStream) throws IOException {
+    throw new IOException("Cannot materialize boolean: not the right type.");
+  }
+
+  public long nextLong(boolean readStream) throws IOException {
+    throw new IOException("Cannot materialize long: not the right type.");
+  }
+
+  public int nextInt(boolean readStream) throws IOException {
+    throw new IOException("Cannot materialize int: not the right type.");
+  }
+
+  public short nextShort(boolean readStream) throws IOException {
+    throw new IOException("Cannot materialize short: not the right type.");
+  }
+
+  /**
    * Adjust all streams to the beginning of the row index entry specified, backwards means that
    * a previous value is being read and forces the index entry to be restarted, otherwise, has
    * no effect if we're already in the current index entry

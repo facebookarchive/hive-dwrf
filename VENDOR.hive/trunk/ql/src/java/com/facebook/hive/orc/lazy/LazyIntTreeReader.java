@@ -94,6 +94,38 @@ public class LazyIntTreeReader extends LazyTreeReader {
   }
 
   @Override
+  public boolean getBoolean(long currentRow) throws IOException {
+    return reader.getBoolean(currentRow);
+  }
+
+  @Override
+  public long getLong(long currentRow) throws IOException {
+    return reader.getLong(currentRow);
+  }
+
+  @Override
+  public int getInt(long currentRow) throws IOException {
+    return reader.getInt(currentRow);
+  }
+
+  @Override
+  public short getShort(long currentRow) throws IOException {
+    return reader.getShort(currentRow);
+  }
+
+  @Override
+  public double getDouble(long currentRow) throws IOException {
+    return reader.getDouble(currentRow);
+  }
+
+
+  @Override
+  public float getFloat(long currentRow) throws IOException {
+    return reader.getFloat(currentRow);
+  }
+
+
+  @Override
   public Object next(Object previous) throws IOException {
     return reader.next(previous);
   }
@@ -107,4 +139,41 @@ public class LazyIntTreeReader extends LazyTreeReader {
   public void skipRows(long numNonNullValues) throws IOException {
     reader.skipRows(numNonNullValues);
   }
+
+  @Override
+  public Object createWritableFromLatest(Object previous) throws IOException {
+    return reader.createWritableFromLatest(previous);
+  }
+
+
+  @Override
+  public boolean nextBoolean(boolean readStream) throws IOException {
+    return reader.nextBoolean(readStream);
+  }
+
+  @Override
+  public short nextShort(boolean readStream) throws IOException {
+    return reader.nextShort(readStream);
+  }
+
+  @Override
+  public int nextInt(boolean readStream) throws IOException {
+    return reader.nextInt(readStream);
+  }
+
+  @Override
+  public long nextLong(boolean readStream) throws IOException {
+    return reader.nextLong(readStream);
+  }
+
+  @Override
+  public float nextFloat(boolean readStream) throws IOException {
+    return reader.nextFloat(readStream);
+  }
+
+  @Override
+  public double nextDouble(boolean readStream) throws IOException {
+    return reader.nextDouble(readStream);
+  }
+
 }

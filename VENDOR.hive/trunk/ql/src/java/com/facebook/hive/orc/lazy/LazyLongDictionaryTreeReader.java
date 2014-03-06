@@ -24,8 +24,11 @@ import java.io.IOException;
 
 import com.facebook.hive.orc.WriterImpl;
 import org.apache.hadoop.io.LongWritable;
+import com.facebook.hive.orc.lazy.OrcLazyObject.ValueNotPresentException;
 
 class LazyLongDictionaryTreeReader extends LazyNumericDictionaryTreeReader {
+
+  private int latestIndex = 0; //< Latest index read from reader
 
   LazyLongDictionaryTreeReader (int columnId, long rowIndexStride) {
     super(columnId, rowIndexStride);
@@ -36,18 +39,45 @@ class LazyLongDictionaryTreeReader extends LazyNumericDictionaryTreeReader {
     return WriterImpl.LONG_BYTE_SIZE;
   }
 
+  private long readLong() throws IOException {
+    latestIndex = (int) reader.next();
+    return (long) dictionaryValues[latestIndex];
+  }
+
+  private long latestValue() {
+    return (long) dictionaryValues[latestIndex];
+  }
+
+  private LongWritable createWritable(Object previous, long v) throws IOException {
+    LongWritable result = null;
+    if (previous == null) {
+      result = new LongWritable();
+    } else {
+      result = (LongWritable) previous;
+    }
+    result.set(v);
+    return result;
+  }
+
+  @Override
+  public Object createWritableFromLatest(Object previous) throws IOException {
+    return createWritable(previous, latestValue());
+  }
+
+  @Override
+  public long nextLong(boolean readStream) throws IOException {
+    if (!readStream)
+      return latestValue();
+    if (!valuePresent)
+      throw new ValueNotPresentException("Cannot materialize long.");
+    return readLong();
+  }
+
   @Override
   public Object next(Object previous) throws IOException {
     LongWritable result = null;
     if (valuePresent) {
-      if (previous == null) {
-        result = new LongWritable();
-      } else {
-        result = (LongWritable) previous;
-      }
-      int key = (int) reader.next();
-      long resultVal = (long) dictionaryValues[key];
-      result.set((long) resultVal);
+      result = createWritable(previous, readLong());
     }
     return result;
   }

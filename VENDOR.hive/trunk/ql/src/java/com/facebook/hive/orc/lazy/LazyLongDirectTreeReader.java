@@ -25,23 +25,52 @@ import java.io.IOException;
 import com.facebook.hive.orc.SerializationUtils;
 import com.facebook.hive.orc.WriterImpl;
 import org.apache.hadoop.io.LongWritable;
+import com.facebook.hive.orc.lazy.OrcLazyObject.ValueNotPresentException;
+
 
 class LazyLongDirectTreeReader extends LazyNumericDirectTreeReader {
+  private long latestRead = 0;
+
   LazyLongDirectTreeReader(int columnId, long rowIndexStride) {
     super(columnId, rowIndexStride);
+  }
+
+  private long readLong() throws IOException {
+    latestRead = (long)SerializationUtils.readIntegerType(input, WriterImpl.LONG_BYTE_SIZE,
+                                                          true, input.useVInts());
+    return latestRead;
+  }
+
+  private LongWritable createWritable(Object previous, long v) throws IOException {
+    LongWritable result = null;
+    if (previous == null) {
+      result = new LongWritable();
+    } else {
+      result = (LongWritable) previous;
+    }
+    result.set(v);
+    return result;
+  }
+
+  @Override
+  public Object createWritableFromLatest(Object previous) throws IOException {
+    return createWritable(previous, latestRead);
+  }
+
+  @Override
+  public long nextLong(boolean readStream) throws IOException {
+    if (!readStream)
+      return latestRead;
+    if (!valuePresent)
+      throw new ValueNotPresentException("Cannot materialize long.");
+    return readLong();
   }
 
   @Override
   public Object next(Object previous) throws IOException {
     LongWritable result = null;
     if (valuePresent) {
-      if (previous == null) {
-        result = new LongWritable();
-      } else {
-        result = (LongWritable) previous;
-      }
-      result.set((long)SerializationUtils.readIntegerType(input, WriterImpl.LONG_BYTE_SIZE,
-            true, input.useVInts()));
+      result = createWritable(previous, readLong());
     }
     return result;
   }

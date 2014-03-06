@@ -32,10 +32,12 @@ import com.facebook.hive.orc.SerializationUtils;
 import com.facebook.hive.orc.StreamName;
 import com.facebook.hive.orc.OrcProto.RowIndex;
 import com.facebook.hive.orc.OrcProto.RowIndexEntry;
+import com.facebook.hive.orc.lazy.OrcLazyObject.ValueNotPresentException;
 
 public class LazyDoubleTreeReader extends LazyTreeReader {
 
   private InStream stream;
+  private double latestRead = 0.0; //< Last value that was read from the stream.
 
   public LazyDoubleTreeReader(int columnId, long rowIndexStride) {
     super(columnId, rowIndexStride);
@@ -65,16 +67,51 @@ public class LazyDoubleTreeReader extends LazyTreeReader {
     return stream.loadIndeces(rowIndexEntries, updatedStartIndex);
   }
 
+  /**
+   * Read a double value from the stream.
+   */
+  private double readDouble() throws IOException {
+    latestRead = SerializationUtils.readDouble(stream);;
+    return latestRead;
+  }
+
+
+  DoubleWritable createWritable(Object previous, double v) throws IOException {
+    DoubleWritable result = null;
+    if (previous == null) {
+      result = new DoubleWritable();
+    } else {
+      result = (DoubleWritable) previous;
+    }
+    result.set(v);
+    return result;
+  }
+
+  @Override
+  public Object createWritableFromLatest(Object previous) throws IOException {
+    return createWritable(previous, latestRead);
+  }
+
+  /**
+   * Give the next double as a primitive
+   */
+  @Override
+  public double nextDouble(boolean readStream) throws IOException {
+    if (!readStream)
+      return latestRead;
+    if (!valuePresent)
+      throw new ValueNotPresentException("Cannot materialize double.");
+    return readDouble();
+  }
+
+  /**
+   * Give the next double as a Writable object.
+   */
   @Override
   public Object next(Object previous) throws IOException {
     DoubleWritable result = null;
     if (valuePresent) {
-      if (previous == null) {
-        result = new DoubleWritable();
-      } else {
-        result = (DoubleWritable) previous;
-      }
-      result.set(SerializationUtils.readDouble(stream));
+      result = createWritable(previous, readDouble());
     }
     return result;
   }

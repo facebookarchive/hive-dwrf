@@ -24,6 +24,7 @@ import java.io.IOException;
 
 import com.facebook.hive.orc.WriterImpl;
 import org.apache.hadoop.hive.serde2.io.ShortWritable;
+import com.facebook.hive.orc.lazy.OrcLazyObject.ValueNotPresentException;
 
 class LazyShortDictionaryTreeReader extends LazyNumericDictionaryTreeReader {
   LazyShortDictionaryTreeReader (int columnId, long rowIndexStride) {
@@ -35,19 +36,55 @@ class LazyShortDictionaryTreeReader extends LazyNumericDictionaryTreeReader {
     return WriterImpl.SHORT_BYTE_SIZE;
   }
 
+  private int latestIndex; //< Latest key that was read from reader.
+
+  /**
+   * Read an short value from the stream.
+   */
+  private short readShort() throws IOException {
+    latestIndex = (int) reader.next();
+    return (short) dictionaryValues[latestIndex];
+  }
+
+  private short latestValue() {
+    return (short) dictionaryValues[latestIndex];
+  }
+
+  ShortWritable createWritable(Object previous, short v) throws IOException {
+    ShortWritable result = null;
+    if (previous == null) {
+      result = new ShortWritable();
+    } else {
+      result = (ShortWritable) previous;
+    }
+    result.set(v);
+    return result;
+  }
+
+  @Override
+  public Object createWritableFromLatest(Object previous) throws IOException {
+    return createWritable(previous, latestValue());
+  }
+
+  /**
+   * Give the next short as a primitive
+   */
+  @Override
+  public short nextShort(boolean readStream) throws IOException {
+    if (!readStream)
+      return latestValue();
+    if (!valuePresent)
+      throw new ValueNotPresentException("Cannot materialize short.");
+    return readShort();
+  }
+
   @Override
   public Object next(Object previous) throws IOException {
     ShortWritable result = null;
     if (valuePresent) {
-      if (previous == null) {
-        result = new ShortWritable();
-      } else {
-        result = (ShortWritable) previous;
-      }
-      int key = (int) reader.next();
-      short resultVal = (short) dictionaryValues[key];
-      result.set((short) resultVal);
+      result = createWritable(previous, readShort());
     }
     return result;
   }
+
 }
