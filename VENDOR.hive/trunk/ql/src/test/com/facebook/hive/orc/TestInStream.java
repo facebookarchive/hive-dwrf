@@ -22,8 +22,15 @@ import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.fail;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
+import java.util.List;
 
+import junit.framework.Assert;
+
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.PositionedReadable;
+import org.apache.hadoop.fs.Seekable;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.junit.Test;
 
@@ -151,5 +158,93 @@ public class TestInStream {
     } catch (IllegalStateException ise) {
       // EXPECTED
     }
+  }
+
+  /**
+   *
+   * TestFSDataInputStream.
+   *
+   * Implementation of FSDataInputStream for testing, seek asserts that it is being called with the
+   * value passed to the constructor.
+   */
+  private static class TestFSDataInputStream extends FSDataInputStream {
+
+    private final long expectedSeek;
+
+    public TestFSDataInputStream(InputStream stream, long expectedSeek) throws IOException {
+      super(stream);
+      this.expectedSeek = expectedSeek;
+    }
+
+    @Override
+    public synchronized void seek(long desired) throws IOException {
+      Assert.assertEquals("Seeking by an unexpected amount", expectedSeek, desired);
+    }
+  }
+
+  /**
+   *
+   * TestInputStream.
+   *
+   * Implementation of InputStream, Seekable, PositionedReadable suitable for passing into a test
+   * implementation of FSDataInputStream.  All methods are overridden using the default
+   * implementation except read() which invariably returns 1.
+   */
+  private static class TestInputStream extends InputStream implements Seekable, PositionedReadable {
+
+    @Override
+    public long getPos() throws IOException {
+      return 0;
+    }
+
+    @Override
+    public void seek(long arg0) throws IOException {
+    }
+
+    @Override
+    public boolean seekToNewSource(long arg0) throws IOException {
+      return false;
+    }
+
+    @Override
+    public int read(long arg0, byte[] arg1, int arg2, int arg3) throws IOException {
+      return 0;
+    }
+
+    @Override
+    public void readFully(long arg0, byte[] arg1) throws IOException {
+    }
+
+    @Override
+    public void readFully(long arg0, byte[] arg1, int arg2, int arg3) throws IOException {
+    }
+
+    @Override
+    public int read() throws IOException {
+      return 1;
+    }
+
+    public List<ByteBuffer> readFullyScatterGather(long arg0, int arg1) throws IOException {
+      return null;
+    }
+
+  }
+
+  /**
+   * Tests reading from a file so big that the offset to read from exceeds the size of an integer
+   * @throws IOException
+   */
+  @Test
+  public void testBigFile() throws IOException {
+    InputStream inputStream = new TestInputStream();
+    // Assert that seek is called with a value outside the range of ints
+    TestFSDataInputStream stream = new TestFSDataInputStream(inputStream,
+        (long) Integer.MAX_VALUE + 1);
+    // Initialize an InStream with an offset outside the range of ints, the values of the stream
+    // length and buffer size (32899 and 32896 respectively) are to accomodate the fact that
+    // TestInputStream returns 1 for all calls to read()
+    InStream in = InStream.create("testStram", stream, (long) Integer.MAX_VALUE + 1,
+        32899, WriterImpl.createCodec(CompressionKind.ZLIB), 32896);
+    in.read();
   }
 }

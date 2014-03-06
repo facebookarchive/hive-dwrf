@@ -227,7 +227,7 @@ public final class ReaderImpl implements Reader {
     }
     codec = WriterImpl.createCodec(compressionKind);
 
-    InputStream instream = InStream.create("footer", file, (int) (size - 1 - psLen - footerSize), footerSize,
+    InputStream instream = InStream.create("footer", file, size - 1 - psLen - footerSize, footerSize,
         codec, bufferSize);
     footer = OrcProto.Footer.parseFrom(instream);
     inspector = new OrcLazyRowObjectInspector(0, footer.getTypesList());

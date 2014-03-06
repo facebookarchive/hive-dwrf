@@ -237,7 +237,7 @@ class RecordReaderImpl implements RecordReader {
         stripe.getDataLength();
     int tailLength = (int) stripe.getFooterLength();
 
-    return OrcProto.StripeFooter.parseFrom(InStream.create("footer", file, (int) offset,
+    return OrcProto.StripeFooter.parseFrom(InStream.create("footer", file, offset,
         tailLength, codec, bufferSize));
   }
 
@@ -258,7 +258,7 @@ class RecordReaderImpl implements RecordReader {
               section.getKind());
           streams.put(name,
               InStream.create(name.toString(), file,
-                  (int) (offset + stripe.getIndexLength() + sectionOffset), sectionLength, codec,
+                  offset + stripe.getIndexLength() + sectionOffset, sectionLength, codec,
                   bufferSize, section.getUseVInts(), readStrides));
           sectionOffset += sectionLength;
         }
@@ -281,7 +281,7 @@ class RecordReaderImpl implements RecordReader {
           StreamName name =
             new StreamName(section.getColumn(), section.getKind());
           this.streams.put(name,
-              InStream.create(name.toString(), file, (int) (offset + sectionOffset),
+              InStream.create(name.toString(), file, offset + sectionOffset,
                   (int) section.getLength(), codec, bufferSize, section.getUseVInts(),
                   readStrides));
         }
@@ -377,7 +377,7 @@ class RecordReaderImpl implements RecordReader {
         int col = stream.getColumn();
         if ((included == null || included[col]) && indexes[col] == null) {
           indexes[col] = OrcProto.RowIndex.parseFrom(InStream.create("index",
-              file, (int) offset, (int) stream.getLength(), codec, bufferSize,
+              file, offset, (int) stream.getLength(), codec, bufferSize,
               stream.getUseVInts(), readStrides));
         }
       }

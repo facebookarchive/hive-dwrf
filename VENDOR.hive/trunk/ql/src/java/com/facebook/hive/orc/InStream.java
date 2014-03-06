@@ -38,12 +38,12 @@ public abstract class InStream extends InputStream {
     private final FSDataInputStream file;
     private byte[] array;
     private int offset;
-    private final int base;
+    private final long base;
     private final int limit;
     // The number of bytes into the stream we are at each index
     private int[] indeces;
 
-    public UncompressedStream(String name, FSDataInputStream file, int streamOffset,
+    public UncompressedStream(String name, FSDataInputStream file, long streamOffset,
         int streamLength, boolean useVInts) {
       super(useVInts);
 
@@ -61,7 +61,7 @@ public abstract class InStream extends InputStream {
       this.name = name;
       this.array = input.array();
       this.base = input.arrayOffset() + input.position();
-      this.offset = base;
+      this.offset = (int) base;
       this.limit = input.arrayOffset() + input.limit();
       this.file = null;
     }
@@ -106,7 +106,7 @@ public abstract class InStream extends InputStream {
 
     @Override
     public void seek(int index) throws IOException {
-      offset = base + indeces[index];
+      offset = (int) base + indeces[index];
     }
 
     @Override
@@ -135,7 +135,7 @@ public abstract class InStream extends InputStream {
     private ByteBuffer uncompressed = null;
     private final CompressionCodec codec;
     private final FSDataInputStream file;
-    private final int base;
+    private final long base;
     private final int limit;
     private boolean isUncompressedOriginal;
     // For each index, the start position of the compression block
@@ -163,7 +163,7 @@ public abstract class InStream extends InputStream {
     // The number of strides to read in from HDFS at a time
     private final int readStrides;
 
-    public CompressedStream(String name, FSDataInputStream file, int streamOffset,
+    public CompressedStream(String name, FSDataInputStream file, long streamOffset,
         int streamLength, CompressionCodec codec, int bufferSize, boolean useVInts,
         int readStrides) {
       super(useVInts);
@@ -195,7 +195,7 @@ public abstract class InStream extends InputStream {
       this.codec = codec;
       this.bufferSize = bufferSize;
       this.base = input.arrayOffset() + input.position();
-      this.compressedOffset = base;
+      this.compressedOffset = (int) base;
       this.limit = input.arrayOffset() + input.limit();
       this.file = null;
       this.readStrides = -1;
@@ -438,13 +438,13 @@ public abstract class InStream extends InputStream {
    * This should be used for creating streams to read file metadata, e.g. the footer, not for
    * data in columns.
    */
-  public static InStream create(String name, FSDataInputStream file, int streamOffset,
+  public static InStream create(String name, FSDataInputStream file, long streamOffset,
       int streamLength, CompressionCodec codec, int bufferSize) throws IOException {
 
     return create(name, file, streamOffset, streamLength, codec, bufferSize, true, 1);
   }
 
-  public static InStream create(String name, FSDataInputStream file, int streamOffset,
+  public static InStream create(String name, FSDataInputStream file, long streamOffset,
       int streamLength, CompressionCodec codec, int bufferSize, boolean useVInts, int readStrides)
   throws IOException {
     if (codec == null) {
