@@ -50,6 +50,7 @@ public abstract class OrcLazyObject implements Writable {
 
   public OrcLazyObject(OrcLazyObject copy) {
     materialized = copy.materialized;
+    writableCreated = copy.writableCreated;
     currentRow = copy.currentRow;
     nextIsNull = copy.nextIsNull;
     nextIsNullSet = copy.nextIsNullSet;

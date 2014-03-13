@@ -175,7 +175,78 @@ public class TestOrcFile {
     assertEquals(0, row.getFieldValue(11).hashCode());
   }
 
+  @Test
+  public void testDeepCopy() throws Exception {
+    // Create a table and write a row to it
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (BigRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
+        100000, CompressionKind.ZLIB, 10000, 10000);
+    writer.addRow(new BigRow(false, (byte) 1, (short) 1, 1,
+        1L, (float) 1.0, 1.0, bytes(1), "1",
+        new MiddleStruct(inner(1, "bye"), inner(2, "sigh")),
+        list(inner(3, "good"), inner(4, "bad")),
+        map(inner(3, "good"), inner(4, "bad"))));
 
+    writer.close();
+
+    // Prepare to tread back the row
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+    row = (OrcStruct) lazyRow.materialize();
+
+    // Check that the object read equals what is expected, then copy the object, and make the same
+    // check
+    OrcLazyObject obj;
+    assertEquals(false,
+        ((BooleanWritable) ((OrcLazyBoolean) row.getFieldValue(0)).materialize()).get());
+    obj = new OrcLazyBoolean((OrcLazyBoolean) row.getFieldValue(0));
+    assertEquals(false, ((BooleanWritable) obj.materialize()).get());
+
+    assertEquals(1, ((ByteWritable) ((OrcLazyByte) row.getFieldValue(1)).materialize()).get());
+    obj = new OrcLazyByte((OrcLazyByte) row.getFieldValue(1));
+    assertEquals(1, ((ByteWritable) obj.materialize()).get());
+
+    assertEquals(1, ((ShortWritable) ((OrcLazyShort) row.getFieldValue(2)).materialize()).get());
+    obj = new OrcLazyShort((OrcLazyShort) row.getFieldValue(2));
+    assertEquals(1, ((ShortWritable) obj.materialize()).get());
+
+    assertEquals(1, ((IntWritable) ((OrcLazyInt) row.getFieldValue(3)).materialize()).get());
+    obj = new OrcLazyInt((OrcLazyInt) row.getFieldValue(3));
+    assertEquals(1, ((IntWritable) obj.materialize()).get());
+
+    assertEquals(1, ((LongWritable) ((OrcLazyLong) row.getFieldValue(4)).materialize()).get());
+    obj = new OrcLazyLong((OrcLazyLong) row.getFieldValue(4));
+    assertEquals(1, ((LongWritable) obj.materialize()).get());
+
+    assertEquals(1.0f,
+        ((FloatWritable) ((OrcLazyFloat) row.getFieldValue(5)).materialize()).get());
+    obj = new OrcLazyFloat((OrcLazyFloat) row.getFieldValue(5));
+    assertEquals(1.0f, ((FloatWritable) obj.materialize()).get());
+
+    assertEquals(1.0,
+        ((DoubleWritable) ((OrcLazyDouble) row.getFieldValue(6)).materialize()).get());
+    obj = new OrcLazyDouble((OrcLazyDouble) row.getFieldValue(6));
+    assertEquals(1.0, ((DoubleWritable) obj.materialize()).get());
+
+    assertEquals(bytes(1), ((OrcLazyBinary) row.getFieldValue(7)).materialize());
+    obj = new OrcLazyBinary((OrcLazyBinary) row.getFieldValue(7));
+    assertEquals(bytes(1), obj.materialize());
+
+    assertEquals("1", ((Text) ((OrcLazyString) row.getFieldValue(8)).materialize()).toString());
+    obj = new OrcLazyString((OrcLazyString) row.getFieldValue(8));
+    assertEquals("1", ((Text) obj.materialize()).toString());
+
+    // Currently copies are not supported for complex types
+  }
 
   @Test
   public void testSeekAcrossChunks() throws Exception {
