@@ -22,9 +22,10 @@ package com.facebook.hive.orc.lazy;
 
 import java.io.IOException;
 
+import org.apache.hadoop.io.IntWritable;
+
 import com.facebook.hive.orc.SerializationUtils;
 import com.facebook.hive.orc.WriterImpl;
-import org.apache.hadoop.io.IntWritable;
 import com.facebook.hive.orc.lazy.OrcLazyObject.ValueNotPresentException;
 
 

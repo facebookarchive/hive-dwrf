@@ -34,6 +34,7 @@ class IntDictionaryEncoder extends DictionaryEncoder {
   private final boolean useVInts;
 
   protected final DynamicLongArray keys = new DynamicLongArray();
+  protected final DynamicIntArray counts = new DynamicIntArray();
   protected Long2IntOpenHashMapWithByteSize dictionary = new Long2IntOpenHashMapWithByteSize();
 
   public IntDictionaryEncoder(int numBytes, boolean useVInts) {
@@ -109,6 +110,7 @@ class IntDictionaryEncoder extends DictionaryEncoder {
   @Override
   public void clear() {
     keys.clear();
+    counts.clear();
     dictionary = new Long2IntOpenHashMapWithByteSize();
     numElements = 0;
   }
@@ -131,12 +133,15 @@ class IntDictionaryEncoder extends DictionaryEncoder {
   public int add (long value) {
     newKey = value;
     if (dictionary.containsKey(value)) {
+      int index = dictionary.get(value);
+      counts.increment(index, 1);
       return dictionary.get(value);
     } else {
       int valRow = numElements;
       numElements++;
       dictionary.put(value, valRow);
       keys.add(newKey);
+      counts.add(1);
       return valRow;
     }
   }
@@ -164,6 +169,15 @@ class IntDictionaryEncoder extends DictionaryEncoder {
     public int getLength() {
       return 8;
     }
+
+    public int getCount() {
+      return counts.get(originalPosition);
+    }
+    @Override
+    public int getIndexStride() {
+      throw new UnsupportedOperationException("IntDictionaryEncoder does not currently track the" +
+      		" index stride");
+    }
   }
 
   public long getByteSize() {
@@ -174,7 +188,8 @@ class IntDictionaryEncoder extends DictionaryEncoder {
     // whether each bucket was used or not in boolean [] (1 byte
     long posSizes = dictionary.getByteSize();
 
-    return keys.getSizeInBytes() + posSizes;
+    return keys.getSizeInBytes() + counts.getSizeInBytes() +
+        posSizes;
   }
 
   /**

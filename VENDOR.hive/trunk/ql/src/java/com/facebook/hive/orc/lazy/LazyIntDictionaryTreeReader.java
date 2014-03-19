@@ -22,10 +22,10 @@ package com.facebook.hive.orc.lazy;
 
 import java.io.IOException;
 
-import com.facebook.hive.orc.WriterImpl;
 import org.apache.hadoop.io.IntWritable;
-import com.facebook.hive.orc.lazy.OrcLazyObject.ValueNotPresentException;
 
+import com.facebook.hive.orc.WriterImpl;
+import com.facebook.hive.orc.lazy.OrcLazyObject.ValueNotPresentException;
 
 class LazyIntDictionaryTreeReader extends LazyNumericDictionaryTreeReader {
   LazyIntDictionaryTreeReader (int columnId, long rowIndexStride) {
@@ -37,18 +37,17 @@ class LazyIntDictionaryTreeReader extends LazyNumericDictionaryTreeReader {
     return WriterImpl.INT_BYTE_SIZE;
   }
 
-  private int latestIndex; //< Latest key that was read from reader.
+  private int latestValue; //< Latest key that was read from reader.
 
   /**
    * Read an int value from the stream.
    */
   private int readInt() throws IOException {
-    latestIndex = (int) reader.next();
-    return  (int) dictionaryValues[latestIndex];
+    return latestValue = (int) readPrimitive();
   }
 
   private int latestValue() {
-    return (int)dictionaryValues[latestIndex];
+    return latestValue;
   }
 
   IntWritable createWritable(Object previous, int v) throws IOException {
@@ -72,10 +71,12 @@ class LazyIntDictionaryTreeReader extends LazyNumericDictionaryTreeReader {
    */
   @Override
   public int nextInt(boolean readStream) throws IOException {
-    if (!readStream)
+    if (!readStream) {
       return latestValue();
-    if (!valuePresent)
+    }
+    if (!valuePresent) {
       throw new ValueNotPresentException("Cannot materialize int.");
+    }
     return readInt();
   }
 

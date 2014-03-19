@@ -58,7 +58,8 @@ public class LazyMapTreeReader extends LazyTreeReader {
       int length = nextLength();
       // read the new elements into the array
       for(int i=0; i< length; i++) {
-        result.put(keyReader.getInComplexType(null), valueReader.getInComplexType(null));
+        result.put(keyReader.getInComplexType(null, previousRow),
+            valueReader.getInComplexType(null, previousRow));
       }
     }
     return result;

@@ -22,8 +22,9 @@ package com.facebook.hive.orc.lazy;
 
 import java.io.IOException;
 
-import com.facebook.hive.orc.WriterImpl;
 import org.apache.hadoop.hive.serde2.io.ShortWritable;
+
+import com.facebook.hive.orc.WriterImpl;
 import com.facebook.hive.orc.lazy.OrcLazyObject.ValueNotPresentException;
 
 class LazyShortDictionaryTreeReader extends LazyNumericDictionaryTreeReader {
@@ -36,18 +37,17 @@ class LazyShortDictionaryTreeReader extends LazyNumericDictionaryTreeReader {
     return WriterImpl.SHORT_BYTE_SIZE;
   }
 
-  private int latestIndex; //< Latest key that was read from reader.
+  private short latestValue; //< Latest key that was read from reader.
 
   /**
    * Read an short value from the stream.
    */
   private short readShort() throws IOException {
-    latestIndex = (int) reader.next();
-    return (short) dictionaryValues[latestIndex];
+    return latestValue = (short) readPrimitive();
   }
 
   private short latestValue() {
-    return (short) dictionaryValues[latestIndex];
+    return latestValue;
   }
 
   ShortWritable createWritable(Object previous, short v) throws IOException {
@@ -71,10 +71,12 @@ class LazyShortDictionaryTreeReader extends LazyNumericDictionaryTreeReader {
    */
   @Override
   public short nextShort(boolean readStream) throws IOException {
-    if (!readStream)
+    if (!readStream) {
       return latestValue();
-    if (!valuePresent)
+    }
+    if (!valuePresent) {
       throw new ValueNotPresentException("Cannot materialize short.");
+    }
     return readShort();
   }
 

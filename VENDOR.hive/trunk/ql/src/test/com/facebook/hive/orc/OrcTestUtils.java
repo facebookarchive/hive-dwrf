@@ -23,6 +23,24 @@ public class OrcTestUtils {
     }
   }
 
+  public static class StringStruct {
+    Text string1 = new Text();
+    StringStruct(String string1) {
+      if (string1 == null) {
+        this.string1 = null;
+      } else {
+        this.string1.set(string1);
+      }
+    }
+  }
+
+  public static class IntStruct {
+    Integer int1;
+    IntStruct(Integer int1) {
+      this.int1 = int1;
+    }
+  }
+
   public static class MiddleStruct {
     List<InnerStruct> list = new ArrayList<InnerStruct>();
 
@@ -53,18 +71,22 @@ public class OrcTestUtils {
     Short short2;
     Integer int2;
     Long long2;
+    Short short3;
+    Integer int3;
+    Long long3;
     Float float1;
     Double double1;
     BytesWritable bytes1;
     Text string1;
     Text string2;
+    Text string3;
     MiddleStruct middle;
     List<InnerStruct> list = new ArrayList<InnerStruct>();
     Map<Text, InnerStruct> map = new HashMap<Text, InnerStruct>();
 
     public ReallyBigRow(Boolean b1, Byte b2, Short s1, Integer i1, Long l1, Short s2, Integer i2,
-        Long l2, Float f1, Double d1, BytesWritable b3, String s3, String s4, MiddleStruct m1,
-        List<InnerStruct> l3, Map<Text, InnerStruct> m2) {
+        Long l2, Short s3, Integer i3, Long l3, Float f1, Double d1, BytesWritable b3, String s4,
+        String s5, String s6, MiddleStruct m1, List<InnerStruct> l4, Map<Text, InnerStruct> m2) {
       this.boolean1 = b1;
       this.byte1 = b2;
       this.short1 = s1;
@@ -73,21 +95,29 @@ public class OrcTestUtils {
       this.short2 = s2;
       this.int2 = i2;
       this.long2 = l2;
+      this.short3 = s3;
+      this.int3 = i3;
+      this.long3 = l3;
       this.float1 = f1;
       this.double1 = d1;
       this.bytes1 = b3;
-      if (s3 == null) {
+      if (s4 == null) {
         this.string1 = null;
       } else {
-        this.string1 = new Text(s3);
+        this.string1 = new Text(s4);
       }
-      if (s4 == null) {
+      if (s5 == null) {
         this.string2 = null;
       } else {
-        this.string2 = new Text(s4);
+        this.string2 = new Text(s5);
+      }
+      if (s6 == null) {
+        this.string3 = null;
+      } else {
+        this.string3 = new Text(s6);
       }
       this.middle = m1;
-      this.list = l3;
+      this.list = l4;
       this.map = m2;
     }
   }

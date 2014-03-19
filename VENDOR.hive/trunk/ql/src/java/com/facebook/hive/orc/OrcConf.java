@@ -40,6 +40,7 @@ public class OrcConf {
     HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD(
         "hive.exec.orc.dictionary.key.string.size.threshold", 0.8f),
     HIVE_ORC_DICTIONARY_SORT_KEYS("hive.exec.orc.dictionary.key.sorted", true),
+    HIVE_ORC_BUILD_STRIDE_DICTIONARY("hive.exec.orc.build.stride.dictionary", true),
 
     HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD(
         "hive.exec.orc.entropy.key.string.size.threshold", 0.9f),

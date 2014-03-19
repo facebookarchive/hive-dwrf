@@ -96,6 +96,18 @@ abstract class DictionaryEncoder {
     int getLength();
 
     T getKey();
+
+    /**
+     * Get the number of times this key was added to the dictionary
+     * @return the number of times this key was added to the dictionary
+     */
+    int getCount();
+
+    /**
+     * Get the first index stride when this key was added to the dictionary
+     * @return the first index stride when this key was added to the dictionary
+     */
+    int getIndexStride();
   }
 }
 

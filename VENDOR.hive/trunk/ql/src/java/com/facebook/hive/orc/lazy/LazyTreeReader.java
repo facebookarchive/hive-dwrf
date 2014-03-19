@@ -107,10 +107,12 @@ public abstract class LazyTreeReader {
    * @return
    * @throws IOException
    */
-  public Object getInComplexType(Object previous) throws IOException {
+  public Object getInComplexType(Object previous, long row) throws IOException {
     if (nextIsNullInComplexType()) {
       return null;
     }
+
+    previousRow = row;
 
     return next(previous);
   }
@@ -170,7 +172,7 @@ public abstract class LazyTreeReader {
    * @param row
    * @return
    */
-  private int computeRowIndexEntry(long row) {
+  protected int computeRowIndexEntry(long row) {
     return rowIndexStride > 0 ? (int) ((row - rowBaseInStripe - 1) / rowIndexStride) : 0;
   }
 
@@ -304,11 +306,11 @@ public abstract class LazyTreeReader {
       if (present != null && (backwards || rowIndexEntry != computeRowIndexEntry(previousPresentRow))) {
         present.seek(rowIndexEntry);
         // Update previousPresentRow because the state is now as if that were the case
-        previousPresentRow = rowIndexEntry * rowIndexStride - 1;
+        previousPresentRow = rowBaseInStripe + rowIndexEntry * rowIndexStride - 1;
       }
       seek(rowIndexEntry);
       // Update previousRow because the state is now as if that were the case
-      previousRow = rowIndexEntry * rowIndexStride - 1;
+      previousRow = rowBaseInStripe + rowIndexEntry * rowIndexStride - 1;
     }
   }
 

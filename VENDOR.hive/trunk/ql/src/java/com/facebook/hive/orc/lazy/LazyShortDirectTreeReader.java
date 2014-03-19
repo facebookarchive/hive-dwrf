@@ -22,9 +22,10 @@ package com.facebook.hive.orc.lazy;
 
 import java.io.IOException;
 
+import org.apache.hadoop.hive.serde2.io.ShortWritable;
+
 import com.facebook.hive.orc.SerializationUtils;
 import com.facebook.hive.orc.WriterImpl;
-import org.apache.hadoop.hive.serde2.io.ShortWritable;
 import com.facebook.hive.orc.lazy.OrcLazyObject.ValueNotPresentException;
 
 class LazyShortDirectTreeReader extends LazyNumericDirectTreeReader {

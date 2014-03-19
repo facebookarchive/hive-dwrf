@@ -24,6 +24,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import com.facebook.hive.orc.BitFieldReader;
 import com.facebook.hive.orc.InStream;
 import com.facebook.hive.orc.OrcProto;
 import com.facebook.hive.orc.RunLengthIntegerReader;
@@ -37,6 +38,7 @@ abstract class LazyNumericDictionaryTreeReader extends LazyTreeReader {
   protected long[] dictionaryValues;
   protected int dictionarySize;
   protected RunLengthIntegerReader reader;
+  protected BitFieldReader inDictionary;
 
   LazyNumericDictionaryTreeReader (int columnId, long rowIndexStride) {
     super(columnId, rowIndexStride);
@@ -63,6 +65,9 @@ abstract class LazyNumericDictionaryTreeReader extends LazyTreeReader {
     // set up the row reader
     name = new StreamName(columnId, OrcProto.Stream.Kind.DATA);
     reader = new RunLengthIntegerReader(streams.get(name), false, getNumBytes());
+    InStream inDictionaryStream = streams.get(new StreamName(columnId,
+        OrcProto.Stream.Kind.IN_DICTIONARY));
+    inDictionary = inDictionaryStream == null ? null : new BitFieldReader(inDictionaryStream);
     if (indexes[columnId] != null) {
       loadIndeces(indexes[columnId].getEntryList(), 0);
     }
@@ -71,16 +76,35 @@ abstract class LazyNumericDictionaryTreeReader extends LazyTreeReader {
   @Override
   public void seek(int index) throws IOException {
     reader.seek(index);
+    if (inDictionary != null) {
+      inDictionary.seek(index);
+    }
   }
 
   @Override
   public int loadIndeces(List<RowIndexEntry> rowIndexEntries, int startIndex) {
     int updatedStartIndex = super.loadIndeces(rowIndexEntries, startIndex);
+    if (inDictionary != null) {
+      updatedStartIndex = inDictionary.loadIndeces(rowIndexEntries, updatedStartIndex);
+    }
     return reader.loadIndeces(rowIndexEntries, updatedStartIndex);
   }
 
   @Override
   public void skipRows(long numNonNullValues) throws IOException {
     reader.skip(numNonNullValues);
+    if (inDictionary != null) {
+      inDictionary.skip(numNonNullValues);
+    }
+  }
+
+  protected long readPrimitive() throws IOException {
+    boolean isInDictionary = inDictionary == null || inDictionary.next() == 1;
+
+    if (isInDictionary) {
+      return dictionaryValues[(int) reader.next()];
+    } else {
+      return (short) reader.next();
+    }
   }
 }

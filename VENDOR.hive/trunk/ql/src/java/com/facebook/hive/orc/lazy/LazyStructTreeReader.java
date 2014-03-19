@@ -67,7 +67,8 @@ public class LazyStructTreeReader extends LazyTreeReader {
       }
       for(int i=0; i < fields.length; ++i) {
         if (fields[i] != null) {
-          result.setFieldValue(i, fields[i].getInComplexType(result.getFieldValue(i)));
+          result.setFieldValue(i,
+              fields[i].getInComplexType(result.getFieldValue(i), previousRow));
         }
       }
     }

@@ -54,7 +54,7 @@ public class LazyUnionTreeReader extends LazyTreeReader {
       byte tag = nextTag();
       Object previousVal = result.getObject();
       result.set(tag, fields[tag].getInComplexType(tag == result.getTag() ?
-          previousVal : null));
+          previousVal : null, previousRow));
     }
     return result;
   }

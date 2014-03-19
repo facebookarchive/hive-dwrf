@@ -22,13 +22,14 @@ package com.facebook.hive.orc.lazy;
 
 import java.io.IOException;
 
-import com.facebook.hive.orc.WriterImpl;
 import org.apache.hadoop.io.LongWritable;
+
+import com.facebook.hive.orc.WriterImpl;
 import com.facebook.hive.orc.lazy.OrcLazyObject.ValueNotPresentException;
 
 class LazyLongDictionaryTreeReader extends LazyNumericDictionaryTreeReader {
 
-  private int latestIndex = 0; //< Latest index read from reader
+  private long latestValue = 0; //< Latest index read from reader
 
   LazyLongDictionaryTreeReader (int columnId, long rowIndexStride) {
     super(columnId, rowIndexStride);
@@ -40,12 +41,11 @@ class LazyLongDictionaryTreeReader extends LazyNumericDictionaryTreeReader {
   }
 
   private long readLong() throws IOException {
-    latestIndex = (int) reader.next();
-    return (long) dictionaryValues[latestIndex];
+    return latestValue = readPrimitive();
   }
 
   private long latestValue() {
-    return (long) dictionaryValues[latestIndex];
+    return latestValue;
   }
 
   private LongWritable createWritable(Object previous, long v) throws IOException {
@@ -66,10 +66,12 @@ class LazyLongDictionaryTreeReader extends LazyNumericDictionaryTreeReader {
 
   @Override
   public long nextLong(boolean readStream) throws IOException {
-    if (!readStream)
+    if (!readStream) {
       return latestValue();
-    if (!valuePresent)
+    }
+    if (!valuePresent) {
       throw new ValueNotPresentException("Cannot materialize long.");
+    }
     return readLong();
   }
 

@@ -3911,6 +3911,9 @@ public final class OrcProto {
       DICTIONARY_COUNT(4, 4),
       NANO_DATA(5, 5),
       ROW_INDEX(6, 6),
+      IN_DICTIONARY(7, 7),
+      STRIDE_DICTIONARY(8, 8),
+      STRIDE_DICTIONARY_LENGTH(9, 9),
       ;
       
       public static final int PRESENT_VALUE = 0;
@@ -3920,6 +3923,9 @@ public final class OrcProto {
       public static final int DICTIONARY_COUNT_VALUE = 4;
       public static final int NANO_DATA_VALUE = 5;
       public static final int ROW_INDEX_VALUE = 6;
+      public static final int IN_DICTIONARY_VALUE = 7;
+      public static final int STRIDE_DICTIONARY_VALUE = 8;
+      public static final int STRIDE_DICTIONARY_LENGTH_VALUE = 9;
       
       
       public final int getNumber() { return value; }
@@ -3933,6 +3939,9 @@ public final class OrcProto {
           case 4: return DICTIONARY_COUNT;
           case 5: return NANO_DATA;
           case 6: return ROW_INDEX;
+          case 7: return IN_DICTIONARY;
+          case 8: return STRIDE_DICTIONARY;
+          case 9: return STRIDE_DICTIONARY_LENGTH;
           default: return null;
         }
       }
@@ -3963,7 +3972,7 @@ public final class OrcProto {
       }
       
       private static final Kind[] VALUES = {
-        PRESENT, DATA, LENGTH, DICTIONARY_DATA, DICTIONARY_COUNT, NANO_DATA, ROW_INDEX, 
+        PRESENT, DATA, LENGTH, DICTIONARY_DATA, DICTIONARY_COUNT, NANO_DATA, ROW_INDEX, IN_DICTIONARY, STRIDE_DICTIONARY, STRIDE_DICTIONARY_LENGTH, 
       };
       
       public static Kind valueOf(
@@ -9802,44 +9811,46 @@ public final class OrcProto {
       "positions\030\001 \003(\004B\002\020\001\022;\n\nstatistics\030\002 \001(\0132" +
       "\'.com.facebook.hive.orc.ColumnStatistics" +
       "\"?\n\010RowIndex\0223\n\005entry\030\001 \003(\0132$.com.facebo" +
-      "ok.hive.orc.RowIndexEntry\"\346\001\n\006Stream\0220\n\004" +
+      "ok.hive.orc.RowIndexEntry\"\257\002\n\006Stream\0220\n\004" +
       "kind\030\001 \002(\0162\".com.facebook.hive.orc.Strea",
       "m.Kind\022\016\n\006column\030\002 \001(\r\022\016\n\006length\030\003 \001(\004\022\026" +
-      "\n\010useVInts\030\004 \001(\010:\004true\"r\n\004Kind\022\013\n\007PRESEN" +
-      "T\020\000\022\010\n\004DATA\020\001\022\n\n\006LENGTH\020\002\022\023\n\017DICTIONARY_" +
-      "DATA\020\003\022\024\n\020DICTIONARY_COUNT\020\004\022\r\n\tNANO_DAT" +
-      "A\020\005\022\r\n\tROW_INDEX\020\006\"\206\001\n\016ColumnEncoding\0228\n" +
-      "\004kind\030\001 \002(\0162*.com.facebook.hive.orc.Colu" +
-      "mnEncoding.Kind\022\026\n\016dictionarySize\030\002 \001(\r\"" +
-      "\"\n\004Kind\022\n\n\006DIRECT\020\000\022\016\n\nDICTIONARY\020\001\"v\n\014S" +
-      "tripeFooter\022.\n\007streams\030\001 \003(\0132\035.com.faceb" +
-      "ook.hive.orc.Stream\0226\n\007columns\030\002 \003(\0132%.c",
-      "om.facebook.hive.orc.ColumnEncoding\"\206\002\n\004" +
-      "Type\022.\n\004kind\030\001 \002(\0162 .com.facebook.hive.o" +
-      "rc.Type.Kind\022\024\n\010subtypes\030\002 \003(\rB\002\020\001\022\022\n\nfi" +
-      "eldNames\030\003 \003(\t\"\243\001\n\004Kind\022\013\n\007BOOLEAN\020\000\022\010\n\004" +
-      "BYTE\020\001\022\t\n\005SHORT\020\002\022\007\n\003INT\020\003\022\010\n\004LONG\020\004\022\t\n\005" +
-      "FLOAT\020\005\022\n\n\006DOUBLE\020\006\022\n\n\006STRING\020\007\022\n\n\006BINAR" +
-      "Y\020\010\022\r\n\tTIMESTAMP\020\t\022\010\n\004LIST\020\n\022\007\n\003MAP\020\013\022\n\n" +
-      "\006STRUCT\020\014\022\t\n\005UNION\020\r\"\215\001\n\021StripeInformati" +
-      "on\022\016\n\006offset\030\001 \001(\004\022\023\n\013indexLength\030\002 \001(\004\022" +
-      "\022\n\ndataLength\030\003 \001(\004\022\024\n\014footerLength\030\004 \001(",
-      "\004\022\024\n\014numberOfRows\030\005 \001(\004\022\023\n\013rawDataSize\030\006" +
-      " \001(\004\"/\n\020UserMetadataItem\022\014\n\004name\030\001 \002(\t\022\r" +
-      "\n\005value\030\002 \002(\014\"\327\002\n\006Footer\022\024\n\014headerLength" +
-      "\030\001 \001(\004\022\025\n\rcontentLength\030\002 \001(\004\0229\n\007stripes" +
-      "\030\003 \003(\0132(.com.facebook.hive.orc.StripeInf" +
-      "ormation\022*\n\005types\030\004 \003(\0132\033.com.facebook.h" +
-      "ive.orc.Type\0229\n\010metadata\030\005 \003(\0132\'.com.fac" +
-      "ebook.hive.orc.UserMetadataItem\022\024\n\014numbe" +
-      "rOfRows\030\006 \001(\004\022;\n\nstatistics\030\007 \003(\0132\'.com." +
-      "facebook.hive.orc.ColumnStatistics\022\026\n\016ro",
-      "wIndexStride\030\010 \001(\r\022\023\n\013rawDataSize\030\t \001(\004\"" +
-      "}\n\nPostScript\022\024\n\014footerLength\030\001 \001(\004\022;\n\013c" +
-      "ompression\030\002 \001(\0162&.com.facebook.hive.orc" +
-      ".CompressionKind\022\034\n\024compressionBlockSize" +
-      "\030\003 \001(\004*:\n\017CompressionKind\022\010\n\004NONE\020\000\022\010\n\004Z" +
-      "LIB\020\001\022\n\n\006SNAPPY\020\002\022\007\n\003LZO\020\003"
+      "\n\010useVInts\030\004 \001(\010:\004true\"\272\001\n\004Kind\022\013\n\007PRESE" +
+      "NT\020\000\022\010\n\004DATA\020\001\022\n\n\006LENGTH\020\002\022\023\n\017DICTIONARY" +
+      "_DATA\020\003\022\024\n\020DICTIONARY_COUNT\020\004\022\r\n\tNANO_DA" +
+      "TA\020\005\022\r\n\tROW_INDEX\020\006\022\021\n\rIN_DICTIONARY\020\007\022\025" +
+      "\n\021STRIDE_DICTIONARY\020\010\022\034\n\030STRIDE_DICTIONA" +
+      "RY_LENGTH\020\t\"\206\001\n\016ColumnEncoding\0228\n\004kind\030\001" +
+      " \002(\0162*.com.facebook.hive.orc.ColumnEncod" +
+      "ing.Kind\022\026\n\016dictionarySize\030\002 \001(\r\"\"\n\004Kind" +
+      "\022\n\n\006DIRECT\020\000\022\016\n\nDICTIONARY\020\001\"v\n\014StripeFo",
+      "oter\022.\n\007streams\030\001 \003(\0132\035.com.facebook.hiv" +
+      "e.orc.Stream\0226\n\007columns\030\002 \003(\0132%.com.face" +
+      "book.hive.orc.ColumnEncoding\"\206\002\n\004Type\022.\n" +
+      "\004kind\030\001 \002(\0162 .com.facebook.hive.orc.Type" +
+      ".Kind\022\024\n\010subtypes\030\002 \003(\rB\002\020\001\022\022\n\nfieldName" +
+      "s\030\003 \003(\t\"\243\001\n\004Kind\022\013\n\007BOOLEAN\020\000\022\010\n\004BYTE\020\001\022" +
+      "\t\n\005SHORT\020\002\022\007\n\003INT\020\003\022\010\n\004LONG\020\004\022\t\n\005FLOAT\020\005" +
+      "\022\n\n\006DOUBLE\020\006\022\n\n\006STRING\020\007\022\n\n\006BINARY\020\010\022\r\n\t" +
+      "TIMESTAMP\020\t\022\010\n\004LIST\020\n\022\007\n\003MAP\020\013\022\n\n\006STRUCT" +
+      "\020\014\022\t\n\005UNION\020\r\"\215\001\n\021StripeInformation\022\016\n\006o",
+      "ffset\030\001 \001(\004\022\023\n\013indexLength\030\002 \001(\004\022\022\n\ndata" +
+      "Length\030\003 \001(\004\022\024\n\014footerLength\030\004 \001(\004\022\024\n\014nu" +
+      "mberOfRows\030\005 \001(\004\022\023\n\013rawDataSize\030\006 \001(\004\"/\n" +
+      "\020UserMetadataItem\022\014\n\004name\030\001 \002(\t\022\r\n\005value" +
+      "\030\002 \002(\014\"\327\002\n\006Footer\022\024\n\014headerLength\030\001 \001(\004\022" +
+      "\025\n\rcontentLength\030\002 \001(\004\0229\n\007stripes\030\003 \003(\0132" +
+      "(.com.facebook.hive.orc.StripeInformatio" +
+      "n\022*\n\005types\030\004 \003(\0132\033.com.facebook.hive.orc" +
+      ".Type\0229\n\010metadata\030\005 \003(\0132\'.com.facebook.h" +
+      "ive.orc.UserMetadataItem\022\024\n\014numberOfRows",
+      "\030\006 \001(\004\022;\n\nstatistics\030\007 \003(\0132\'.com.faceboo" +
+      "k.hive.orc.ColumnStatistics\022\026\n\016rowIndexS" +
+      "tride\030\010 \001(\r\022\023\n\013rawDataSize\030\t \001(\004\"}\n\nPost" +
+      "Script\022\024\n\014footerLength\030\001 \001(\004\022;\n\013compress" +
+      "ion\030\002 \001(\0162&.com.facebook.hive.orc.Compre" +
+      "ssionKind\022\034\n\024compressionBlockSize\030\003 \001(\004*" +
+      ":\n\017CompressionKind\022\010\n\004NONE\020\000\022\010\n\004ZLIB\020\001\022\n" +
+      "\n\006SNAPPY\020\002\022\007\n\003LZO\020\003"
     };
     com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner assigner =
       new com.google.protobuf.Descriptors.FileDescriptor.InternalDescriptorAssigner() {

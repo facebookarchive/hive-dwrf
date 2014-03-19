@@ -60,7 +60,7 @@ public class LazyListTreeReader extends LazyTreeReader {
       // read the new elements into the array
       for(int i=0; i< length; i++) {
         result.set(i, elementReader.getInComplexType(i < prevLength ?
-            result.get(i) : null));
+            result.get(i) : null, previousRow));
       }
       // remove any extra elements
       for(int i=prevLength - 1; i >= length; --i) {

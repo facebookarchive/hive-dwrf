@@ -49,6 +49,9 @@ message Stream {
     DICTIONARY_COUNT = 4;
     NANO_DATA = 5;
     ROW_INDEX = 6;
+    IN_DICTIONARY = 7;
+    STRIDE_DICTIONARY = 8;
+    STRIDE_DICTIONARY_LENGTH = 9;
   }
   required Kind kind = 1;
   optional uint32 column = 2;

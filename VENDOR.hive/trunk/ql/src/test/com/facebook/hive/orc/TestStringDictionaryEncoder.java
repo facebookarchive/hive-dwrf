@@ -64,9 +64,9 @@ public class TestStringDictionaryEncoder {
   }
 
   private StringDictionaryEncoder buildDictionary(String[] values, boolean sortKeys) {
-    StringDictionaryEncoder dictEncoder = new StringDictionaryEncoder(sortKeys);
+    StringDictionaryEncoder dictEncoder = new StringDictionaryEncoder(sortKeys, false);
     for(String value : values) {
-      dictEncoder.add(new Text(value));
+      dictEncoder.add(new Text(value), 0);
     }
     return dictEncoder;
   }
@@ -89,17 +89,16 @@ public class TestStringDictionaryEncoder {
 
     int [] expectedOrder = new int[]{2,5,1,4,6,3,7,0,9,8};
     for (int i=0; i < addKeys.length; i++) {
-      int addPos = dict.add(new Text(addKeys[i]));
+      int addPos = dict.add(new Text(addKeys[i]), 0);
       assertEquals(addPos, addKPos[i]);
       assertEquals(sizes[i], dict.size());
     }
     checkContent(dict, expectedOrderedUniqueValues, expectedOrder);
   }
 
-  @Test
-  public void testUnsorted() throws Exception {
+  private void testUnsorted(boolean strideDictionaries) throws Exception {
 
-    StringDictionaryEncoder dict = new StringDictionaryEncoder(false);
+    StringDictionaryEncoder dict = new StringDictionaryEncoder(false, strideDictionaries);
     String [] addKeys = new String[] {
       "owen", "ashutosh", "owen", "alan", "alan", "ashutosh", "greg", "eric", "arun", "eric14", "o", "ziggy", "z",
     };
@@ -115,13 +114,48 @@ public class TestStringDictionaryEncoder {
     }
 
     for (int i=0; i < addKeys.length; i++) {
-      int addPos = dict.add(new Text(addKeys[i]));
+      int addPos = dict.add(new Text(addKeys[i]), 0);
       assertEquals(addPos, addKPos[i]);
       assertEquals(sizes[i], dict.size());
     }
     checkContent(dict, expectedUniqueValues, expectedOrder);
     dict.clear();
-    assertEquals(425984, dict.getSizeInBytes());
+    assertEquals(688128, dict.getSizeInBytes());
+    assertEquals(0, dict.size());
+  }
+
+  @Test
+  public void testUnsorted() throws Exception {
+    testUnsorted(false);
+  }
+
+  @Test
+  public void testUnsortedStrideDictionaries() throws Exception {
+    testUnsorted(true);
+  }
+
+  @Test
+  public void testSortedStrideDictionaries() throws Exception {
+    StringDictionaryEncoder dict = new StringDictionaryEncoder(true, true);
+    String [] addKeys = new String[] {
+      "owen", "ashutosh", "owen", "alan", "alan", "ashutosh", "greg", "eric", "arun", "eric14", "o", "ziggy", "z",
+    };
+
+    int [] addKPos = new int[] {0, 1, 0, 2, 2, 1, 3, 4, 5, 6, 7, 8, 9, 10};
+    int [] sizes = new int []{1, 2, 2, 3, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    String [] expectedUniqueValues = new String[] {
+      "arun", "eric", "eric14", "greg", "o", "z", "ziggy", "alan", "ashutosh", "owen",
+      };
+    int [] expectedOrder = new int[] {5, 4, 6, 3, 7, 9, 8, 2, 1, 0};
+
+    for (int i=0; i < addKeys.length; i++) {
+      int addPos = dict.add(new Text(addKeys[i]), 0);
+      assertEquals(addPos, addKPos[i]);
+      assertEquals(sizes[i], dict.size());
+    }
+    checkContent(dict, expectedUniqueValues, expectedOrder);
+    dict.clear();
+    assertEquals(688128, dict.getSizeInBytes());
     assertEquals(0, dict.size());
   }
 

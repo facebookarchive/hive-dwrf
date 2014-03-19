@@ -26,6 +26,7 @@ import java.util.Map;
 
 import org.apache.hadoop.io.Text;
 
+import com.facebook.hive.orc.BitFieldReader;
 import com.facebook.hive.orc.DynamicByteArray;
 import com.facebook.hive.orc.InStream;
 import com.facebook.hive.orc.OrcProto;
@@ -37,9 +38,16 @@ import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 
 public class LazyStringDictionaryTreeReader extends LazyTreeReader {
   private DynamicByteArray dictionaryBuffer = null;
+  private DynamicByteArray strideDictionaryBuffer;
   private int dictionarySize;
+  private int[] strideDictionarySizes;
   private int[] dictionaryOffsets;
+  private int[] strideDictionaryOffsets;
   private RunLengthIntegerReader reader;
+  private BitFieldReader inDictionary;
+  private InStream directReader;
+  private RunLengthIntegerReader directLengths;
+  private int currentUnitDictionary = -1;
 
   LazyStringDictionaryTreeReader(int columnId, long rowIndexStride) {
     super(columnId, rowIndexStride);
@@ -84,6 +92,13 @@ public class LazyStringDictionaryTreeReader extends LazyTreeReader {
     // set up the row reader
     name = new StreamName(columnId, OrcProto.Stream.Kind.DATA);
     reader = new RunLengthIntegerReader(streams.get(name), false, WriterImpl.INT_BYTE_SIZE);
+    InStream inDictionaryStream = streams.get(new StreamName(columnId, OrcProto.Stream.Kind.IN_DICTIONARY));
+    inDictionary = inDictionaryStream == null ? null : new BitFieldReader(inDictionaryStream);
+    directReader = streams.get(new StreamName(columnId, OrcProto.Stream.Kind.STRIDE_DICTIONARY));
+    InStream directLengthsStream = streams.get(new StreamName(columnId,
+        OrcProto.Stream.Kind.STRIDE_DICTIONARY_LENGTH));
+    directLengths = directLengthsStream == null ? null : new RunLengthIntegerReader(
+        directLengthsStream, false, WriterImpl.INT_BYTE_SIZE);
     if (indexes[columnId] != null) {
       loadIndeces(indexes[columnId].getEntryList(), 0);
     }
@@ -92,39 +107,109 @@ public class LazyStringDictionaryTreeReader extends LazyTreeReader {
   @Override
   public void seek(int index) throws IOException {
     reader.seek(index);
+    if (inDictionary != null) {
+      inDictionary.seek(index);
+      directReader.seek(index);
+      directLengths.seek(index);
+    }
   }
 
   @Override
   public int loadIndeces(List<RowIndexEntry> rowIndexEntries, int startIndex) {
     int updatedStartIndex = super.loadIndeces(rowIndexEntries, startIndex);
-    return reader.loadIndeces(rowIndexEntries, updatedStartIndex);
+    if (inDictionary != null) {
+      updatedStartIndex = directReader.loadIndeces(rowIndexEntries, updatedStartIndex);
+      updatedStartIndex = directLengths.loadIndeces(rowIndexEntries, updatedStartIndex);
+      int numIndeces = rowIndexEntries.size();
+      strideDictionarySizes = new int[numIndeces + 1];
+      int i = 0;
+      for (RowIndexEntry rowIndexEntry : rowIndexEntries) {
+        strideDictionarySizes[i] = (int) rowIndexEntry.getPositions(updatedStartIndex);
+        i++;
+      }
+      updatedStartIndex++;
+      updatedStartIndex = reader.loadIndeces(rowIndexEntries, updatedStartIndex);
+      return inDictionary.loadIndeces(rowIndexEntries, updatedStartIndex);
+    } else {
+      updatedStartIndex = reader.loadIndeces(rowIndexEntries, updatedStartIndex);
+      return updatedStartIndex;
+    }
+  }
+
+  private void nextFromDictionary(Text result) throws IOException {
+    int entry = (int) reader.next();
+    int offset = dictionaryOffsets[entry];
+    int length = dictionaryOffsets[entry + 1] - dictionaryOffsets[entry];
+
+    // If the column is just empty strings, the size will be zero, so the buffer will be null,
+    // in that case just return result as it will default to empty
+    if (dictionaryBuffer != null) {
+      dictionaryBuffer.setText(result, offset, length);
+    } else {
+      result.clear();
+    }
+  }
+
+  private void loadStrideDictionary(int indexEntry) throws IOException {
+    currentUnitDictionary = indexEntry;
+    int offset = 0;
+    int unitDictionarySize = strideDictionarySizes[indexEntry];
+    if (strideDictionaryOffsets == null ||
+        strideDictionaryOffsets.length < unitDictionarySize + 1) {
+      strideDictionaryOffsets = new int[unitDictionarySize + 1];
+    }
+    for(int i=0; i < unitDictionarySize; ++i) {
+      strideDictionaryOffsets[i] = offset;
+      offset += (int) directLengths.next();
+    }
+    strideDictionaryOffsets[unitDictionarySize] = offset;
+    if (offset != 0) {
+      strideDictionaryBuffer = new DynamicByteArray(offset);
+      strideDictionaryBuffer.read(directReader, offset);
+    } else {
+      // It only contains the empty string
+      strideDictionaryBuffer = null;
+    }
+  }
+
+  private void nextFromStrideDictionary(Text result) throws IOException {
+    int indexEntry = computeRowIndexEntry(previousRow);
+    if (indexEntry != currentUnitDictionary) {
+      loadStrideDictionary(indexEntry);
+    }
+    int entry = (int) reader.next();
+    int offset = strideDictionaryOffsets[entry];
+    int length;
+    // if it isn't the last entry, subtract the offsets otherwise use
+    // the buffer length.
+    if (entry < strideDictionaryOffsets.length - 1) {
+      length = strideDictionaryOffsets[entry + 1] - offset;
+    } else {
+      length = strideDictionaryBuffer.size() - offset;
+    }
+    // If the column is just empty strings, the size will be zero, so the buffer will be null,
+    // in that case just return result as it will default to empty
+    if (strideDictionaryBuffer != null) {
+      strideDictionaryBuffer.setText(result, offset, length);
+    } else {
+      result.clear();
+    }
   }
 
   @Override
   public Object next(Object previous) throws IOException {
     Text result = null;
     if (valuePresent) {
-      int entry = (int) reader.next();
       if (previous == null) {
         result = new Text();
       } else {
         result = (Text) previous;
       }
-      int offset = dictionaryOffsets[entry];
-      int length;
-      // if it isn't the last entry, subtract the offsets otherwise use
-      // the buffer length.
-      if (entry < dictionaryOffsets.length - 1) {
-        length = dictionaryOffsets[entry + 1] - offset;
+      boolean isDictionaryEncoded = inDictionary == null ||  inDictionary.next() == 1;
+      if  (isDictionaryEncoded) {
+        nextFromDictionary(result);
       } else {
-        length = dictionaryBuffer.size() - offset;
-      }
-      // If the column is just empty strings, the size will be zero, so the buffer will be null,
-      // in that case just return result as it will default to empty
-      if (dictionaryBuffer != null) {
-        dictionaryBuffer.setText(result, offset, length);
-      } else {
-        result.clear();
+        nextFromStrideDictionary(result);
       }
     }
     return result;
@@ -133,5 +218,8 @@ public class LazyStringDictionaryTreeReader extends LazyTreeReader {
   @Override
   public void skipRows(long numNonNullValues) throws IOException {
     reader.skip(numNonNullValues);
+    if (inDictionary != null) {
+      inDictionary.skip(numNonNullValues);
+    }
   }
 }

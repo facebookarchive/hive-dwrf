@@ -99,8 +99,8 @@ public class LazyStringTreeReader extends LazyTreeReader {
   }
 
   @Override
-  public Object getInComplexType(Object previous) throws IOException {
-    return reader.getInComplexType(previous);
+  public Object getInComplexType(Object previous, long row) throws IOException {
+    return reader.getInComplexType(previous, row);
   }
 
   @Override

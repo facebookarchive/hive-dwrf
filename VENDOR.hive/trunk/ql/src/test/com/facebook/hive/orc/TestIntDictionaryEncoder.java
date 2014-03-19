@@ -52,7 +52,7 @@ public class TestIntDictionaryEncoder {
   public void test1() throws Exception {
     IntDictionaryEncoder dictEncoder = new IntDictionaryEncoder(false, 4, true);
 
-    assertEquals(66090, dictEncoder.getByteSize());
+    assertEquals(98858, dictEncoder.getByteSize());
     assertEquals(0, dictEncoder.size());
 
     int [] addKeys = new int [] {1, 1, 0, 3, 2, 1, 3, 0, -6, 100};
@@ -74,7 +74,7 @@ public class TestIntDictionaryEncoder {
     }
     checkContent(dictEncoder, expectedUniqueValues, expectedOrder);
     dictEncoder.clear();
-    assertEquals(66090, dictEncoder.getByteSize());
+    assertEquals(98858, dictEncoder.getByteSize());
     assertEquals(0, dictEncoder.size());
     checkContent(dictEncoder, new int[0], new int[0]);
   }
@@ -85,7 +85,7 @@ public class TestIntDictionaryEncoder {
       new IntDictionaryEncoder(true, 4 , true) };
 
     for (IntDictionaryEncoder dictEncoder : encoders) {
-      assertEquals(66090, dictEncoder.getByteSize());
+      assertEquals(98858, dictEncoder.getByteSize());
       assertEquals(0, dictEncoder.size());
 
       int [] addKeys = new int [] {1, 1, 0, 3, 2, 1, 3, 0, -6, 100};
@@ -102,7 +102,7 @@ public class TestIntDictionaryEncoder {
 
       checkContent(dictEncoder, expectedOrderedUniqueValues, expectedOrder);
       dictEncoder.clear();
-      assertEquals(66090, dictEncoder.getByteSize());
+      assertEquals(98858, dictEncoder.getByteSize());
       assertEquals(0, dictEncoder.size());
       checkContent(dictEncoder, new int[0], new int[0]);
     }

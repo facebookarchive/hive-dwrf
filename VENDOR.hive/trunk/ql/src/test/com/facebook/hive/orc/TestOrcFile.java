@@ -74,8 +74,10 @@ import org.junit.rules.TestName;
 import com.facebook.hive.orc.OrcTestUtils.BigRow;
 import com.facebook.hive.orc.OrcTestUtils.DoubleRow;
 import com.facebook.hive.orc.OrcTestUtils.InnerStruct;
+import com.facebook.hive.orc.OrcTestUtils.IntStruct;
 import com.facebook.hive.orc.OrcTestUtils.MiddleStruct;
 import com.facebook.hive.orc.OrcTestUtils.ReallyBigRow;
+import com.facebook.hive.orc.OrcTestUtils.StringStruct;
 import com.facebook.hive.orc.lazy.OrcLazyBinary;
 import com.facebook.hive.orc.lazy.OrcLazyBoolean;
 import com.facebook.hive.orc.lazy.OrcLazyByte;
@@ -997,10 +999,11 @@ public class TestOrcFile {
       inspector = ObjectInspectorFactory.getReflectionObjectInspector
           (ReallyBigRow.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
+
     ReaderWriterProfiler.setProfilerOptions(conf);
     OrcConf.setBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_FILE_ENABLE_LOW_MEMORY_MODE, lowMemoryMode);
     Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
-        4000000, CompressionKind.ZLIB, 65536, 1000,
+        8000000, CompressionKind.ZLIB, 65536, 1000,
         new MemoryManager(conf));
     Random rand = new Random(42);
     RandomRowInputs inputs = new RandomRowInputs(count);
@@ -1043,7 +1046,119 @@ public class TestOrcFile {
     MANY
   }
 
-  private void compareRows(OrcStruct row, RandomRowInputs inputs, int rowNumber, NumberOfNulls numNulls) throws Exception {
+  private void compareRowsUsingPrimitives(ReallyBigRow expected, OrcLazyBoolean boolean1,
+      OrcLazyShort short1, OrcLazyInt int1, OrcLazyLong long1, OrcLazyShort short2,
+      OrcLazyInt int2, OrcLazyLong long2, OrcLazyShort short3, OrcLazyInt int3, OrcLazyLong long3,
+      OrcLazyFloat float1, OrcLazyDouble double1) throws IOException {
+    try {
+      boolean b1 = boolean1.materializeBoolean();
+      assertEquals(expected.boolean1.booleanValue(), b1);
+    }
+    catch(IOException e) {
+      assert(boolean1.nextIsNull());
+      assertNull(expected.boolean1);
+    }
+
+    if (short1.nextIsNull()) {
+      assertNull(expected.short1);
+    } else {
+      assertEquals(expected.short1.shortValue(),
+                   ((ShortWritable) short1.materialize()).get());
+    }
+
+    try {
+      int i1 = int1.materializeInt();
+      assertEquals(expected.int1.intValue(), i1);
+    }
+    catch(IOException e) {
+      assert(int1.nextIsNull());
+      assertNull(expected.int1);
+    }
+
+    try {
+      long l1 =  long1.materializeLong();
+      assertEquals(expected.long1.longValue(), l1);
+    }
+    catch(IOException e) {
+      assert(long1.nextIsNull());
+      assertNull(expected.long1);
+    }
+
+    try {
+      short s2 = short2.materializeShort();
+      assertEquals(expected.short2.shortValue(), s2);
+    }
+    catch(IOException e) {
+      assert(short2.nextIsNull());
+      assertNull(expected.short2);
+    }
+
+    try {
+      int i2 = int2.materializeInt();
+      assertEquals(expected.int2.intValue(), i2);
+    }
+    catch(IOException e) {
+      assert(int2.nextIsNull());
+      assertNull(expected.int2);
+    }
+
+    try {
+      long l2 = long2.materializeLong();
+      assertEquals(expected.long2.longValue(), l2);
+    }
+    catch(IOException e) {
+      assert(long2.nextIsNull());
+      assertNull(expected.long2);
+    }
+
+    try {
+      short s3 = short3.materializeShort();
+      assertEquals(expected.short3.shortValue(), s3);
+    }
+    catch(IOException e) {
+      assert(short3.nextIsNull());
+      assertNull(expected.short3);
+    }
+
+    try {
+      int i3 = int3.materializeInt();
+      assertEquals(expected.int3.intValue(), i3);
+    }
+    catch(IOException e) {
+      assert(int3.nextIsNull());
+      assertNull(expected.int3);
+    }
+
+    try {
+      long l3 = long3.materializeLong();
+      assertEquals(expected.long3.longValue(), l3);
+    }
+    catch(IOException e) {
+      assert(long3.nextIsNull());
+      assertNull(expected.long3);
+    }
+
+    try {
+      float f1 = float1.materializeFloat();
+      assertEquals(expected.float1.floatValue(), f1, 0.0001);
+    }
+    catch(IOException e) {
+      assert(float1.nextIsNull());
+      assertNull(expected.float1);
+    }
+
+    try {
+      double d1 = double1.materializeDouble();
+      assertEquals(expected.double1.doubleValue(), d1, 0.0001);
+    }
+    catch(IOException e) {
+      assert(double1.nextIsNull());
+      assertNull(expected.double1);
+    }
+  }
+
+  private void compareRows(OrcStruct row, RandomRowInputs inputs, int rowNumber,
+      NumberOfNulls numNulls, boolean testPrimitives) throws Exception {
     ReallyBigRow expected = null ;
     switch (numNulls) {
       case MANY:
@@ -1056,20 +1171,12 @@ public class TestOrcFile {
             inputs.stringValues, inputs.byteValues, inputs.words, rowNumber);
         break;
     }
-    OrcLazyBoolean lazyboolean1 = (OrcLazyBoolean) row.getFieldValue(0);
-    if (lazyboolean1.nextIsNull()) {
+    OrcLazyBoolean boolean1 = (OrcLazyBoolean) row.getFieldValue(0);
+    if (boolean1.nextIsNull()) {
       assertNull(expected.boolean1);
     } else {
       assertEquals(expected.boolean1.booleanValue(),
-                   ((BooleanWritable) lazyboolean1.materialize()).get());
-    }
-    try {
-      boolean b1 = lazyboolean1.materializeBoolean();
-      assertEquals(expected.boolean1.booleanValue(), b1);
-    }
-    catch(IOException e) {
-      assert(lazyboolean1.nextIsNull());
-      assertNull(expected.boolean1);
+                   ((BooleanWritable) boolean1.materialize()).get());
     }
 
     if (((OrcLazyObject) row.getFieldValue(1)).nextIsNull()) {
@@ -1089,13 +1196,6 @@ public class TestOrcFile {
       assert(short1.nextIsNull());
       assertNull(expected.short1);
     }
-    if (short1.nextIsNull()) {
-      assertNull(expected.short1);
-    } else {
-      assertEquals(expected.short1.shortValue(),
-                   ((ShortWritable) short1.materialize()).get());
-    }
-
 
     OrcLazyInt int1 = (OrcLazyInt)row.getFieldValue(3);
     if (int1.nextIsNull()) {
@@ -1103,14 +1203,6 @@ public class TestOrcFile {
     } else {
       assertEquals(expected.int1.intValue(),
                    ((IntWritable) int1.materialize()).get());
-    }
-    try {
-      int i1 = int1.materializeInt();
-      assertEquals(expected.int1.intValue(), i1);
-    }
-    catch(IOException e) {
-      assert(int1.nextIsNull());
-      assertNull(expected.int1);
     }
 
     OrcLazyLong long1 = (OrcLazyLong)row.getFieldValue(4);
@@ -1120,24 +1212,8 @@ public class TestOrcFile {
       assertEquals(expected.long1.longValue(),
                    ((LongWritable) long1.materialize()).get());
     }
-    try {
-      long l1 =  long1.materializeLong();
-      assertEquals(expected.long1.longValue(), l1);
-    }
-    catch(IOException e) {
-      assert(long1.nextIsNull());
-      assertNull(expected.long1);
-    }
 
     OrcLazyShort short2 = (OrcLazyShort)row.getFieldValue(5);
-    try {
-      short s2 = short2.materializeShort();
-      assertEquals(expected.short2.shortValue(), s2);
-    }
-    catch(IOException e) {
-      assert(short2.nextIsNull());
-      assertNull(expected.short2);
-    }
     if (short2.nextIsNull()) {
       assertNull(expected.short2);
     } else {
@@ -1146,14 +1222,6 @@ public class TestOrcFile {
     }
 
     OrcLazyInt int2 = (OrcLazyInt) row.getFieldValue(6);
-    try {
-      int i2 = int2.materializeInt();
-      assertEquals(expected.int2.intValue(), i2);
-    }
-    catch(IOException e) {
-      assert(int2.nextIsNull());
-      assertNull(expected.int2);
-    }
     if (int2.nextIsNull()) {
       assertNull(expected.int2);
     } else {
@@ -1162,14 +1230,6 @@ public class TestOrcFile {
     }
 
     OrcLazyLong long2 = (OrcLazyLong) row.getFieldValue(7);
-    try {
-      long l2 = long2.materializeLong();
-      assertEquals(expected.long2.longValue(), l2);
-    }
-    catch(IOException e) {
-      assert(long2.nextIsNull());
-      assertNull(expected.long2);
-    }
     if (long2.nextIsNull()) {
       assertNull(expected.long2);
     } else {
@@ -1177,31 +1237,39 @@ public class TestOrcFile {
                    ((LongWritable) long2.materialize()).get());
     }
 
-    OrcLazyFloat float1 = (OrcLazyFloat) row.getFieldValue(8);
+    OrcLazyShort short3 = (OrcLazyShort)row.getFieldValue(8);
+    if (short3.nextIsNull()) {
+      assertNull(expected.short3);
+    } else {
+      assertEquals(expected.short3.shortValue(),
+                   ((ShortWritable) short3.materialize()).get());
+    }
+
+    OrcLazyInt int3 = (OrcLazyInt) row.getFieldValue(9);
+    if (int3.nextIsNull()) {
+      assertNull(expected.int3);
+    } else {
+      assertEquals(expected.int3.intValue(),
+                   ((IntWritable) int3.materialize()).get());
+    }
+
+    OrcLazyLong long3 = (OrcLazyLong) row.getFieldValue(10);
+    if (long3.nextIsNull()) {
+      assertNull(expected.long3);
+    } else {
+      assertEquals(expected.long3.longValue(),
+                   ((LongWritable) long3.materialize()).get());
+    }
+
+    OrcLazyFloat float1 = (OrcLazyFloat) row.getFieldValue(11);
     if (float1.nextIsNull()) {
       assertNull(expected.float1);
     } else {
       assertEquals(expected.float1.floatValue(),
                    ((FloatWritable) float1.materialize()).get(), 0.0001);
     }
-    try {
-      float f1 = float1.materializeFloat();
-      assertEquals(expected.float1.floatValue(), f1, 0.0001);
-    }
-    catch(IOException e) {
-      assert(float1.nextIsNull());
-      assertNull(expected.float1);
-    }
 
-    OrcLazyDouble double1 = (OrcLazyDouble) row.getFieldValue(9);
-    try {
-      double d1 = double1.materializeDouble();
-      assertEquals(expected.double1.doubleValue(), d1, 0.0001);
-    }
-    catch(IOException e) {
-      assert(double1.nextIsNull());
-      assertNull(expected.double1);
-    }
+    OrcLazyDouble double1 = (OrcLazyDouble) row.getFieldValue(12);
     if (double1.nextIsNull()) {
       assertNull(expected.double1);
     } else {
@@ -1209,26 +1277,35 @@ public class TestOrcFile {
                    ((DoubleWritable) double1.materialize()).get(), 0.0001);
     }
 
-    if (((OrcLazyObject) row.getFieldValue(10)).nextIsNull()) {
+    if (((OrcLazyObject) row.getFieldValue(13)).nextIsNull()) {
       assertNull(expected.bytes1);
     } else {
-      assertEquals(expected.bytes1, ((OrcLazyBinary) row.getFieldValue(10)).materialize());
+      assertEquals(expected.bytes1, ((OrcLazyBinary) row.getFieldValue(13)).materialize());
     }
-    if (((OrcLazyObject) row.getFieldValue(11)).nextIsNull()) {
+
+    if (((OrcLazyObject) row.getFieldValue(14)).nextIsNull()) {
       assertNull(expected.string1);
     } else {
-      assertEquals(expected.string1, ((OrcLazyString) row.getFieldValue(11)).materialize());
+      assertEquals(expected.string1, ((OrcLazyString) row.getFieldValue(14)).materialize());
     }
-    if (((OrcLazyString) row.getFieldValue(12)).nextIsNull()) {
+
+    if (((OrcLazyString) row.getFieldValue(15)).nextIsNull()) {
       assertNull(expected.string2);
     } else {
-      assertEquals(expected.string2, ((OrcLazyString) row.getFieldValue(12)).materialize());
+      assertEquals(expected.string2, ((OrcLazyString) row.getFieldValue(15)).materialize());
     }
-    if (((OrcLazyObject) row.getFieldValue(13)).nextIsNull()) {
+
+    if (((OrcLazyString) row.getFieldValue(16)).nextIsNull()) {
+      assertNull(expected.string3);
+    } else {
+      assertEquals(expected.string3, ((OrcLazyString) row.getFieldValue(16)).materialize());
+    }
+
+    if (((OrcLazyObject) row.getFieldValue(17)).nextIsNull()) {
       assertNull(expected.middle);
     } else {
       List<InnerStruct> expectedList = expected.middle.list;
-      OrcStruct actualMiddle = (OrcStruct) ((OrcLazyStruct) row.getFieldValue(13)).materialize();
+      OrcStruct actualMiddle = (OrcStruct) ((OrcLazyStruct) row.getFieldValue(17)).materialize();
       List<OrcStruct> actualList =
           (List) actualMiddle.getFieldValue(0);
       compareListOfStructs(expectedList, actualList);
@@ -1237,20 +1314,25 @@ public class TestOrcFile {
       expectedFieldNames.add("list");
       compareLists(expectedFieldNames, actualFieldNames);
     }
-    if (((OrcLazyObject) row.getFieldValue(14)).nextIsNull()) {
+    if (((OrcLazyObject) row.getFieldValue(18)).nextIsNull()) {
       assertNull(expected.list);
     } else {
-      compareListOfStructs(expected.list, (List) ((OrcLazyList) row.getFieldValue(14)).materialize());
+      compareListOfStructs(expected.list, (List) ((OrcLazyList) row.getFieldValue(18)).materialize());
     }
-    if (((OrcLazyObject) row.getFieldValue(15)).nextIsNull()) {
+    if (((OrcLazyObject) row.getFieldValue(19)).nextIsNull()) {
       assertNull(expected.map);
     } else {
-      compareMap(expected.map, (Map) ((OrcLazyMap) row.getFieldValue(15)).materialize());
+      compareMap(expected.map, (Map) ((OrcLazyMap) row.getFieldValue(19)).materialize());
+    }
+
+    if (testPrimitives) {
+      compareRowsUsingPrimitives(expected, boolean1, short1, int1, long1, short2, int2, long2,
+          short3, int3, long3, float1, double1);
     }
   }
 
   private void compareRowsWithoutNextIsNull(OrcStruct row, RandomRowInputs inputs, int rowNumber,
-      NumberOfNulls numNulls) throws Exception {
+      NumberOfNulls numNulls, boolean usingPrimitives) throws Exception {
 
     ReallyBigRow expected = null;
     switch (numNulls) {
@@ -1265,19 +1347,12 @@ public class TestOrcFile {
         break;
     }
 
-    OrcLazyBoolean lazyboolean1 = (OrcLazyBoolean) row.getFieldValue(0);
-    BooleanWritable boolean1 = (BooleanWritable) lazyboolean1.materialize();
+    OrcLazyBoolean lazyBoolean1 = (OrcLazyBoolean) row.getFieldValue(0);
+    BooleanWritable boolean1 = (BooleanWritable) lazyBoolean1.materialize();
     if (boolean1 == null) {
       assertNull(expected.boolean1);
     } else {
       assertEquals(expected.boolean1.booleanValue(), boolean1.get());
-    }
-    try {
-      boolean b1 = lazyboolean1.materializeBoolean();
-      assertEquals(expected.boolean1.booleanValue(), b1);
-    }
-    catch(IOException e) {
-      assertNull(expected.boolean1);
     }
 
     ByteWritable byte1 = (ByteWritable) ((OrcLazyByte) row.getFieldValue(1)).materialize();
@@ -1287,149 +1362,123 @@ public class TestOrcFile {
       assertEquals(expected.byte1.byteValue(), byte1.get());
     }
 
-    OrcLazyShort lazyshort1 = (OrcLazyShort) row.getFieldValue(2);
-    ShortWritable short1 = (ShortWritable) lazyshort1.materialize();
+    OrcLazyShort lazyShort1 = (OrcLazyShort) row.getFieldValue(2);
+    ShortWritable short1 = (ShortWritable) lazyShort1.materialize();
     if (short1 == null) {
       assertNull(expected.short1);
     } else {
       assertEquals(expected.short1.shortValue(), short1.get());
     }
 
-    try {
-      short s1 = lazyshort1.materializeShort();
-      assertEquals(expected.short1.shortValue(), s1);
-    }
-    catch(IOException e) {
-      assertNull(expected.short1);
-    }
-
-    OrcLazyInt lazyint1 = (OrcLazyInt) row.getFieldValue(3);
-    IntWritable int1 = (IntWritable) lazyint1.materialize();
+    OrcLazyInt lazyInt1 = (OrcLazyInt) row.getFieldValue(3);
+    IntWritable int1 = (IntWritable) lazyInt1.materialize();
     if (int1 == null) {
       assertNull(expected.int1);
     } else {
       assertEquals(expected.int1.intValue(), int1.get());
     }
-    try {
-      int i1 = lazyint1.materializeInt();
-      assertEquals(expected.int1.intValue(), i1);
-    }
-    catch(IOException e) {
-      assertNull(expected.int1);
-    }
 
-    OrcLazyLong lazylong1 = (OrcLazyLong) row.getFieldValue(4);
-    LongWritable long1 = (LongWritable) lazylong1.materialize();
+    OrcLazyLong lazyLong1 = (OrcLazyLong) row.getFieldValue(4);
+    LongWritable long1 = (LongWritable) lazyLong1.materialize();
     if (long1 == null) {
       assertNull(expected.long1);
     } else {
       assertEquals(expected.long1.longValue(), long1.get());
     }
-    try {
-      long l1 = lazylong1.materializeLong();
-      assertEquals(expected.long1.longValue(), l1);
-    }
-    catch(IOException e) {
-      assertNull(expected.long1);
-    }
 
-    OrcLazyShort lazyshort2 = (OrcLazyShort) row.getFieldValue(5);
-    ShortWritable short2 = (ShortWritable) lazyshort2.materialize();
-    try {
-      short s2 = lazyshort2.materializeShort();
-      assertEquals(expected.short2.shortValue(), s2);
-    }
-    catch(IOException e) {
-      assertNull(expected.short2);
-    }
+    OrcLazyShort lazyShort2 = (OrcLazyShort) row.getFieldValue(5);
+    ShortWritable short2 = (ShortWritable) lazyShort2.materialize();
     if (short2 == null) {
       assertNull(expected.short2);
     } else {
       assertEquals(expected.short2.shortValue(), short2.get());
     }
 
-    OrcLazyInt lazyint2 = (OrcLazyInt) row.getFieldValue(6);
-    IntWritable int2 = (IntWritable) lazyint2.materialize();
-    try {
-      int i2 = lazyint2.materializeInt();
-      assertEquals(expected.int2.intValue(), i2);
-    }
-    catch(IOException e) {
-      assertNull(expected.int2);
-    }
+    OrcLazyInt lazyInt2 = (OrcLazyInt) row.getFieldValue(6);
+    IntWritable int2 = (IntWritable) lazyInt2.materialize();
     if (int2 == null) {
       assertNull(expected.int2);
     } else {
       assertEquals(expected.int2.intValue(), int2.get());
     }
 
-    OrcLazyLong lazylong2 = (OrcLazyLong) row.getFieldValue(7);
-    LongWritable long2 = (LongWritable) lazylong2.materialize();
-    try {
-      long l2 = lazylong2.materializeLong();
-      assertEquals(expected.long2.longValue(), l2);
-    }
-    catch(IOException e) {
-      assertNull(expected.long2);
-    }
+    OrcLazyLong lazyLong2 = (OrcLazyLong) row.getFieldValue(7);
+    LongWritable long2 = (LongWritable) lazyLong2.materialize();
     if (long2 == null) {
       assertNull(expected.long2);
     } else {
       assertEquals(expected.long2.longValue(), long2.get());
     }
 
-    OrcLazyFloat lazyfloat1 = (OrcLazyFloat) row.getFieldValue(8);
-    FloatWritable float1 = (FloatWritable) lazyfloat1.materialize();
+    OrcLazyShort lazyShort3 = (OrcLazyShort) row.getFieldValue(8);
+    ShortWritable short3 = (ShortWritable) lazyShort3.materialize();
+    if (short3 == null) {
+      assertNull(expected.short3);
+    } else {
+      assertEquals(expected.short3.shortValue(), short3.get());
+    }
+
+    OrcLazyInt lazyInt3 = (OrcLazyInt) row.getFieldValue(9);
+    IntWritable int3 = (IntWritable) lazyInt3.materialize();
+    if (int3 == null) {
+      assertNull(expected.int3);
+    } else {
+      assertEquals(expected.int3.intValue(), int3.get());
+    }
+
+    OrcLazyLong lazyLong3 = (OrcLazyLong) row.getFieldValue(10);
+    LongWritable long3 = (LongWritable) lazyLong3.materialize();
+    if (long3 == null) {
+      assertNull(expected.long3);
+    } else {
+      assertEquals(expected.long3.longValue(), long3.get());
+    }
+
+    OrcLazyFloat lazyFloat1 = (OrcLazyFloat) row.getFieldValue(11);
+    FloatWritable float1 = (FloatWritable) lazyFloat1.materialize();
     if (float1 == null) {
       assertNull(expected.float1);
     } else {
       assertEquals(expected.float1.floatValue(), float1.get(), 0.0001);
     }
-    try {
-      float f1 = lazyfloat1.materializeFloat();
-      assertEquals(expected.float1.floatValue(), f1, 0.0001);
-    }
-    catch(IOException e) {
-      assertNull(expected.float1);
-    }
 
-    OrcLazyDouble lazydouble1 = (OrcLazyDouble) row.getFieldValue(9);
-    DoubleWritable double1 = (DoubleWritable) lazydouble1.materialize();
-    try {
-      double d1 = lazydouble1.materializeDouble();
-      assertEquals(expected.double1.doubleValue(), d1, 0.0001);
-    }
-    catch(IOException e) {
-      assertNull(expected.double1);
-    }
+    OrcLazyDouble lazyDouble1 = (OrcLazyDouble) row.getFieldValue(12);
+    DoubleWritable double1 = (DoubleWritable) lazyDouble1.materialize();
     if (double1 == null) {
       assertNull(expected.double1);
     } else {
       assertEquals(expected.double1.doubleValue(), double1.get(), 0.0001);
     }
 
-    BytesWritable bytes1 = (BytesWritable) ((OrcLazyBinary) row.getFieldValue(10)).materialize();
+    BytesWritable bytes1 = (BytesWritable) ((OrcLazyBinary) row.getFieldValue(13)).materialize();
     if (bytes1 == null) {
       assertNull(expected.bytes1);
     } else {
       assertEquals(expected.bytes1, bytes1);
     }
 
-    Text string1 = (Text) ((OrcLazyString) row.getFieldValue(11)).materialize();
+    Text string1 = (Text) ((OrcLazyString) row.getFieldValue(14)).materialize();
     if (string1 == null) {
       assertNull(expected.string1);
     } else {
       assertEquals(expected.string1, string1);
     }
 
-    Text string2 = (Text) ((OrcLazyString) row.getFieldValue(12)).materialize();
+    Text string2 = (Text) ((OrcLazyString) row.getFieldValue(15)).materialize();
     if (string2 == null) {
       assertNull(expected.string2);
     } else {
       assertEquals(expected.string2, string2);
     }
 
-    OrcStruct middle = (OrcStruct) ((OrcLazyStruct) row.getFieldValue(13)).materialize();
+    Text string3 = (Text) ((OrcLazyString) row.getFieldValue(16)).materialize();
+    if (string3 == null) {
+      assertNull(expected.string3);
+    } else {
+      assertEquals(expected.string3, string3);
+    }
+
+    OrcStruct middle = (OrcStruct) ((OrcLazyStruct) row.getFieldValue(17)).materialize();
     if (middle == null) {
       assertNull(expected.middle);
     } else {
@@ -1442,18 +1491,24 @@ public class TestOrcFile {
       compareLists(expectedFieldNames, actualFieldNames);
     }
 
-    List list = (List) ((OrcLazyList) row.getFieldValue(14)).materialize();
+    List list = (List) ((OrcLazyList) row.getFieldValue(18)).materialize();
     if (list == null) {
       assertNull(expected.list);
     } else {
       compareListOfStructs(expected.list, list);
     }
 
-    Map map = (Map) ((OrcLazyMap) row.getFieldValue(15)).materialize();
+    Map map = (Map) ((OrcLazyMap) row.getFieldValue(19)).materialize();
     if (map == null) {
       assertNull(expected.map);
     } else {
       compareMap(expected.map, map);
+    }
+
+    if (usingPrimitives) {
+      compareRowsUsingPrimitives(expected, lazyBoolean1, lazyShort1, lazyInt1, lazyLong1,
+          lazyShort2, lazyInt2, lazyLong2, lazyShort3, lazyInt3, lazyLong3, lazyFloat1,
+          lazyDouble1);
     }
   }
 
@@ -1471,7 +1526,7 @@ public class TestOrcFile {
       rows.seekToRow(i);
       lazyRow = (OrcLazyStruct) rows.next(lazyRow);
       row = (OrcStruct) lazyRow.materialize();
-      compareRows(row, inputs, i, NumberOfNulls.NONE);
+      compareRows(row, inputs, i, NumberOfNulls.NONE, true);
     }
     rows.close();
   }
@@ -1490,7 +1545,7 @@ public class TestOrcFile {
       rows.seekToRow(i);
       lazyRow = (OrcLazyStruct) rows.next(lazyRow);
       row = (OrcStruct) lazyRow.materialize();
-      compareRows(row, inputs, i, NumberOfNulls.NONE);
+      compareRows(row, inputs, i, NumberOfNulls.NONE, false);
     }
     rows.close();
   }
@@ -1520,9 +1575,9 @@ public class TestOrcFile {
       if (i % n == 0) {
         row = (OrcStruct) lazyRow.materialize();
         if (withoutNextIsNull) {
-          compareRowsWithoutNextIsNull(row, inputs, i, numNulls);
+          compareRowsWithoutNextIsNull(row, inputs, i, numNulls, true);
         } else {
-          compareRows(row, inputs, i, numNulls);
+          compareRows(row, inputs, i, numNulls, true);
         }
       }
     }
@@ -1855,9 +1910,9 @@ public class TestOrcFile {
       if (i % n != 0) {
         row = (OrcStruct) lazyRow.materialize();
         if (withoutNextIsNull) {
-          compareRowsWithoutNextIsNull(row, inputs, i, numNulls);
+          compareRowsWithoutNextIsNull(row, inputs, i, numNulls, false);
         } else {
-          compareRows(row, inputs, i, numNulls);
+          compareRows(row, inputs, i, numNulls, false);
         }
       }
     }
@@ -2036,11 +2091,17 @@ public class TestOrcFile {
     InnerStruct inner = new InnerStruct((int) intValues[i], stringValues[i]);
     InnerStruct inner2 = new InnerStruct((int) (intValues[i] >> 32),
         words[i % words.length] + "-x");
+    // Every 10th value of this string should be unique-ish in the file
+    String stringWithUniques = i % 10 == 0 ? Integer.toHexString(i) : stringValues[i];
+    Short shortWithUniques = i % 10 == 0 ? (short) i :  (short) (intValues[i] % 10);
+    Integer intWithUniques = i % 10 == 0 ? (int) i :  (int) (intValues[i] % 10);
+    Long longWithUniques = i % 10 == 0 ? (long) i :  (long) (intValues[i] % 10);
     return new ReallyBigRow((intValues[i] & 1) == 0, (byte) intValues[i],
         (short) intValues[i], (int) intValues[i], intValues[i],
         (short) (intValues[i] % 10), (int) (intValues[i] % 10), (long) (intValues[i] % 10),
-        (float) doubleValues[i], doubleValues[i], byteValues[i],stringValues[i], Integer.toHexString(i),
-        new MiddleStruct(inner, inner2), list(), map(inner,inner2));
+        shortWithUniques, intWithUniques, longWithUniques, (float) doubleValues[i],
+        doubleValues[i], byteValues[i], stringValues[i], Integer.toHexString(i),
+        stringWithUniques, new MiddleStruct(inner, inner2), list(), map(inner,inner2));
   }
 
   private ReallyBigRow createRandomRowWithNulls(long[] intValues, double[] doubleValues,
@@ -2068,8 +2129,17 @@ public class TestOrcFile {
     Short shortVal2 = intValues[i] % 19 == 0 ^ lotsOfNulls  ? null : (short) (intValues[i] % 10);
     Integer intVal2 = intValues[i] % 10 == 0 ^ lotsOfNulls  ? null : (int) (intValues[i] % 10);
     Long longVal2 = intValues[i] % 11 == 0 ^ lotsOfNulls  ? null : (long) (intValues[i] % 10);
+    String strVal3 = intValues[i] % 12 == 0 ^ lotsOfNulls ? null :
+      (intValues[i] % 10 == 0 ? Integer.toHexString(i) : stringValues[i]);
+    Short shortVal3 = intValues[i] % 13 == 0 ^ lotsOfNulls  ? null :
+      (intValues[i] % 10 == 0 ? (short) i : (short) (intValues[i] % 10));
+    Integer intVal3 = intValues[i] % 14 == 0 ^ lotsOfNulls  ? null :
+      (intValues[i] % 10 == 0 ? (int) i : (int) (intValues[i] % 10));
+    Long longVal3 = intValues[i] % 15 == 0 ^ lotsOfNulls  ? null :
+      (intValues[i] % 10 == 0 ? (long) i : (long) (intValues[i] % 10));
     return new ReallyBigRow(booleanVal, byteVal, shortVal, intVal, longVal, shortVal2, intVal2,
-        longVal2, floatVal, doubleVal, bytesVal, strVal, strVal2, middle, list, map);
+        longVal2, shortVal3, intVal3, longVal3, floatVal, doubleVal, bytesVal, strVal, strVal2,
+        strVal3, middle, list, map);
   }
 
   private static class MyMemoryManager extends MemoryManager {
@@ -2146,5 +2216,155 @@ public class TestOrcFile {
     }
     assertEquals(5, i);
     assertEquals(2500, reader.getNumberOfRows());
+  }
+
+  /**
+   *
+   * MemoryManagerWithForceFlush.
+   *
+   * An implementation of MemoryManager with the ability to force writers to flush their stripes
+   */
+  private static class MemoryManagerWithForceFlush extends MemoryManager {
+
+    MemoryManagerWithForceFlush(Configuration conf) {
+      super(conf);
+    }
+
+    public void forceFlushStripe() throws IOException {
+      for (WriterInfo writer : writerList.values()) {
+        writer.callback.checkMemory(0);
+      }
+    }
+  }
+
+  @Test
+  /**
+   * Tests a writing a stripe with a stride dictionary, followed by a stripe without
+   * followed by a stripe with.
+   */
+  public void testEmptyInStringDictionaryStream() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (StringStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    MemoryManagerWithForceFlush memory = new MemoryManagerWithForceFlush(conf);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD, 1);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 1000, memory);
+    writer.addRow(new StringStruct("a"));
+    writer.addRow(new StringStruct("b"));
+    writer.addRow(new StringStruct("c"));
+    for (int i = 0; i < 997; i++) {
+      writer.addRow(new StringStruct("123"));
+    }
+    memory.forceFlushStripe();
+    for (int i = 0; i < 1000; i++) {
+      writer.addRow(new StringStruct("123"));
+    }
+    memory.forceFlushStripe();
+    writer.addRow(new StringStruct("a"));
+    writer.addRow(new StringStruct("b"));
+    writer.addRow(new StringStruct("c"));
+    for (int i = 0; i < 997; i++) {
+      writer.addRow(new StringStruct("123"));
+    }
+    writer.close();
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+    row = (OrcStruct) lazyRow.materialize();
+    assertEquals("a", ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+    rows.next(lazyRow);
+    assertEquals("b", ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+    rows.next(lazyRow);
+    assertEquals("c", ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+    for (int i =0; i < 997; i++) {
+      rows.next(lazyRow);
+      assertEquals("123", ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+    }
+    for (int i =0; i < 1000; i++) {
+      rows.next(lazyRow);
+      assertEquals("123", ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+    }
+    rows.next(lazyRow);
+    assertEquals("a", ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+    rows.next(lazyRow);
+    assertEquals("b", ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+    rows.next(lazyRow);
+    assertEquals("c", ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+    for (int i =0; i < 997; i++) {
+      rows.next(lazyRow);
+      assertEquals("123", ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+    }
+  }
+
+  @Test
+  /**
+   * Tests a writing a stripe with a stride dictionary, followed by a stripe without
+   * followed by a stripe with.
+   */
+  public void testEmptyInIntDictionaryStream() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (IntStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    MemoryManagerWithForceFlush memory = new MemoryManagerWithForceFlush(conf);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 1000, memory);
+    writer.addRow(new IntStruct(1));
+    writer.addRow(new IntStruct(2));
+    writer.addRow(new IntStruct(3));
+    for (int i = 0; i < 997; i++) {
+      writer.addRow(new IntStruct(123));
+    }
+    memory.forceFlushStripe();
+    for (int i = 0; i < 1000; i++) {
+      writer.addRow(new IntStruct(123));
+    }
+    memory.forceFlushStripe();
+    writer.addRow(new IntStruct(1));
+    writer.addRow(new IntStruct(2));
+    writer.addRow(new IntStruct(3));
+    for (int i = 0; i < 997; i++) {
+      writer.addRow(new IntStruct(123));
+    }
+    writer.close();
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+    row = (OrcStruct) lazyRow.materialize();
+    assertEquals(1, ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
+    rows.next(lazyRow);
+    assertEquals(2, ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
+    rows.next(lazyRow);
+    assertEquals(3, ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
+    for (int i =0; i < 997; i++) {
+      rows.next(lazyRow);
+      assertEquals(123, ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
+    }
+    for (int i =0; i < 1000; i++) {
+      rows.next(lazyRow);
+      assertEquals(123, ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
+    }
+    rows.next(lazyRow);
+    assertEquals(1, ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
+    rows.next(lazyRow);
+    assertEquals(2, ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
+    rows.next(lazyRow);
+    assertEquals(3, ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
+    for (int i =0; i < 997; i++) {
+      rows.next(lazyRow);
+      assertEquals(123, ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
+    }
   }
 }

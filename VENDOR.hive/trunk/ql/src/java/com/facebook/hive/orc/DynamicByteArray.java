@@ -118,6 +118,22 @@ public final class DynamicByteArray {
   }
 
   /**
+   * Read lengthToRead bytes from the input stream into this array
+   * @param in the stream to read from
+   * @param lengthToRead the number of bytes to read
+   * @throws IOException
+   */
+  public void read(InputStream in, int lengthToRead) throws IOException {
+    int read = 0;
+    do {
+      grow(length);
+      read = data.setBytes(length, in, Math.min(lengthToRead, data.length() - length));
+      length += read;
+      lengthToRead -= read;
+    } while (lengthToRead > 0);
+  }
+
+  /**
    * Byte compare a set of bytes against the bytes in this dynamic array.
    * @param other source of the other bytes
    * @param otherOffset start offset in the other array
@@ -162,7 +178,7 @@ public final class DynamicByteArray {
    */
   public void setText(Text result, int offset, int length) {
     result.clear();
-    result.append(data.getBytes(), offset, length);
+    result.set(data.getBytes(), offset, length);
   }
 
   /**
