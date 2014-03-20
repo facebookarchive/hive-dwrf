@@ -104,7 +104,7 @@ abstract class LazyNumericDictionaryTreeReader extends LazyTreeReader {
     if (isInDictionary) {
       return dictionaryValues[(int) reader.next()];
     } else {
-      return (short) reader.next();
+      return reader.next();
     }
   }
 }

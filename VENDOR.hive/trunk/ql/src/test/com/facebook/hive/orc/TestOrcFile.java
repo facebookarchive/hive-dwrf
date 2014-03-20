@@ -2092,11 +2092,15 @@ public class TestOrcFile {
     // Every 10th value of this string should be unique-ish in the file
     String stringWithUniques = i % 10 == 0 ? Integer.toHexString(i) : stringValues[i];
     Short shortWithUniques = i % 10 == 0 ? (short) i :  (short) (intValues[i] % 10);
-    Integer intWithUniques = i % 10 == 0 ? (int) i :  (int) (intValues[i] % 10);
-    Long longWithUniques = i % 10 == 0 ? (long) i :  (long) (intValues[i] % 10);
+    Integer intWithUniques = i % 10 == 0 ? (int) (Short.MAX_VALUE + i) :
+      (int) (Short.MAX_VALUE + (intValues[i] % 10));
+    Long longWithUniques = i % 10 == 0 ? (long) (Integer.MAX_VALUE + i) :
+      (long) (Integer.MAX_VALUE + (intValues[i] % 10));
     return new ReallyBigRow((intValues[i] & 1) == 0, (byte) intValues[i],
-        (short) intValues[i], (int) intValues[i], intValues[i],
-        (short) (intValues[i] % 10), (int) (intValues[i] % 10), (long) (intValues[i] % 10),
+        (short) intValues[i], (int) (Short.MAX_VALUE + intValues[i]),
+        (long) (Integer.MAX_VALUE + intValues[i]), (short) (intValues[i] % 10),
+        (int) (Short.MAX_VALUE + (intValues[i] % 10)),
+        (long) (Integer.MAX_VALUE + (intValues[i] % 10)),
         shortWithUniques, intWithUniques, longWithUniques, (float) doubleValues[i],
         doubleValues[i], byteValues[i], stringValues[i], Integer.toHexString(i),
         stringWithUniques, new MiddleStruct(inner, inner2), list(), map(inner,inner2));
@@ -2108,8 +2112,8 @@ public class TestOrcFile {
     Boolean booleanVal = intValues[i] % 10 == 0 ^ lotsOfNulls ? null : (intValues[i] & 1) == 0;
     Byte byteVal = intValues[i] % 11 == 0 ^ lotsOfNulls ? null : (byte) intValues[i];
     Short shortVal = intValues[i] % 12 == 0 ^ lotsOfNulls  ? null : (short) intValues[i];
-    Integer intVal = intValues[i] % 13 == 0 ^ lotsOfNulls  ? null : (int) intValues[i];
-    Long longVal = intValues[i] % 14 == 0 ^ lotsOfNulls  ? null : intValues[i];
+    Integer intVal = intValues[i] % 13 == 0 ^ lotsOfNulls  ? null : (int) (Short.MAX_VALUE + i);
+    Long longVal = intValues[i] % 14 == 0 ^ lotsOfNulls  ? null : (long) (Integer.MAX_VALUE + i);
     Float floatVal = intValues[i] % 15 == 0 ^ lotsOfNulls  ? null : (float) doubleValues[i];
     Double doubleVal = intValues[i] % 16 == 0 ^ lotsOfNulls  ? null : doubleValues[i];
     BytesWritable bytesVal = intValues[i] % 17 == 0 ^ lotsOfNulls  ? null : byteValues[i];
@@ -2120,21 +2124,26 @@ public class TestOrcFile {
     InnerStruct inner2 = intValues[i] % 12 == 0 ^ lotsOfNulls  ? null : new InnerStruct(
         intValues[i] % 13 == 0 ^ lotsOfNulls  ? null : (int) (intValues[i] >> 32),
         intValues[i] % 14 == 0 ^ lotsOfNulls  ? null : words[i % words.length] + "-x");
-    MiddleStruct middle = intValues[i] % 15 == 0 ^ lotsOfNulls  ? null : new MiddleStruct(inner, inner2);
+    MiddleStruct middle = intValues[i] % 15 == 0 ^ lotsOfNulls  ? null :
+      new MiddleStruct(inner, inner2);
     List<InnerStruct> list = intValues[i] % 16 == 0 ^ lotsOfNulls  ? null : list(inner, inner2);
     Map<Text, InnerStruct> map = intValues[i] % 17 == 0 ^ lotsOfNulls  ? null : map(inner, inner2);
     String strVal2 = intValues[i] % 18 == 0 ^ lotsOfNulls  ? null : Integer.toHexString(i);
     Short shortVal2 = intValues[i] % 19 == 0 ^ lotsOfNulls  ? null : (short) (intValues[i] % 10);
-    Integer intVal2 = intValues[i] % 10 == 0 ^ lotsOfNulls  ? null : (int) (intValues[i] % 10);
-    Long longVal2 = intValues[i] % 11 == 0 ^ lotsOfNulls  ? null : (long) (intValues[i] % 10);
+    Integer intVal2 = intValues[i] % 10 == 0 ^ lotsOfNulls  ? null :
+      (int) (Short.MAX_VALUE + (intValues[i] % 10));
+    Long longVal2 = intValues[i] % 11 == 0 ^ lotsOfNulls  ? null :
+      (long) (Integer.MAX_VALUE + (intValues[i] % 10));
     String strVal3 = intValues[i] % 12 == 0 ^ lotsOfNulls ? null :
       (intValues[i] % 10 == 0 ? Integer.toHexString(i) : stringValues[i]);
     Short shortVal3 = intValues[i] % 13 == 0 ^ lotsOfNulls  ? null :
       (intValues[i] % 10 == 0 ? (short) i : (short) (intValues[i] % 10));
     Integer intVal3 = intValues[i] % 14 == 0 ^ lotsOfNulls  ? null :
-      (intValues[i] % 10 == 0 ? (int) i : (int) (intValues[i] % 10));
+      (intValues[i] % 10 == 0 ? (int) (Short.MAX_VALUE + i) :
+        (int) (Short.MAX_VALUE + (intValues[i] % 10)));
     Long longVal3 = intValues[i] % 15 == 0 ^ lotsOfNulls  ? null :
-      (intValues[i] % 10 == 0 ? (long) i : (long) (intValues[i] % 10));
+      (intValues[i] % 10 == 0 ? (long) (Integer.MAX_VALUE + i) :
+        (long) (Integer.MAX_VALUE + (intValues[i] % 10)));
     return new ReallyBigRow(booleanVal, byteVal, shortVal, intVal, longVal, shortVal2, intVal2,
         longVal2, shortVal3, intVal3, longVal3, floatVal, doubleVal, bytesVal, strVal, strVal2,
         strVal3, middle, list, map);
