@@ -20,6 +20,7 @@
 package com.facebook.hive.orc;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -83,6 +84,7 @@ class RecordReaderImpl implements RecordReader {
   private OrcLazyRow reader;
   private final OrcProto.RowIndex[] indexes;
   private final int readStrides;
+  private final boolean readEagerlyFromHdfs;
 
   RecordReaderImpl(Iterable<StripeInformation> stripes,
                    FileSystem fileSystem,
@@ -100,6 +102,7 @@ class RecordReaderImpl implements RecordReader {
     this.bufferSize = bufferSize;
     this.included = included;
     this.readStrides = OrcConf.getIntVar(conf, OrcConf.ConfVars.HIVE_ORC_READ_COMPRESSION_STRIDES);
+    this.readEagerlyFromHdfs = OrcConf.getBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_EAGER_HDFS_READ);
     long rows = 0;
     long skippedRows = 0;
     for(StripeInformation stripe: stripes) {
@@ -241,6 +244,100 @@ class RecordReaderImpl implements RecordReader {
         tailLength, codec, bufferSize));
   }
 
+  private void readEntireStripeEagerly(StripeInformation stripe, long offset) throws IOException {
+    byte[] buffer = new byte[(int) (stripe.getDataLength())];
+    file.seek(offset + stripe.getIndexLength());
+    file.readFully(buffer, 0, buffer.length);
+    int sectionOffset = 0;
+    for(OrcProto.Stream section: stripeFooter.getStreamsList()) {
+      if (StreamName.getArea(section.getKind()) == StreamName.Area.DATA ||
+          StreamName.getArea(section.getKind()) == StreamName.Area.DICTIONARY) {
+        int sectionLength = (int) section.getLength();
+        StreamName name = new StreamName(section.getColumn(),
+            section.getKind());
+        ByteBuffer sectionBuffer = ByteBuffer.wrap(buffer, sectionOffset, sectionLength);
+        streams.put(name, InStream.create(name.toString(), sectionBuffer, codec, bufferSize,
+            section.getUseVInts()));
+        sectionOffset += sectionLength;
+      }
+    }
+  }
+
+  private void readEntireStripeLazily(StripeInformation stripe, long offset) throws IOException {
+    int sectionOffset = 0;
+    for(OrcProto.Stream section: stripeFooter.getStreamsList()) {
+      if (StreamName.getArea(section.getKind()) == StreamName.Area.DATA ||
+          StreamName.getArea(section.getKind()) == StreamName.Area.DICTIONARY) {
+        int sectionLength = (int) section.getLength();
+        StreamName name = new StreamName(section.getColumn(),
+            section.getKind());
+        streams.put(name, InStream.create(name.toString(), file,
+            offset + stripe.getIndexLength() + sectionOffset, sectionLength, codec, bufferSize,
+            section.getUseVInts(), readStrides));
+        sectionOffset += sectionLength;
+      }
+    }
+  }
+
+  private void readIncludedStreamsEagerly(StripeInformation stripe,
+      List<OrcProto.Stream> streamList, long offset, int currentSection) throws IOException {
+    long sectionOffset = stripe.getIndexLength();
+    while (currentSection < streamList.size()) {
+      int bytes = 0;
+
+      // find the first section that shouldn't be read
+      int excluded = currentSection;
+      while (excluded < streamList.size() && included[streamList.get(excluded).getColumn()]) {
+        bytes += streamList.get(excluded++).getLength();
+      }
+
+      // actually read the bytes as a big chunk
+      if (currentSection < excluded) {
+        byte[] buffer = new byte[bytes];
+        file.seek(offset + sectionOffset);
+        file.readFully(buffer, 0, bytes);
+        sectionOffset += bytes;
+
+        // create the streams for the sections we just read
+        bytes = 0;
+        while (currentSection < excluded) {
+          OrcProto.Stream section = streamList.get(currentSection);
+          StreamName name =
+            new StreamName(section.getColumn(), section.getKind());
+          this.streams.put(name,
+              InStream.create(name.toString(), ByteBuffer.wrap(buffer, bytes,
+                  (int) section.getLength()), codec, bufferSize, section.getUseVInts()));
+          currentSection++;
+          bytes += section.getLength();
+        }
+      }
+
+      // skip forward until we get back to a section that we need
+      while (currentSection < streamList.size() && !included[streamList.get(currentSection).getColumn()]) {
+        sectionOffset += streamList.get(currentSection).getLength();
+        currentSection++;
+      }
+    }
+  }
+
+  private void readIncludedStreamsLazily(StripeInformation stripe,
+      List<OrcProto.Stream> streamList, long offset, int currentSection) throws IOException {
+    long sectionOffset = stripe.getIndexLength();
+    while (currentSection < streamList.size()) {
+      if (included[streamList.get(currentSection).getColumn()]) {
+        OrcProto.Stream section = streamList.get(currentSection);
+        StreamName name =
+          new StreamName(section.getColumn(), section.getKind());
+        this.streams.put(name,
+            InStream.create(name.toString(), file, offset + sectionOffset,
+                (int) section.getLength(), codec, bufferSize, section.getUseVInts(),
+                readStrides));
+      }
+      sectionOffset += streamList.get(currentSection).getLength();
+      currentSection += 1;
+    }
+  }
+
   private void readStripe() throws IOException {
     StripeInformation stripe = stripes.get(currentStripe);
     stripeFooter = readStripeFooter(stripe);
@@ -249,19 +346,10 @@ class RecordReaderImpl implements RecordReader {
 
     // if we aren't projecting columns, just read the whole stripe
     if (included == null) {
-      int sectionOffset = 0;
-      for(OrcProto.Stream section: stripeFooter.getStreamsList()) {
-        if (StreamName.getArea(section.getKind()) == StreamName.Area.DATA ||
-            StreamName.getArea(section.getKind()) == StreamName.Area.DICTIONARY) {
-          int sectionLength = (int) section.getLength();
-          StreamName name = new StreamName(section.getColumn(),
-              section.getKind());
-          streams.put(name,
-              InStream.create(name.toString(), file,
-                  offset + stripe.getIndexLength() + sectionOffset, sectionLength, codec,
-                  bufferSize, section.getUseVInts(), readStrides));
-          sectionOffset += sectionLength;
-        }
+      if (readEagerlyFromHdfs) {
+        readEntireStripeEagerly(stripe, offset);
+      } else {
+        readEntireStripeLazily(stripe, offset);
       }
     } else {
       List<OrcProto.Stream> streamList = stripeFooter.getStreamsList();
@@ -273,20 +361,10 @@ class RecordReaderImpl implements RecordReader {
             StreamName.Area.DICTIONARY) {
         currentSection += 1;
       }
-      // byte position of the current section relative to the stripe start
-      long sectionOffset = stripe.getIndexLength();
-      while (currentSection < streamList.size()) {
-        if (included[streamList.get(currentSection).getColumn()]) {
-          OrcProto.Stream section = streamList.get(currentSection);
-          StreamName name =
-            new StreamName(section.getColumn(), section.getKind());
-          this.streams.put(name,
-              InStream.create(name.toString(), file, offset + sectionOffset,
-                  (int) section.getLength(), codec, bufferSize, section.getUseVInts(),
-                  readStrides));
-        }
-        sectionOffset += streamList.get(currentSection).getLength();
-        currentSection += 1;
+      if (readEagerlyFromHdfs) {
+        readIncludedStreamsEagerly(stripe, streamList, offset, currentSection);
+      } else {
+        readIncludedStreamsLazily(stripe, streamList, offset, currentSection);
       }
     }
 

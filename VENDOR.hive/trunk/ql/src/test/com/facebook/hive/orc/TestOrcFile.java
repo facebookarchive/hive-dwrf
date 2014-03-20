@@ -294,6 +294,7 @@ public class TestOrcFile {
 
     writer.close();
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_READ_COMPRESSION_STRIDES, 2);
+    OrcConf.setBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_EAGER_HDFS_READ, false);
     Reader reader = OrcFile.createReader(fs, testFilePath, conf);
 
     StructObjectInspector readerInspector = (StructObjectInspector) reader.getObjectInspector();
@@ -1514,28 +1515,25 @@ public class TestOrcFile {
 
   @Test
   public void testSeek() throws Exception {
-    final int COUNT=32768;
-    RandomRowInputs inputs = writeRandomRows(COUNT, false);
-    ReaderWriterProfiler.setProfilerOptions(conf);
-    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
-    assertEquals(COUNT, reader.getNumberOfRows());
-    RecordReader rows = reader.rows(null);
-    OrcLazyStruct lazyRow = null;
-    OrcStruct row = null;
-    for(int i=COUNT-1; i >= 0; --i) {
-      rows.seekToRow(i);
-      lazyRow = (OrcLazyStruct) rows.next(lazyRow);
-      row = (OrcStruct) lazyRow.materialize();
-      compareRows(row, inputs, i, NumberOfNulls.NONE, true);
-    }
-    rows.close();
+    testSeek(false, true, false);
   }
 
   @Test
   public void testSeekLowMemory() throws Exception {
+    testSeek(true, false, false);
+  }
+
+  @Test
+  public void testSeekLazyHdfsReads() throws Exception {
+    testSeek(false, false, true);
+  }
+
+  private void testSeek(boolean lowMemory, boolean testPrimitives, boolean lazyHdfsReads)
+      throws Exception {
     final int COUNT=32768;
-    RandomRowInputs inputs = writeRandomRows(COUNT, true);
+    RandomRowInputs inputs = writeRandomRows(COUNT, lowMemory);
     ReaderWriterProfiler.setProfilerOptions(conf);
+    OrcConf.setBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_EAGER_HDFS_READ, !lazyHdfsReads);
     Reader reader = OrcFile.createReader(fs, testFilePath, conf);
     assertEquals(COUNT, reader.getNumberOfRows());
     RecordReader rows = reader.rows(null);
@@ -1545,7 +1543,7 @@ public class TestOrcFile {
       rows.seekToRow(i);
       lazyRow = (OrcLazyStruct) rows.next(lazyRow);
       row = (OrcStruct) lazyRow.materialize();
-      compareRows(row, inputs, i, NumberOfNulls.NONE, false);
+      compareRows(row, inputs, i, NumberOfNulls.NONE, testPrimitives);
     }
     rows.close();
   }

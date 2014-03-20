@@ -267,6 +267,12 @@ public abstract class InStream extends InputStream {
     }
 
     private void readData() throws IOException {
+      if (file == null) {
+        // If file is null, this InStream was initialized using a ByteBuffer, so there's no need
+        // to read anything from disk
+        return;
+      }
+
       long fileOffset = base;
       chunkLength = limit;
       if (chunkStarts != null) {
@@ -380,7 +386,11 @@ public abstract class InStream extends InputStream {
     @Override
     public void seek(int index) throws IOException {
       int uncompBytes = uncompressedIndeces[index];
-      int newCompressedOffset = (int) (compressedIndeces[index] - (chunkStarts[compressedStrides[index]] - base));
+      // If file is null the compressed offset should be relative to the start of the ByteBuffer
+      // that was used to initialize this InStream, otherwise, it is relative to where this data
+      // starts in the file.
+      int newCompressedOffset = file == null ? (int) base + compressedIndeces[index] :
+        (int) (compressedIndeces[index] - (chunkStarts[compressedStrides[index]] - base));
       if (uncompBytes != 0 || uncompressed != null) {
 
         boolean dataRead = false;
