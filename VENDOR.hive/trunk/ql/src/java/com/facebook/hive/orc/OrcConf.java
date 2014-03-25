@@ -59,7 +59,9 @@ public class OrcConf {
     HIVE_ORC_FILE_ENABLE_LOW_MEMORY_MODE("hive.exec.orc.low.memory", false),
     HIVE_ORC_ROW_BUFFER_SIZE("hive.exec.orc.row.buffer.size", 100),
 
-    HIVE_ORC_EAGER_HDFS_READ("hive.exec.orc.eager.hdfs.read", true),;
+    HIVE_ORC_EAGER_HDFS_READ("hive.exec.orc.eager.hdfs.read", true),
+    HIVE_ORC_EAGER_HDFS_READ_BYTES("hive.exec.orc.eager.hdfs.read.bytes", 193986560), // 185 Mb
+    ;
 
     public final String varname;
     public final String defaultVal;

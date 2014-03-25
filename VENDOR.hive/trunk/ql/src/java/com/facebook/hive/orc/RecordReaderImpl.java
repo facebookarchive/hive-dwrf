@@ -85,6 +85,7 @@ class RecordReaderImpl implements RecordReader {
   private final OrcProto.RowIndex[] indexes;
   private final int readStrides;
   private final boolean readEagerlyFromHdfs;
+  private final long readEagerlyFromHdfsBytes;
 
   RecordReaderImpl(Iterable<StripeInformation> stripes,
                    FileSystem fileSystem,
@@ -103,6 +104,8 @@ class RecordReaderImpl implements RecordReader {
     this.included = included;
     this.readStrides = OrcConf.getIntVar(conf, OrcConf.ConfVars.HIVE_ORC_READ_COMPRESSION_STRIDES);
     this.readEagerlyFromHdfs = OrcConf.getBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_EAGER_HDFS_READ);
+    this.readEagerlyFromHdfsBytes =
+      OrcConf.getLongVar(conf, OrcConf.ConfVars.HIVE_ORC_EAGER_HDFS_READ_BYTES);
     long rows = 0;
     long skippedRows = 0;
     for(StripeInformation stripe: stripes) {
@@ -338,6 +341,26 @@ class RecordReaderImpl implements RecordReader {
     }
   }
 
+  protected boolean shouldReadEagerly(StripeInformation stripe, int currentSection) {
+    if (readEagerlyFromHdfsBytes <= 0) {
+      return readEagerlyFromHdfs;
+    }
+
+    long inputBytes = 0;
+    if (included == null) {
+      inputBytes = stripe.getDataLength();
+    } else {
+      List<OrcProto.Stream> streamList = stripeFooter.getStreamsList();
+      for (int i = currentSection; i < streamList.size(); i++) {
+        if (included[streamList.get(i).getColumn()]) {
+          inputBytes += streamList.get(i).getLength();
+        }
+      }
+    }
+
+    return inputBytes <= readEagerlyFromHdfsBytes;
+  }
+
   private void readStripe() throws IOException {
     StripeInformation stripe = stripes.get(currentStripe);
     stripeFooter = readStripeFooter(stripe);
@@ -346,7 +369,7 @@ class RecordReaderImpl implements RecordReader {
 
     // if we aren't projecting columns, just read the whole stripe
     if (included == null) {
-      if (readEagerlyFromHdfs) {
+      if (shouldReadEagerly(stripe, 0)) {
         readEntireStripeEagerly(stripe, offset);
       } else {
         readEntireStripeLazily(stripe, offset);
@@ -361,7 +384,8 @@ class RecordReaderImpl implements RecordReader {
             StreamName.Area.DICTIONARY) {
         currentSection += 1;
       }
-      if (readEagerlyFromHdfs) {
+
+      if (shouldReadEagerly(stripe, currentSection)) {
         readIncludedStreamsEagerly(stripe, streamList, offset, currentSection);
       } else {
         readIncludedStreamsLazily(stripe, streamList, offset, currentSection);
