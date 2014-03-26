@@ -105,4 +105,13 @@ public class OrcLazyRow extends OrcLazyStruct {
   protected OrcLazyObject[] getRawFields() {
     return fields;
   }
+
+  @Override
+  public void close() throws IOException {
+    for (OrcLazyObject field : fields) {
+      if (field != null) {
+        field.close();
+      }
+    }
+  }
 }

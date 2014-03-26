@@ -106,4 +106,15 @@ public class LazyUnionTreeReader extends LazyTreeReader {
       fields[i].skipRowsInComplexType(counts[i]);
     }
   }
+
+  @Override
+  public void close() throws IOException {
+    super.close();
+    for (LazyTreeReader field : fields) {
+      field.close();
+    }
+    if (tags != null) {
+      tags.close();
+    }
+  }
 }

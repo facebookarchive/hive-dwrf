@@ -176,4 +176,11 @@ public class LazyIntTreeReader extends LazyTreeReader {
     return reader.nextDouble(readStream);
   }
 
+  @Override
+  public void close() throws IOException {
+    super.close();
+    if (reader != null) {
+      reader.close();
+    }
+  }
 }

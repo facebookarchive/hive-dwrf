@@ -94,10 +94,12 @@ public class LazyBooleanTreeReader extends LazyTreeReader {
 
   @Override
   public boolean nextBoolean(boolean readStream) throws IOException {
-    if (!readStream)
+    if (!readStream) {
       return latestRead;
-    if (!valuePresent)
+    }
+    if (!valuePresent) {
       throw new ValueNotPresentException("Cannot materialize boolean.");
+    }
     return readBoolean();
 
   }
@@ -109,5 +111,13 @@ public class LazyBooleanTreeReader extends LazyTreeReader {
       result = createWritable(previous, readBoolean());
     }
     return result;
+  }
+
+  @Override
+  public void close() throws IOException {
+    super.close();
+    if (reader != null) {
+      reader.close();
+    }
   }
 }

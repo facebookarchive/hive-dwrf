@@ -101,4 +101,8 @@ public class BitFieldReader {
       bitsLeft = (int) (8 - (totalBits % 8));
     }
   }
+
+  public void close() throws IOException {
+    input.close();
+  }
 }

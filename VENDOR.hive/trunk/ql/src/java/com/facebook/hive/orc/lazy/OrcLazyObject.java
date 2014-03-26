@@ -267,4 +267,8 @@ public abstract class OrcLazyObject implements Writable {
     }
     return nextIsNull ? 0 : previous.hashCode();
   }
+
+  public void close() throws IOException {
+    treeReader.close();
+  }
 }

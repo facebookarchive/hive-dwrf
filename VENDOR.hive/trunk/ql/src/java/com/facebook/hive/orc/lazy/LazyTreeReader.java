@@ -392,4 +392,10 @@ public abstract class LazyTreeReader {
       present = new BitFieldReader(in);
     }
   }
+
+  public void close() throws IOException {
+    if (present != null) {
+      present.close();
+    }
+  }
 }

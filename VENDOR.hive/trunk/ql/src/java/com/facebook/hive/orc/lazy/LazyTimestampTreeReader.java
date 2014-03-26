@@ -112,4 +112,15 @@ public class LazyTimestampTreeReader extends LazyTreeReader {
     data.skip(numNonNullValues);
     nanos.skip(numNonNullValues);
   }
+
+  @Override
+  public void close() throws IOException {
+    super.close();
+    if (data != null) {
+      data.close();
+    }
+    if (nanos != null) {
+      nanos.close();
+    }
+  }
 }

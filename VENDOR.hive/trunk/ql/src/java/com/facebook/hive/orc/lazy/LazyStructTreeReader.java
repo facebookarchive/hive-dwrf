@@ -109,4 +109,14 @@ public class LazyStructTreeReader extends LazyTreeReader {
     // they're null is the fields themselves, each of which has its own tree reader, so nothing
     // to do here.
   }
+
+  @Override
+  public void close() throws IOException {
+    super.close();
+    for (LazyTreeReader field : fields) {
+      if (field != null) {
+        field.close();
+      }
+    }
+  }
 }

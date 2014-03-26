@@ -132,4 +132,8 @@ public class RunLengthByteReader {
       items -= consume;
     }
   }
+
+  public void close() throws IOException {
+    input.close();
+  }
 }

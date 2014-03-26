@@ -114,4 +114,15 @@ public class LazyListTreeReader extends LazyTreeReader {
     }
     elementReader.skipRowsInComplexType(childSkip);
   }
+
+  @Override
+  public void close() throws IOException {
+    super.close();
+    if (elementReader != null) {
+      elementReader.close();
+    }
+    if (lengths != null) {
+      lengths.close();
+    }
+  }
 }

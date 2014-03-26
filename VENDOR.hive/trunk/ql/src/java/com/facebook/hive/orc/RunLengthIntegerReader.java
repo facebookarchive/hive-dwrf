@@ -135,4 +135,8 @@ public class RunLengthIntegerReader {
       numValues -= consume;
     }
   }
+
+  public void close() throws IOException {
+    input.close();
+  }
 }

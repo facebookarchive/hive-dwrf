@@ -105,4 +105,15 @@ public class LazyBinaryTreeReader extends LazyTreeReader {
     stream.skip(lengthToSkip);
   }
 
+  @Override
+  public void close() throws IOException {
+    super.close();
+    if (stream != null) {
+      stream.close();
+    }
+    if (lengths != null) {
+      lengths.close();
+    }
+  }
+
 }

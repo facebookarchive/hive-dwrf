@@ -112,4 +112,17 @@ public class LazyMapTreeReader extends LazyTreeReader {
     keyReader.skipRowsInComplexType(childSkip);
     valueReader.skipRowsInComplexType(childSkip);
   }
+  @Override
+  public void close() throws IOException {
+    super.close();
+    if (keyReader != null) {
+      keyReader.close();
+    }
+    if (valueReader != null) {
+        valueReader.close();
+    }
+    if (lengths != null) {
+      lengths.close();
+    }
+  }
 }

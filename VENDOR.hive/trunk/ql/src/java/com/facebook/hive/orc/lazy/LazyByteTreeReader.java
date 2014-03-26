@@ -81,4 +81,12 @@ public class LazyByteTreeReader extends LazyTreeReader {
   public void skipRows(long numNonNullValues) throws IOException {
     reader.skip(numNonNullValues);
   }
+
+  @Override
+  public void close() throws IOException {
+    super.close();
+    if (reader != null) {
+      reader.close();
+    }
+  }
 }

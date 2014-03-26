@@ -222,4 +222,26 @@ public class LazyStringDictionaryTreeReader extends LazyTreeReader {
       inDictionary.skip(numNonNullValues);
     }
   }
+
+  @Override
+  public void close() throws IOException {
+    super.close();
+    if (reader != null) {
+      reader.close();
+    }
+    if (inDictionary != null) {
+      inDictionary.close();
+    }
+    if (directReader != null) {
+      directReader.close();
+    }
+    if (directLengths != null) {
+      directLengths.close();
+    }
+    dictionaryBuffer = null;
+    strideDictionaryBuffer = null;
+    strideDictionarySizes = null;
+    dictionaryOffsets = null;
+    strideDictionaryOffsets = null;
+  }
 }

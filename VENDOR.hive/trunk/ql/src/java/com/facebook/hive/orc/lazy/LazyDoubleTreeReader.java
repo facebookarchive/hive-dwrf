@@ -97,10 +97,12 @@ public class LazyDoubleTreeReader extends LazyTreeReader {
    */
   @Override
   public double nextDouble(boolean readStream) throws IOException {
-    if (!readStream)
+    if (!readStream) {
       return latestRead;
-    if (!valuePresent)
+    }
+    if (!valuePresent) {
       throw new ValueNotPresentException("Cannot materialize double.");
+    }
     return readDouble();
   }
 
@@ -119,5 +121,13 @@ public class LazyDoubleTreeReader extends LazyTreeReader {
   @Override
   public void skipRows(long numNonNullValues) throws IOException {
     stream.skip(numNonNullValues * 8);
+  }
+
+  @Override
+  public void close() throws IOException {
+    super.close();
+    if (stream != null) {
+      stream.close();
+    }
   }
 }

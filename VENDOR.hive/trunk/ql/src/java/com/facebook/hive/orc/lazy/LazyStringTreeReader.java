@@ -107,4 +107,12 @@ public class LazyStringTreeReader extends LazyTreeReader {
   public Object get(long currentRow, Object previous) throws IOException {
     return reader.get(currentRow, previous);
   }
+
+  @Override
+  public void close() throws IOException {
+    super.close();
+    if (reader != null) {
+      reader.close();
+    }
+  }
 }

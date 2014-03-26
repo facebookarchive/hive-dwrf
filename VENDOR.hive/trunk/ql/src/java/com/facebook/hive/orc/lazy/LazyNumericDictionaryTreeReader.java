@@ -107,4 +107,16 @@ abstract class LazyNumericDictionaryTreeReader extends LazyTreeReader {
       return reader.next();
     }
   }
+
+  @Override
+  public void close() throws IOException {
+    super.close();
+    if (reader != null) {
+      reader.close();
+    }
+    if (inDictionary != null) {
+      inDictionary.close();
+    }
+    dictionaryValues = null;
+  }
 }

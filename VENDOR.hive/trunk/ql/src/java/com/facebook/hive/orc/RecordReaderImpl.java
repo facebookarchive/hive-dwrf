@@ -417,6 +417,7 @@ class RecordReaderImpl implements RecordReader {
   @Override
   public Object next(Object previous) throws IOException {
     if (rowInStripe >= rowCountInStripe) {
+      reader.close();
       currentStripe += 1;
       readStripe();
     }
@@ -436,6 +437,7 @@ class RecordReaderImpl implements RecordReader {
   @Override
   public void close() throws IOException {
     file.close();
+    reader.close();
   }
 
   @Override

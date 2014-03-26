@@ -59,4 +59,12 @@ abstract class LazyNumericDirectTreeReader extends LazyTreeReader {
     int updatedStartIndex = super.loadIndeces(rowIndexEntries, startIndex);
     return input.loadIndeces(rowIndexEntries, updatedStartIndex);
   }
+
+  @Override
+  public void close() throws IOException {
+    super.close();
+    if (input != null) {
+      input.close();
+    }
+  }
 }

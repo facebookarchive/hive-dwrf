@@ -96,10 +96,12 @@ public class LazyFloatTreeReader extends LazyTreeReader {
    */
   @Override
   public float nextFloat(boolean readStream) throws IOException, ValueNotPresentException {
-    if (!readStream)
+    if (!readStream) {
       return latestRead;
-    if (!valuePresent)
+    }
+    if (!valuePresent) {
       throw new ValueNotPresentException("Cannot materialize float..");
+    }
     return readFloat();
   }
 
@@ -116,6 +118,14 @@ public class LazyFloatTreeReader extends LazyTreeReader {
   public void skipRows(long numNonNullValues) throws IOException {
     for(int i=0; i < numNonNullValues; ++i) {
       SerializationUtils.readFloat(stream);
+    }
+  }
+
+  @Override
+  public void close() throws IOException {
+    super.close();
+    if (stream != null) {
+      stream.close();
     }
   }
 }
