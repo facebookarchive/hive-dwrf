@@ -2246,6 +2246,108 @@ public class TestOrcFile {
 
   @Test
   /**
+   * Test a stride dictionary that contains only the empty string
+   */
+  public void testEmptyStringStrideDictionary() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (StringStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    MemoryManagerWithForceFlush memory = new MemoryManagerWithForceFlush(conf);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD, 1);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 1000, memory);
+    writer.addRow(new StringStruct(""));
+    for (int i = 0; i < 999; i++) {
+      writer.addRow(new StringStruct("123"));
+    }
+    writer.close();
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+    row = (OrcStruct) lazyRow.materialize();
+    assertEquals("", ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+    for (int i =0; i < 999; i++) {
+      rows.next(lazyRow);
+      assertEquals("123", ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+    }
+  }
+
+  @Test
+  /**
+   * Tests writing a stripe containing a string column, which is not dictionary encoded in the
+   * first stripe, this is carried over to the third stripe, then dictionary encoding is turned
+   * back on.  This will cause the dictionary to be nulled out, then reinitialized.
+   */
+  public void testStrideDictionariesWithoutStripeCarryover() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (StringStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    MemoryManagerWithForceFlush memory = new MemoryManagerWithForceFlush(conf);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD, 1);
+    OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL, 2);
+    OrcConf.setBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_BUILD_STRIDE_DICTIONARY, true);
+    OrcConf.setBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS, true);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 1000, memory);
+    // Write a stripe which is not dictionary encoded
+    for (int i = 0; i < 2000; i++) {
+      writer.addRow(new StringStruct(Integer.toString(i)));
+    }
+    memory.forceFlushStripe();
+    // Write another stripe (doesn't matter what)
+    for (int i = 0; i < 2000; i++) {
+      writer.addRow(new StringStruct(Integer.toString(i)));
+    }
+    memory.forceFlushStripe();
+    // Write a stripe which will be dictionary encoded
+    // Note: it is important that this string is lexicographically after the string in the next
+    // index stride.  This way, if sorting by index strides is not working, this value will appear
+    // after the next one, though it should appear before, yielding incorrect results.
+    writer.addRow(new StringStruct("b"));
+    for (int i = 0; i < 999; i++) {
+      writer.addRow(new StringStruct("123"));
+    }
+    writer.addRow(new StringStruct("a"));
+    for (int i = 0; i < 999; i++) {
+      writer.addRow(new StringStruct("123"));
+    }
+    memory.forceFlushStripe();
+    writer.close();
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+    row = (OrcStruct) lazyRow.materialize();
+    for (int i =0; i < 4000; i++) {
+      assertEquals(Integer.toString(i % 2000), ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+      rows.next(lazyRow);
+    }
+    assertEquals("b", ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+    for (int i =0; i < 999; i++) {
+      rows.next(lazyRow);
+      assertEquals("123", ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+    }
+    rows.next(lazyRow);
+    assertEquals("a", ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+    for (int i =0; i < 999; i++) {
+      rows.next(lazyRow);
+      assertEquals("123", ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+    }
+  }
+
+  @Test
+  /**
    * Tests a writing a stripe with a stride dictionary, followed by a stripe without
    * followed by a stripe with.
    */

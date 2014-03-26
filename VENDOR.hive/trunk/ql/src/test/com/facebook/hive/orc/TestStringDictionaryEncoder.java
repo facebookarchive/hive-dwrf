@@ -125,6 +125,36 @@ public class TestStringDictionaryEncoder {
   }
 
   @Test
+  /**
+   * Tests sorting across multiple indices with stride dictionaries enabled
+   */
+  public void testSortedAcrossIndices() throws Exception {
+
+    StringDictionaryEncoder dict = new StringDictionaryEncoder(true, true);
+    String [] addKeys = new String[] {
+      "owen", "ashutosh", "owen", "alan", "alan", "ashutosh", "greg", "eric", "arun", "eric14",
+      "o", "ziggy", "z",
+    };
+
+    int [] addKPos = new int[] {0, 1, 0, 2, 2, 1, 3, 4, 5, 6, 7, 8, 9, 10};
+    int [] sizes = new int []{1, 2, 2, 3, 3, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+    String [] expectedUniqueValues = new String[] {
+      "eric14", "greg", "z", "eric", "o", "arun", "ziggy", "alan", "ashutosh", "owen"
+    };
+    int [] expectedOrder = new int[]{6,3,9,4,7,5,8,2,1,0};
+
+    for (int i=0; i < addKeys.length; i++) {
+      int addPos = dict.add(new Text(addKeys[i]), i % 3);
+      assertEquals(addPos, addKPos[i]);
+      assertEquals(sizes[i], dict.size());
+    }
+    checkContent(dict, expectedUniqueValues, expectedOrder);
+    dict.clear();
+    assertEquals(688128, dict.getSizeInBytes());
+    assertEquals(0, dict.size());
+  }
+
+  @Test
   public void testUnsorted() throws Exception {
     testUnsorted(false);
   }

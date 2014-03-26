@@ -1174,6 +1174,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
 
     private boolean useDictionaryEncoding = true;
     private final boolean useStrideDictionaries;
+    private final boolean sortKeys;
 
     private final Text[] buffer;
     private int bufferIndex = 0;
@@ -1191,7 +1192,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
                      boolean useVInts, boolean lowMemoryMode) throws IOException {
       super(columnId, inspector, writerFactory, nullable, conf, useVInts);
       writer = writerFactory;
-      final boolean sortKeys = OrcConf.getBoolVar(conf,
+      sortKeys = OrcConf.getBoolVar(conf,
           OrcConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS);
       useStrideDictionaries = OrcConf.getBoolVar(conf,
           OrcConf.ConfVars.HIVE_ORC_BUILD_STRIDE_DICTIONARY);
@@ -1509,7 +1510,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
         rows = null;
       } else {
         if (dictionary == null) {
-          dictionary = new StringDictionaryEncoder();
+          dictionary = new StringDictionaryEncoder(sortKeys, useStrideDictionaries);
         } else {
           dictionary.clear();
         }
