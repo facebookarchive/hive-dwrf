@@ -129,6 +129,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
   private final boolean useVInts;
   private final int dfsBytesPerChecksum;
   private final long initialSize;
+  private final long maxDictSize;
 
   private final Configuration conf;
 
@@ -159,8 +160,9 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       throw new IllegalArgumentException("Row stride must be at least " +
           MIN_ROW_INDEX_STRIDE);
     }
+    maxDictSize = OrcConf.getLongVar(conf, OrcConf.ConfVars.HIVE_ORC_MAX_DICTIONARY_SIZE);
     // ensure that we are able to handle callbacks before we register ourselves
-    initialSize = estimateStripeSize();
+    initialSize = estimateStripeSize().getTotalMemory();
     memoryManager.addWriter(path, stripeSize, this, initialSize);
   }
 
@@ -212,12 +214,13 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
   @Override
   public synchronized boolean checkMemory(double newScale) throws IOException {
     long limit = (long) Math.round(stripeSize * newScale);
-    long size = estimateStripeSize();
+    MemoryEstimate size = estimateStripeSize();
     if (LOG.isDebugEnabled()) {
-      LOG.debug("ORC writer " + path + " size = " + size + " limit = " +
+      LOG.debug("ORC writer " + path + " size = " + size.getTotalMemory() + " limit = " +
                 limit);
     }
-    if (size > limit) {
+    if (size.getTotalMemory() > limit ||
+        (maxDictSize > 0 && size.getDictionaryMemory() > maxDictSize)) {
       flushStripe();
       return true;
     }
@@ -630,12 +633,10 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
      * Estimate how much memory the writer is consuming excluding the streams.
      * @return the number of bytes.
      */
-    long estimateMemory() {
-      long result = 0;
+    void estimateMemory(MemoryEstimate memoryEstimate) {
       for (TreeWriter child: childrenWriters) {
-        result += child.estimateMemory();
+        child.estimateMemory(memoryEstimate);
       }
-      return result;
     }
 
     public void abandonDictionaries() throws IOException {
@@ -1047,10 +1048,12 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     }
 
     @Override
-    long estimateMemory() {
-      return (rows == null ? 0 : rows.size() * 4) +
+    void estimateMemory(MemoryEstimate memoryEstimate) {
+      memoryEstimate.incrementTotalMemory((rows == null ? 0 : rows.size() * 4) +
           (dictionary == null ? 0 : dictionary.getByteSize()) + bufferedBytes +
-          (rowOutput == null ? 0 : rowOutput.getBufferSize());
+          (rowOutput == null ? 0 : rowOutput.getBufferSize()));
+      memoryEstimate.incrementDictionaryMemory(dictionary == null ? 0 :
+        dictionary.getUncompressedLength());
     }
 
     @Override
@@ -1629,13 +1632,16 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     }
 
     @Override
-    long estimateMemory() {
-      return (rows == null ? 0 : rows.getSizeInBytes()) +
+    void estimateMemory(MemoryEstimate memoryEstimate) {
+      memoryEstimate.incrementTotalMemory((rows == null ? 0 : rows.getSizeInBytes()) +
           (dictionary == null ? 0 : dictionary.getSizeInBytes()) + bufferedBytes +
           (rowOutput == null ? 0 : rowOutput.getBufferSize()) +
           (directLengthOutput == null ? 0 : directLengthOutput.getBufferSize()) +
           (strideDictionaryOutput == null ? 0 : strideDictionaryOutput.getBufferSize()) +
-          (strideDictionaryLengthOutput == null ? 0 : strideDictionaryLengthOutput.getBufferSize());
+          (strideDictionaryLengthOutput == null ? 0 :
+            strideDictionaryLengthOutput.getBufferSize()));
+      memoryEstimate.incrementDictionaryMemory(dictionary == null ? 0 :
+        dictionary.getUncompressedLength());
     }
 
     @Override
@@ -2332,13 +2338,56 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     return (int) length;
   }
 
-  private long estimateStripeSize() {
+  /**
+   *
+   * MemoryEstimate.
+   *
+   * Wrapper around some values derived from the TreeWriters used to estimate the amount of
+   * memory being used.
+   *
+   */
+  private class MemoryEstimate {
+    // The estimate of the total amount of memory currently being used
+    private long totalMemory;
+    // The memory being used by the dictionaries (note this should only account for memory
+    // actually being used, not memory allocated for potential use in the future)
+    private long dictionaryMemory;
+
+    public long getTotalMemory() {
+      return totalMemory;
+    }
+
+    public void setTotalMemory(long totalMemory) {
+      this.totalMemory = totalMemory;
+    }
+
+    public long getDictionaryMemory() {
+      return dictionaryMemory;
+    }
+
+    public void setDictionaryMemory(long dictionaryMemory) {
+      this.dictionaryMemory = dictionaryMemory;
+    }
+
+    public void incrementTotalMemory(long increment) {
+      totalMemory += increment;
+    }
+
+    public void incrementDictionaryMemory(long increment) {
+      dictionaryMemory += increment;
+    }
+  }
+
+  private MemoryEstimate estimateStripeSize() {
     long result = 0;
     for(BufferedStream stream: streams.values()) {
       result += stream.getBufferSize();
     }
-    result += treeWriter.estimateMemory();
-    return result;
+
+    MemoryEstimate memoryEstimate = new MemoryEstimate();
+    treeWriter.estimateMemory(memoryEstimate);
+    memoryEstimate.incrementTotalMemory(result);
+    return memoryEstimate;
   }
 
   @Override

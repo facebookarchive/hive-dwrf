@@ -364,6 +364,11 @@ class StringDictionaryEncoder extends DictionaryEncoder {
     return byteArray.getSizeInBytes();
   }
 
+  public int getUncompressedLength() {
+    // The amount of memory used by entries in the dictionary
+    return byteArray.size();
+  }
+
   /**
    * Calculate the approximate size in memory.
    * @return the number of bytes used in storing the tree.

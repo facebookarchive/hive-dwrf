@@ -41,6 +41,7 @@ public class OrcConf {
         "hive.exec.orc.dictionary.key.string.size.threshold", 0.8f),
     HIVE_ORC_DICTIONARY_SORT_KEYS("hive.exec.orc.dictionary.key.sorted", true),
     HIVE_ORC_BUILD_STRIDE_DICTIONARY("hive.exec.orc.build.stride.dictionary", true),
+    HIVE_ORC_MAX_DICTIONARY_SIZE("hive.exec.orc.max.dictionary.size", 104857600), // 100 Mb
 
     HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD(
         "hive.exec.orc.entropy.key.string.size.threshold", 0.9f),

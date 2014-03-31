@@ -61,6 +61,11 @@ abstract class DictionaryEncoder {
   public abstract void clear();
 
   /**
+   * Returns the amount of memory used by entries in the dictionary
+   */
+  public abstract int getUncompressedLength();
+
+  /**
    * The interface for visitors.
    */
   public interface Visitor<T> {

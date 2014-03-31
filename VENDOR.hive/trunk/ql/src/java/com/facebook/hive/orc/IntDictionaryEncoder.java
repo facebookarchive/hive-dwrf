@@ -192,6 +192,11 @@ class IntDictionaryEncoder extends DictionaryEncoder {
         posSizes;
   }
 
+  public int getUncompressedLength() {
+    // The amount of memory used by entries in the dictionary
+    return numElements * 8;
+  }
+
   /**
    * Get the number of elements in the set.
    */
