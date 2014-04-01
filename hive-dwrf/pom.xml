@@ -94,13 +94,6 @@
   </dependencies>
 
   <build>
-    <sourceDirectory>../VENDOR.hive/trunk/ql/src/java/com/facebook/hive/orc</sourceDirectory>
-    <testSourceDirectory>../VENDOR.hive/trunk/ql/src/test</testSourceDirectory>
-    <testResources>
-      <testResource>
-        <directory>../VENDOR.hive/trunk/ql/src/test/resources</directory>
-      </testResource>
-    </testResources>
     <plugins>
       <plugin> 
         <artifactId>maven-antrun-plugin</artifactId> 
@@ -110,14 +103,14 @@
             <phase>generate-sources</phase> 
             <configuration> 
               <tasks> 
-                <mkdir dir="../VENDOR.hive/trunk/ql/src/gen/protobuf/gen-java" /> 
+                <mkdir dir="target/generated-sources/protobuf/gen-java" /> 
                 <exec executable="protoc"> 
-                  <arg value="--java_out=../VENDOR.hive/trunk/ql/src/gen/protobuf/gen-java" />
-                  <arg value="-I=../VENDOR.hive/trunk/ql/src/protobuf/com/facebook/hive/orc" />
-                  <arg value="../VENDOR.hive/trunk/ql/src/protobuf/com/facebook/hive/orc/orc_proto.proto" /> 
+                  <arg value="--java_out=target/generated-sources/protobuf/gen-java" />
+                  <arg value="-I=src/main/resources/protobuf/com/facebook/hive/orc" />
+                  <arg value="src/main/resources/protobuf/com/facebook/hive/orc/orc_proto.proto" /> 
                 </exec> 
               </tasks> 
-              <sourceRoot>../VENDOR.hive/trunk/ql/src/gen/protobuf/gen-java</sourceRoot>
+              <sourceRoot>target/generated-sources/protobuf/gen-java</sourceRoot>
             </configuration> 
             <goals> 
               <goal>run</goal> 
