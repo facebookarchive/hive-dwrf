@@ -67,6 +67,11 @@
       <artifactId>snappy</artifactId>
     </dependency>
 
+    <dependency>
+      <groupId>com.google.guava</groupId>
+      <artifactId>guava</artifactId>
+    </dependency>
+
     <!-- for testing -->
     <dependency>
       <groupId>junit</groupId>
@@ -86,11 +91,6 @@
       <scope>test</scope>
     </dependency>
 
-    <dependency>
-      <groupId>com.google.guava</groupId>
-      <artifactId>guava</artifactId>
-      <scope>test</scope>
-    </dependency>
   </dependencies>
 
   <build>
