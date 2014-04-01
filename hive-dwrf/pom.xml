@@ -20,7 +20,7 @@
   <parent>
     <groupId>com.facebook.hive</groupId>
     <artifactId>hive-dwrf-root</artifactId>
-    <version>0.3-SNAPSHOT</version>
+    <version>0.3</version>
   </parent>
 
   <artifactId>hive-dwrf</artifactId>
@@ -110,11 +110,11 @@
             <phase>generate-sources</phase> 
             <configuration> 
               <tasks> 
-                <mkdir dir="../VENDOR.hive/trunk/ql/src/gen/protobuf/gen-java"/> 
+                <mkdir dir="../VENDOR.hive/trunk/ql/src/gen/protobuf/gen-java" /> 
                 <exec executable="protoc"> 
-                  <arg value="--java_out=../VENDOR.hive/trunk/ql/src/gen/protobuf/gen-java"/>
-                  <arg value="-I=../VENDOR.hive/trunk/ql/src/protobuf/com/facebook/hive/orc"/>
-                  <arg value="../VENDOR.hive/trunk/ql/src/protobuf/com/facebook/hive/orc/orc_proto.proto"/> 
+                  <arg value="--java_out=../VENDOR.hive/trunk/ql/src/gen/protobuf/gen-java" />
+                  <arg value="-I=../VENDOR.hive/trunk/ql/src/protobuf/com/facebook/hive/orc" />
+                  <arg value="../VENDOR.hive/trunk/ql/src/protobuf/com/facebook/hive/orc/orc_proto.proto" /> 
                 </exec> 
               </tasks> 
               <sourceRoot>../VENDOR.hive/trunk/ql/src/gen/protobuf/gen-java</sourceRoot>
