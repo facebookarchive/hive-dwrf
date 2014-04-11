@@ -2348,6 +2348,62 @@ public class TestOrcFile {
 
   @Test
   /**
+   * Tests writing a stripe that contains a single string column across two index strides where
+   * the column is dictionary encoded with a stride dictionary in both strides.
+   * When reading, all rows in the first stride whose values are in the stride dictionary are
+   * skipped, and in the second stride the values in the stride dictionary are read.
+   * This can cause problems if seeking across strides is broken for stride dictionary streams.
+   * @throws Exception
+   */
+  public void testSeekAcrossStrideDictionaries() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (StringStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    MemoryManagerWithForceFlush memory = new MemoryManagerWithForceFlush(conf);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    // Set configs so the column is dictionary encoded and stride dictioanries are used
+    OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD, 1);
+    OrcConf.setBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_BUILD_STRIDE_DICTIONARY, true);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 1000, memory);
+    // Write this value once, so it's added to a stride dictionary
+    writer.addRow(new StringStruct("a"));
+    // Fill out the rest of the stride
+    for (int i = 0; i < 999; i++) {
+      writer.addRow(new StringStruct("123"));
+    }
+    // Write this value once, so it's added to a stride dictionary
+    writer.addRow(new StringStruct("b"));
+    // Fill out the rest of the stride
+    for (int i = 0; i < 999; i++) {
+      writer.addRow(new StringStruct("123"));
+    }
+    writer.close();
+
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+    row = (OrcStruct) lazyRow.materialize();
+    // Skip the one row in the stride dictionary in the first stride ("a")
+    rows.next(lazyRow);
+    // Read the rest of the values in the stride
+    for (int i =0; i < 999; i++) {
+      assertEquals("123", ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+      rows.next(lazyRow);
+    }
+    // Read the row in the stride dictionary in the second stride (note that seek won't be called
+    // because we read the previous row
+    assertEquals("b", ((OrcLazyString) row.getFieldValue(0)).materialize().toString());
+    rows.close();
+  }
+
+  @Test
+  /**
    * Tests a writing a stripe with a stride dictionary, followed by a stripe without
    * followed by a stripe with.
    */

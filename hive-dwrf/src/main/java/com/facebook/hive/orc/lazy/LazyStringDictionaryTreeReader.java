@@ -30,11 +30,11 @@ import com.facebook.hive.orc.BitFieldReader;
 import com.facebook.hive.orc.DynamicByteArray;
 import com.facebook.hive.orc.InStream;
 import com.facebook.hive.orc.OrcProto;
+import com.facebook.hive.orc.OrcProto.RowIndex;
+import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 import com.facebook.hive.orc.RunLengthIntegerReader;
 import com.facebook.hive.orc.StreamName;
 import com.facebook.hive.orc.WriterImpl;
-import com.facebook.hive.orc.OrcProto.RowIndex;
-import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 
 public class LazyStringDictionaryTreeReader extends LazyTreeReader {
   private DynamicByteArray dictionaryBuffer = null;
@@ -109,8 +109,6 @@ public class LazyStringDictionaryTreeReader extends LazyTreeReader {
     reader.seek(index);
     if (inDictionary != null) {
       inDictionary.seek(index);
-      directReader.seek(index);
-      directLengths.seek(index);
     }
   }
 
@@ -158,12 +156,14 @@ public class LazyStringDictionaryTreeReader extends LazyTreeReader {
         strideDictionaryOffsets.length < unitDictionarySize + 1) {
       strideDictionaryOffsets = new int[unitDictionarySize + 1];
     }
+    directLengths.seek(indexEntry);
     for(int i=0; i < unitDictionarySize; ++i) {
       strideDictionaryOffsets[i] = offset;
       offset += (int) directLengths.next();
     }
     strideDictionaryOffsets[unitDictionarySize] = offset;
     if (offset != 0) {
+      directReader.seek(indexEntry);
       strideDictionaryBuffer = new DynamicByteArray(offset);
       strideDictionaryBuffer.read(directReader, offset);
     } else {
