@@ -965,6 +965,11 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     }
 
     private void convertDictionaryToDirect() throws IOException {
+      // If this is still in the first index stride, savedRowIndex is empty, so we need to
+      // explicitly record the positions for the first index stride
+      if (savedRowIndex.size() == 0)  {
+        rowOutput.getPosition(rowIndexPosition);
+      }
       writeData(false, null, null);
     }
 
@@ -1528,6 +1533,12 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     }
 
     private void convertDictionaryToDirect() throws IOException {
+      // If this is still in the first index stride, savedRowIndex is empty, so we need to
+      // explicitly record the positions for the first index stride
+      if (savedRowIndex.size() == 0)  {
+        rowOutput.getPosition(rowIndexPosition);
+        directLengthOutput.getPosition(rowIndexPosition);
+      }
       writeData(false, null, null, null, null);
     }
 
@@ -1560,7 +1571,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
             rowIndex.addEntry(base.build());
           }
         }
-        if (i !=  length) {
+        if (i != length) {
           if (useDictionaryEncoding) {
             rowOutput.write(dumpOrder[rows.get(i)]);
             if (!useStrideDictionaries || counts[rows.get(i)] > 1) {

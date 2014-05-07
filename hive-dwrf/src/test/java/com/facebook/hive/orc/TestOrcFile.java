@@ -306,7 +306,7 @@ public class TestOrcFile {
     StructObjectInspector readerInspector = (StructObjectInspector) reader.getObjectInspector();
     List<? extends StructField> fields = readerInspector.getAllStructFieldRefs();
     DoubleObjectInspector columnInspector =
-      (DoubleObjectInspector) fields.get(0).getFieldObjectInspector();
+        (DoubleObjectInspector) fields.get(0).getFieldObjectInspector();
 
     RecordReader rows = reader.rows(null);
     Object row = null;
@@ -1070,7 +1070,7 @@ public class TestOrcFile {
       assertNull(expected.short1);
     } else {
       assertEquals(expected.short1.shortValue(),
-                   ((ShortWritable) short1.materialize()).get());
+          ((ShortWritable) short1.materialize()).get());
     }
 
     try {
@@ -1168,22 +1168,22 @@ public class TestOrcFile {
       NumberOfNulls numNulls, boolean testPrimitives) throws Exception {
     ReallyBigRow expected = null ;
     switch (numNulls) {
-      case MANY:
-      case SOME:
-        expected = createRandomRowWithNulls(inputs.intValues, inputs.doubleValues,
-        inputs.stringValues, inputs.byteValues, inputs.words, rowNumber, numNulls);
-        break;
-      case NONE:
-        expected = createRandomRow(inputs.intValues, inputs.doubleValues,
-            inputs.stringValues, inputs.byteValues, inputs.words, rowNumber);
-        break;
+    case MANY:
+    case SOME:
+      expected = createRandomRowWithNulls(inputs.intValues, inputs.doubleValues,
+          inputs.stringValues, inputs.byteValues, inputs.words, rowNumber, numNulls);
+      break;
+    case NONE:
+      expected = createRandomRow(inputs.intValues, inputs.doubleValues,
+          inputs.stringValues, inputs.byteValues, inputs.words, rowNumber);
+      break;
     }
     OrcLazyBoolean boolean1 = (OrcLazyBoolean) row.getFieldValue(0);
     if (boolean1.nextIsNull()) {
       assertNull(expected.boolean1);
     } else {
       assertEquals(expected.boolean1.booleanValue(),
-                   ((BooleanWritable) boolean1.materialize()).get());
+          ((BooleanWritable) boolean1.materialize()).get());
     }
 
     if (((OrcLazyObject) row.getFieldValue(1)).nextIsNull()) {
@@ -1209,7 +1209,7 @@ public class TestOrcFile {
       assertNull(expected.int1);
     } else {
       assertEquals(expected.int1.intValue(),
-                   ((IntWritable) int1.materialize()).get());
+          ((IntWritable) int1.materialize()).get());
     }
 
     OrcLazyLong long1 = (OrcLazyLong)row.getFieldValue(4);
@@ -1217,7 +1217,7 @@ public class TestOrcFile {
       assertNull(expected.long1);
     } else {
       assertEquals(expected.long1.longValue(),
-                   ((LongWritable) long1.materialize()).get());
+          ((LongWritable) long1.materialize()).get());
     }
 
     OrcLazyShort short2 = (OrcLazyShort)row.getFieldValue(5);
@@ -1225,7 +1225,7 @@ public class TestOrcFile {
       assertNull(expected.short2);
     } else {
       assertEquals(expected.short2.shortValue(),
-                   ((ShortWritable) short2.materialize()).get());
+          ((ShortWritable) short2.materialize()).get());
     }
 
     OrcLazyInt int2 = (OrcLazyInt) row.getFieldValue(6);
@@ -1233,7 +1233,7 @@ public class TestOrcFile {
       assertNull(expected.int2);
     } else {
       assertEquals(expected.int2.intValue(),
-                   ((IntWritable) int2.materialize()).get());
+          ((IntWritable) int2.materialize()).get());
     }
 
     OrcLazyLong long2 = (OrcLazyLong) row.getFieldValue(7);
@@ -1241,7 +1241,7 @@ public class TestOrcFile {
       assertNull(expected.long2);
     } else {
       assertEquals(expected.long2.longValue(),
-                   ((LongWritable) long2.materialize()).get());
+          ((LongWritable) long2.materialize()).get());
     }
 
     OrcLazyShort short3 = (OrcLazyShort)row.getFieldValue(8);
@@ -1249,7 +1249,7 @@ public class TestOrcFile {
       assertNull(expected.short3);
     } else {
       assertEquals(expected.short3.shortValue(),
-                   ((ShortWritable) short3.materialize()).get());
+          ((ShortWritable) short3.materialize()).get());
     }
 
     OrcLazyInt int3 = (OrcLazyInt) row.getFieldValue(9);
@@ -1257,7 +1257,7 @@ public class TestOrcFile {
       assertNull(expected.int3);
     } else {
       assertEquals(expected.int3.intValue(),
-                   ((IntWritable) int3.materialize()).get());
+          ((IntWritable) int3.materialize()).get());
     }
 
     OrcLazyLong long3 = (OrcLazyLong) row.getFieldValue(10);
@@ -1265,7 +1265,7 @@ public class TestOrcFile {
       assertNull(expected.long3);
     } else {
       assertEquals(expected.long3.longValue(),
-                   ((LongWritable) long3.materialize()).get());
+          ((LongWritable) long3.materialize()).get());
     }
 
     OrcLazyFloat float1 = (OrcLazyFloat) row.getFieldValue(11);
@@ -1273,7 +1273,7 @@ public class TestOrcFile {
       assertNull(expected.float1);
     } else {
       assertEquals(expected.float1.floatValue(),
-                   ((FloatWritable) float1.materialize()).get(), 0.0001);
+          ((FloatWritable) float1.materialize()).get(), 0.0001);
     }
 
     OrcLazyDouble double1 = (OrcLazyDouble) row.getFieldValue(12);
@@ -1281,7 +1281,7 @@ public class TestOrcFile {
       assertNull(expected.double1);
     } else {
       assertEquals(expected.double1.doubleValue(),
-                   ((DoubleWritable) double1.materialize()).get(), 0.0001);
+          ((DoubleWritable) double1.materialize()).get(), 0.0001);
     }
 
     if (((OrcLazyObject) row.getFieldValue(13)).nextIsNull()) {
@@ -1343,15 +1343,15 @@ public class TestOrcFile {
 
     ReallyBigRow expected = null;
     switch (numNulls) {
-      case MANY:
-      case SOME:
-        expected = createRandomRowWithNulls(inputs.intValues, inputs.doubleValues,
-        inputs.stringValues, inputs.byteValues, inputs.words, rowNumber, numNulls);
-        break;
-      case NONE:
-        expected = createRandomRow(inputs.intValues, inputs.doubleValues,
-            inputs.stringValues, inputs.byteValues, inputs.words, rowNumber);
-        break;
+    case MANY:
+    case SOME:
+      expected = createRandomRowWithNulls(inputs.intValues, inputs.doubleValues,
+          inputs.stringValues, inputs.byteValues, inputs.words, rowNumber, numNulls);
+      break;
+    case NONE:
+      expected = createRandomRow(inputs.intValues, inputs.doubleValues,
+          inputs.stringValues, inputs.byteValues, inputs.words, rowNumber);
+      break;
     }
 
     OrcLazyBoolean lazyBoolean1 = (OrcLazyBoolean) row.getFieldValue(0);
@@ -1558,13 +1558,13 @@ public class TestOrcFile {
     final int COUNT=32768;
     RandomRowInputs inputs = null;
     switch (numNulls) {
-      case NONE:
-        inputs = writeRandomRows(COUNT, false);
-        break;
-      case SOME:
-      case MANY:
-        inputs = writeRandomRowsWithNulls(COUNT, numNulls, false);
-        break;
+    case NONE:
+      inputs = writeRandomRows(COUNT, false);
+      break;
+    case SOME:
+    case MANY:
+      inputs = writeRandomRowsWithNulls(COUNT, numNulls, false);
+      break;
     }
 
     ReaderWriterProfiler.setProfilerOptions(conf);
@@ -1728,7 +1728,7 @@ public class TestOrcFile {
     ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
         lowMemoryMode ? 200000 : 4000000, CompressionKind.ZLIB, 65536, 1000,
-         new MemoryManager(conf));
+            new MemoryManager(conf));
     Random rand = new Random(42);
     RandomRowInputs inputs = new RandomRowInputs(count);
     long[] intValues = inputs.intValues;
@@ -1895,13 +1895,13 @@ public class TestOrcFile {
     final int COUNT=32768;
     RandomRowInputs inputs = null;
     switch (numNulls) {
-      case NONE:
-        inputs = writeRandomRows(COUNT, false);
-        break;
-      case SOME:
-      case MANY:
-        inputs = writeRandomRowsWithNulls(COUNT, numNulls, false);
-        break;
+    case NONE:
+      inputs = writeRandomRows(COUNT, false);
+      break;
+    case SOME:
+    case MANY:
+      inputs = writeRandomRowsWithNulls(COUNT, numNulls, false);
+      break;
     }
 
     Reader reader = OrcFile.createReader(fs, testFilePath, conf);
@@ -2054,7 +2054,7 @@ public class TestOrcFile {
   }
 
   private void compareInner(InnerStruct expect,
-                            OrcStruct actual) throws Exception {
+      OrcStruct actual) throws Exception {
     if (expect == null || actual == null) {
       assertEquals(expect, actual);
     } else {
@@ -2068,7 +2068,7 @@ public class TestOrcFile {
   }
 
   private void compareListOfStructs(List<InnerStruct> expect,
-                           List<OrcStruct> actual) throws Exception {
+      List<OrcStruct> actual) throws Exception {
     assertEquals(expect.size(), actual.size());
     for(int j=0; j < expect.size(); ++j) {
       compareInner(expect.get(j), actual.get(j));
@@ -2089,9 +2089,9 @@ public class TestOrcFile {
   }
 
   private ReallyBigRow createRandomRow(long[] intValues, double[] doubleValues,
-                                 String[] stringValues,
-                                 BytesWritable[] byteValues,
-                                 String[] words, int i) {
+      String[] stringValues,
+      BytesWritable[] byteValues,
+      String[] words, int i) {
     InnerStruct inner = new InnerStruct((int) intValues[i], stringValues[i]);
     InnerStruct inner2 = new InnerStruct((int) (intValues[i] >> 32),
         words[i % words.length] + "-x");
@@ -2126,10 +2126,10 @@ public class TestOrcFile {
     String strVal = intValues[i] % 18 == 0 ^ lotsOfNulls  ? null : stringValues[i];
     InnerStruct inner = intValues[i] % 19 == 0 ^ lotsOfNulls  ? null : new InnerStruct(
         intValues[i] % 10 == 0 ^ lotsOfNulls  ? null : (int) intValues[i],
-        intValues[i] % 11 == 0 ^ lotsOfNulls  ? null : stringValues[i]);
+            intValues[i] % 11 == 0 ^ lotsOfNulls  ? null : stringValues[i]);
     InnerStruct inner2 = intValues[i] % 12 == 0 ^ lotsOfNulls  ? null : new InnerStruct(
         intValues[i] % 13 == 0 ^ lotsOfNulls  ? null : (int) (intValues[i] >> 32),
-        intValues[i] % 14 == 0 ^ lotsOfNulls  ? null : words[i % words.length] + "-x");
+            intValues[i] % 14 == 0 ^ lotsOfNulls  ? null : words[i % words.length] + "-x");
     MiddleStruct middle = intValues[i] % 15 == 0 ^ lotsOfNulls  ? null :
       new MiddleStruct(inner, inner2);
     List<InnerStruct> list = intValues[i] % 16 == 0 ^ lotsOfNulls  ? null : list(inner, inner2);
@@ -2171,7 +2171,7 @@ public class TestOrcFile {
 
     @Override
     void addWriter(Path path, long requestedAllocation,
-                   MemoryManager.Callback callback, long initialAllocation) {
+        MemoryManager.Callback callback, long initialAllocation) {
       this.path = path;
       this.lastAllocation = requestedAllocation;
       this.callback = callback;
@@ -2598,5 +2598,115 @@ public class TestOrcFile {
     }
 
     assertFalse("Got EOFException for reading past end of buffer RLE byte", gotException);
+  }
+
+  /**
+   *
+   * MemoryManagerWithForceEnterLowMemoryMode.
+   *
+   * An implementation of MemoryManager with the ability to force writers to enter low memory mode
+   */
+  private static class MemoryManagerWithForceEnterLowMemoryMode extends MemoryManager {
+
+    MemoryManagerWithForceEnterLowMemoryMode(Configuration conf) {
+      super(conf);
+    }
+
+    public void forceEnterLowMemoryMode() throws IOException {
+      for (WriterInfo writer : writerList.values()) {
+        writer.callback.enterLowMemoryMode();
+      }
+    }
+  }
+
+  @Test
+  /**
+   * Tests a writing a stripe with an integer column, which enters low memory mode before the first
+   * index stride is complete.
+   */
+  public void testIntEnterLowMemoryModeInFirstStride() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (IntStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    MemoryManagerWithForceEnterLowMemoryMode memory =
+        new MemoryManagerWithForceEnterLowMemoryMode(conf);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 10000, memory);
+
+    // Write 500 rows
+    for (int i = 0; i < 500; i ++) {
+      writer.addRow(new IntStruct(i));
+    }
+
+    // Force the writer to enter low memory mode, note since the stride length was set to 10000
+    // we're still in the first stride
+    memory.forceEnterLowMemoryMode();
+
+    // Write 500 more rows
+    for (int i = 0; i < 500; i ++) {
+      writer.addRow(new IntStruct(i + 500));
+    }
+
+    writer.close();
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    for (int i = 0; i < 1000; i ++) {
+      lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+      row = (OrcStruct) lazyRow.materialize();
+      assertEquals(i, ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
+    }
+    rows.close();
+  }
+
+  @Test
+  /**
+   * Tests a writing a stripe with a string column, which enters low memory mode before the first
+   * index stride is complete.
+   */
+  public void testStringEnterLowMemoryModeInFirstStride() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (StringStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    MemoryManagerWithForceEnterLowMemoryMode memory =
+        new MemoryManagerWithForceEnterLowMemoryMode(conf);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 10000, memory);
+
+    // Write 500 rows
+    for (int i = 0; i < 500; i ++) {
+      writer.addRow(new StringStruct(Integer.toString(i)));
+    }
+
+    // Force the writer to enter low memory mode, note since the stride length was set to 10000
+    // we're still in the first stride
+    memory.forceEnterLowMemoryMode();
+
+    // Write 500 more rows
+    for (int i = 0; i < 500; i ++) {
+      writer.addRow(new StringStruct(Integer.toString(i + 500)));
+    }
+
+    writer.close();
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    for (int i = 0; i < 1000; i ++) {
+      lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+      row = (OrcStruct) lazyRow.materialize();
+      assertEquals(Integer.toString(i),
+          ((Text) ((OrcLazyString) row.getFieldValue(0)).materialize()).toString());
+    }
+    rows.close();
   }
 }
