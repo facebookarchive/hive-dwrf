@@ -18,10 +18,10 @@
 package org.apache.hadoop.hive.serde2.objectinspector;
 
 /**
- * SettableUnionObjectInspector.
+ * FBSettableUnionObjectInspector.
  *
  */
-public interface SettableUnionObjectInspector extends UnionObjectInspector {
+public interface FBSettableUnionObjectInspector extends UnionObjectInspector {
 
   /**
    * Create a union object with tag 0 and object null
