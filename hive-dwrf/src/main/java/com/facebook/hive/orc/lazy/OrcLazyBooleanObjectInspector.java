@@ -22,6 +22,8 @@ package com.facebook.hive.orc.lazy;
 
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BooleanObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
+import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.io.BooleanWritable;
 
 public class OrcLazyBooleanObjectInspector extends OrcLazyPrimitiveObjectInspector<OrcLazyBoolean, BooleanWritable> implements
@@ -45,5 +47,10 @@ public class OrcLazyBooleanObjectInspector extends OrcLazyPrimitiveObjectInspect
   public Object getPrimitiveJavaObject(Object o) {
     BooleanWritable writable = getPrimitiveWritableObject(o);
     return writable == null ? null : Boolean.valueOf(writable.get());
+  }
+
+  @SuppressWarnings({"override", "UnusedDeclaration", "RedundantCast"}) // FB Hive
+  public PrimitiveTypeInfo getTypeInfo() {
+    return (PrimitiveTypeInfo) TypeInfoFactory.booleanTypeInfo;
   }
 }

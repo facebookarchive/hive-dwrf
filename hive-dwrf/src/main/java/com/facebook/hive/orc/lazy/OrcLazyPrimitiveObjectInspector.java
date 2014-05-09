@@ -22,16 +22,19 @@ package com.facebook.hive.orc.lazy;
 
 import java.io.IOException;
 
-import org.apache.hadoop.hive.serde2.objectinspector.primitive.AbstractPrimitiveObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils.PrimitiveTypeEntry;
 import org.apache.hadoop.io.Writable;
 
-public abstract class OrcLazyPrimitiveObjectInspector<T extends OrcLazyObject, U extends Writable> extends AbstractPrimitiveObjectInspector {
+public abstract class OrcLazyPrimitiveObjectInspector<T extends OrcLazyObject, U extends Writable> implements PrimitiveObjectInspector {
+
+  protected final transient PrimitiveTypeEntry typeEntry;
 
   protected OrcLazyPrimitiveObjectInspector(PrimitiveTypeEntry typeEntry) {
-    super(typeEntry);
+    this.typeEntry = typeEntry;
   }
 
+  @SuppressWarnings("unchecked")
   @Override
   public U getPrimitiveWritableObject(Object o) {
     try {
@@ -46,4 +49,62 @@ public abstract class OrcLazyPrimitiveObjectInspector<T extends OrcLazyObject, U
     return true;
   }
 
+  /**
+   * Return the associated Java primitive class for this primitive
+   * ObjectInspector.
+   */
+  @Override
+  public Class<?> getJavaPrimitiveClass() {
+    return typeEntry.primitiveJavaClass;
+  }
+
+  /**
+   * Return the associated primitive category for this primitive
+   * ObjectInspector.
+   */
+  @Override
+  public PrimitiveCategory getPrimitiveCategory() {
+    return typeEntry.primitiveCategory;
+  }
+
+  /**
+   * Return the associated primitive Writable class for this primitive
+   * ObjectInspector.
+   */
+  @Override
+  public Class<?> getPrimitiveWritableClass() {
+    return typeEntry.primitiveWritableClass;
+  }
+
+  /**
+   * Return the associated category this primitive ObjectInspector.
+   */
+  @Override
+  public Category getCategory() {
+    return Category.PRIMITIVE;
+  }
+
+  /**
+   * Return the type name for this primitive ObjectInspector.
+   */
+  @Override
+  public String getTypeName() {
+    return typeEntry.typeName;
+  }
+
+  /**
+   * The precision of the underlying data.
+   */
+  @SuppressWarnings({"override", "UnusedDeclaration"}) // Hive 0.13
+  public int precision() {
+    return 0;
+  }
+
+  /**
+   * The scale of the underlying data.
+   */
+  @SuppressWarnings({"override", "UnusedDeclaration"}) // Hive 0.13
+  public int scale() {
+    return 0;
+  }
 }

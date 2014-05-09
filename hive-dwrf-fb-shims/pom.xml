@@ -23,7 +23,7 @@
     <version>0.6-SNAPSHOT</version>
   </parent>
 
-  <artifactId>hive-dwrf-shims</artifactId>
+  <artifactId>hive-dwrf-fb-shims</artifactId>
 
   <properties>
     <fb.main.basedir>${project.parent.basedir}</fb.main.basedir>
@@ -33,23 +33,26 @@
     <dependency>
       <groupId>com.facebook.presto.hive</groupId>
       <artifactId>hive-apache</artifactId>
-      <optional>true</optional>
+      <scope>provided</scope>
     </dependency>
 
     <dependency>
       <groupId>com.facebook.presto.hadoop</groupId>
       <artifactId>hadoop-cdh4</artifactId>
-      <optional>true</optional>
-    </dependency>
-
-    <dependency>
-      <groupId>com.google.guava</groupId>
-      <artifactId>guava</artifactId>
-    </dependency>
-
-    <dependency>
-      <groupId>commons-logging</groupId>
-      <artifactId>commons-logging</artifactId>
+      <scope>provided</scope>
     </dependency>
   </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <configuration>
+          <compilerArguments combine.self="override">
+            <bootclasspath>${jdk6.bootclasspath}</bootclasspath>
+          </compilerArguments>
+        </configuration>
+      </plugin>
+    </plugins>
+  </build>
 </project>
