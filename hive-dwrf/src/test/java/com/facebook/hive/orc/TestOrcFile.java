@@ -2233,19 +2233,26 @@ public class TestOrcFile {
 
   /**
    *
-   * MemoryManagerWithForceFlush.
+   * MemoryManagerWithForce.
    *
    * An implementation of MemoryManager with the ability to force writers to flush their stripes
+   * and to enter low memory mode.
    */
-  private static class MemoryManagerWithForceFlush extends MemoryManager {
+  private static class MemoryManagerWithForce extends MemoryManager {
 
-    MemoryManagerWithForceFlush(Configuration conf) {
+    MemoryManagerWithForce(Configuration conf) {
       super(conf);
     }
 
     public void forceFlushStripe() throws IOException {
       for (WriterInfo writer : writerList.values()) {
         writer.callback.checkMemory(0);
+      }
+    }
+
+    public void forceEnterLowMemoryMode() throws IOException {
+      for (WriterInfo writer : writerList.values()) {
+        writer.callback.enterLowMemoryMode();
       }
     }
   }
@@ -2261,7 +2268,7 @@ public class TestOrcFile {
           (StringStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
-    MemoryManagerWithForceFlush memory = new MemoryManagerWithForceFlush(conf);
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD, 1);
     Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
@@ -2297,7 +2304,7 @@ public class TestOrcFile {
           (StringStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
-    MemoryManagerWithForceFlush memory = new MemoryManagerWithForceFlush(conf);
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD, 1);
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL, 2);
@@ -2368,7 +2375,7 @@ public class TestOrcFile {
           (StringStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
-    MemoryManagerWithForceFlush memory = new MemoryManagerWithForceFlush(conf);
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
     // Set configs so the column is dictionary encoded and stride dictioanries are used
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD, 1);
@@ -2420,7 +2427,7 @@ public class TestOrcFile {
           (StringStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
-    MemoryManagerWithForceFlush memory = new MemoryManagerWithForceFlush(conf);
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD, 1);
     Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
@@ -2486,7 +2493,7 @@ public class TestOrcFile {
           (IntStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
-    MemoryManagerWithForceFlush memory = new MemoryManagerWithForceFlush(conf);
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
         1000000, CompressionKind.NONE, 100, 1000, memory);
@@ -2600,25 +2607,6 @@ public class TestOrcFile {
     assertFalse("Got EOFException for reading past end of buffer RLE byte", gotException);
   }
 
-  /**
-   *
-   * MemoryManagerWithForceEnterLowMemoryMode.
-   *
-   * An implementation of MemoryManager with the ability to force writers to enter low memory mode
-   */
-  private static class MemoryManagerWithForceEnterLowMemoryMode extends MemoryManager {
-
-    MemoryManagerWithForceEnterLowMemoryMode(Configuration conf) {
-      super(conf);
-    }
-
-    public void forceEnterLowMemoryMode() throws IOException {
-      for (WriterInfo writer : writerList.values()) {
-        writer.callback.enterLowMemoryMode();
-      }
-    }
-  }
-
   @Test
   /**
    * Tests a writing a stripe with an integer column, which enters low memory mode before the first
@@ -2631,8 +2619,7 @@ public class TestOrcFile {
           (IntStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
-    MemoryManagerWithForceEnterLowMemoryMode memory =
-        new MemoryManagerWithForceEnterLowMemoryMode(conf);
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
         1000000, CompressionKind.NONE, 100, 10000, memory);
@@ -2676,8 +2663,7 @@ public class TestOrcFile {
           (StringStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
-    MemoryManagerWithForceEnterLowMemoryMode memory =
-        new MemoryManagerWithForceEnterLowMemoryMode(conf);
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
         1000000, CompressionKind.NONE, 100, 10000, memory);
@@ -2706,6 +2692,116 @@ public class TestOrcFile {
       row = (OrcStruct) lazyRow.materialize();
       assertEquals(Integer.toString(i),
           ((Text) ((OrcLazyString) row.getFieldValue(0)).materialize()).toString());
+    }
+    rows.close();
+  }
+
+  @Test
+  /**
+   * Tests writing a stripe with a string column, which doesn't do dictionary encoding, then
+   * re-evaluates whether it should do dictionary encoding or not.  While it's re-evaluating, it
+   * enters low memory mode.
+   */
+  public void testStringEnterLowMemoryModeAndOnNotCarriedOverStripe() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (StringStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    // Reevaluate if we should use dictionary encoding on every stripe
+    OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL, 1);
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 10000, memory);
+
+    // Write 500 rows, they wil be directly encoded
+    for (int i = 0; i < 1000; i ++) {
+      writer.addRow(new StringStruct(Integer.toString(i)));
+    }
+
+    // Flush the first stripe
+    memory.forceFlushStripe();
+
+    // Write 500 more rows
+    for (int i = 0; i < 500; i ++) {
+      writer.addRow(new StringStruct(Integer.toString(i)));
+    }
+
+    // Force the writer to enter low memory mode
+    memory.forceEnterLowMemoryMode();
+
+    // Write 500 more rows
+    for (int i = 0; i < 500; i ++) {
+      writer.addRow(new StringStruct(Integer.toString(i + 500)));
+    }
+
+    writer.close();
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    for (int i = 0; i < 2000; i ++) {
+      lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+      row = (OrcStruct) lazyRow.materialize();
+      assertEquals(Integer.toString(i % 1000),
+          ((Text) ((OrcLazyString) row.getFieldValue(0)).materialize()).toString());
+    }
+    rows.close();
+  }
+
+  @Test
+  /**
+   * Tests writing a stripe with an int column, which doesn't do dictionary encoding, then
+   * re-evaluates whether it should do dictionary encoding or not.  While it's re-evaluating, it
+   * enters low memory mode
+   */
+  public void testIntegerEnterLowMemoryModeAndOnNotCarriedOverStripe() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (IntStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    // Reevaluate if we should use dictionary encoding on every stripe
+    OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL, 1);
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 10000, memory);
+
+    // Write 500 rows
+    for (int i = 0; i < 1000; i ++) {
+      writer.addRow(new IntStruct(i));
+    }
+
+    // Flush the first stripe
+    memory.forceFlushStripe();
+
+    // Write 500 more rows
+    for (int i = 0; i < 500; i ++) {
+      writer.addRow(new IntStruct(i));
+    }
+
+    // Force the writer to enter low memory mode
+    memory.forceEnterLowMemoryMode();
+
+    // Write 500 more rows
+    for (int i = 0; i < 500; i ++) {
+      writer.addRow(new IntStruct(i + 500));
+    }
+
+    writer.close();
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    for (int i = 0; i < 2000; i ++) {
+      lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+      row = (OrcStruct) lazyRow.materialize();
+      assertEquals(i % 1000,
+          ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
     }
     rows.close();
   }

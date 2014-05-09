@@ -1063,8 +1063,9 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     public void abandonDictionaries() throws IOException {
+      boolean useCarriedOverDirectEncoding = useCarriedOverDirectEncoding();
       abandonDictionaries = true;
-      if (useDictionaryEncoding) {
+      if (!useCarriedOverDirectEncoding) {
         rowOutput = writer.createStream(id, OrcProto.Stream.Kind.DATA);
         useDictionaryEncoding = false;
         convertDictionaryToDirect();
@@ -1657,8 +1658,9 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
 
     @Override
     public void abandonDictionaries() throws IOException {
+      boolean useCarriedOverDirectEncoding = useCarriedOverDirectEncoding();
       abandonDictionaries = true;
-      if (useDictionaryEncoding) {
+      if (!useCarriedOverDirectEncoding) {
         rowOutput = writer.createStream(id,
             OrcProto.Stream.Kind.DATA);
         useDictionaryEncoding = false;
