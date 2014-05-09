@@ -104,7 +104,7 @@
             <configuration> 
               <tasks> 
                 <mkdir dir="target/generated-sources/protobuf/gen-java" /> 
-                <exec executable="protoc"> 
+                <exec executable="${protoc.executable}">
                   <arg value="--java_out=target/generated-sources/protobuf/gen-java" />
                   <arg value="-I=src/main/resources/protobuf/com/facebook/hive/orc" />
                   <arg value="src/main/resources/protobuf/com/facebook/hive/orc/orc_proto.proto" /> 
