@@ -81,7 +81,7 @@ public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcLazyRow>
 
     @Override
     public OrcLazyRow createValue() {
-      return ((RecordReaderImpl) reader).getReader();
+      return reader.getReader();
     }
 
     @Override
