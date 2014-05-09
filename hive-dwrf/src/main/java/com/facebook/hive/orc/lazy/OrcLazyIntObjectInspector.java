@@ -22,6 +22,8 @@ package com.facebook.hive.orc.lazy;
 
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.IntObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
+import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.io.IntWritable;
 
 public class OrcLazyIntObjectInspector extends OrcLazyPrimitiveObjectInspector<OrcLazyInt, IntWritable> implements
@@ -47,4 +49,8 @@ public class OrcLazyIntObjectInspector extends OrcLazyPrimitiveObjectInspector<O
     return writable == null ? null : Integer.valueOf(writable.get());
   }
 
+  @SuppressWarnings({"override", "UnusedDeclaration", "RedundantCast"}) // FB Hive
+  public PrimitiveTypeInfo getTypeInfo() {
+    return (PrimitiveTypeInfo) TypeInfoFactory.intTypeInfo;
+  }
 }

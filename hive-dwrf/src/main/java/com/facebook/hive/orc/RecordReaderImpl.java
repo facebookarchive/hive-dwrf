@@ -499,6 +499,7 @@ class RecordReaderImpl implements RecordReader {
     reader.seekToRow(rowNumber);
   }
 
+  @Override
   public OrcLazyRow getReader() {
     return reader;
   }

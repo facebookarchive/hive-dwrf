@@ -23,6 +23,8 @@ package com.facebook.hive.orc.lazy;
 import org.apache.hadoop.hive.serde2.io.ShortWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.ShortObjectInspector;
+import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
 public class OrcLazyShortObjectInspector extends OrcLazyPrimitiveObjectInspector<OrcLazyShort, ShortWritable>
     implements ShortObjectInspector {
@@ -47,4 +49,8 @@ public class OrcLazyShortObjectInspector extends OrcLazyPrimitiveObjectInspector
     return writable == null ? null : Short.valueOf(writable.get());
   }
 
+  @SuppressWarnings({"override", "UnusedDeclaration", "RedundantCast"}) // FB Hive
+  public PrimitiveTypeInfo getTypeInfo() {
+    return (PrimitiveTypeInfo) TypeInfoFactory.shortTypeInfo;
+  }
 }

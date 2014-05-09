@@ -22,6 +22,8 @@ package com.facebook.hive.orc.lazy;
 
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.FloatObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
+import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 import org.apache.hadoop.io.FloatWritable;
 
 public class OrcLazyFloatObjectInspector extends OrcLazyPrimitiveObjectInspector<OrcLazyFloat, FloatWritable> implements
@@ -44,5 +46,10 @@ public class OrcLazyFloatObjectInspector extends OrcLazyPrimitiveObjectInspector
   public Object getPrimitiveJavaObject(Object o) {
     FloatWritable writable = getPrimitiveWritableObject(o);
     return writable == null ? null : Float.valueOf(writable.get());
+  }
+
+  @SuppressWarnings({"override", "UnusedDeclaration", "RedundantCast"}) // FB Hive
+  public PrimitiveTypeInfo getTypeInfo() {
+    return (PrimitiveTypeInfo) TypeInfoFactory.floatTypeInfo;
   }
 }

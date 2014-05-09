@@ -23,6 +23,8 @@ package com.facebook.hive.orc.lazy;
 import org.apache.hadoop.hive.serde2.io.ByteWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.ByteObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
+import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
 public class OrcLazyByteObjectInspector extends OrcLazyPrimitiveObjectInspector<OrcLazyByte, ByteWritable> implements
     ByteObjectInspector {
@@ -45,5 +47,10 @@ public class OrcLazyByteObjectInspector extends OrcLazyPrimitiveObjectInspector<
   public Object getPrimitiveJavaObject(Object o) {
     ByteWritable writable = getPrimitiveWritableObject(o);
     return writable == null ? null : Byte.valueOf(writable.get());
+  }
+
+  @SuppressWarnings({"override", "UnusedDeclaration", "RedundantCast"}) // FB Hive
+  public PrimitiveTypeInfo getTypeInfo() {
+    return (PrimitiveTypeInfo) TypeInfoFactory.byteTypeInfo;
   }
 }

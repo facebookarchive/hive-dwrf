@@ -1,5 +1,3 @@
-//  Copyright (c) 2013, Facebook, Inc.  All rights reserved.
-
 /**
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
@@ -17,13 +15,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package org.apache.hadoop.hive.serde2.objectinspector;
 
-package org.apache.hadoop.hive.ql.exec;
+/**
+ * FBSettableUnionObjectInspector.
+ *
+ */
+public interface FBSettableUnionObjectInspector extends UnionObjectInspector {
 
-import org.apache.hadoop.hive.ql.exec.FileSinkOperator.RecordWriter;
-import org.apache.hadoop.hive.serde2.SerDeStats;
+  /**
+   * Create a union object with tag 0 and object null
+   */
+  public abstract Object create();
 
-public interface StatsProvidingRecordWriter extends RecordWriter {
-  SerDeStats getStats();
+  /**
+   * Update the union with the tag and the object
+   */
+  public abstract void setField(Object union, byte tag, Object field);
 }
-

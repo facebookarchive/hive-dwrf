@@ -25,6 +25,8 @@ import java.sql.Timestamp;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.TimestampObjectInspector;
+import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
 public class OrcLazyTimestampObjectInspector extends
     OrcLazyPrimitiveObjectInspector<OrcLazyTimestamp, TimestampWritable> implements TimestampObjectInspector {
@@ -44,4 +46,8 @@ public class OrcLazyTimestampObjectInspector extends
     return o == null ? null : new OrcLazyTimestamp((OrcLazyTimestamp) o);
   }
 
+  @SuppressWarnings({"override", "UnusedDeclaration", "RedundantCast"}) // FB Hive
+  public PrimitiveTypeInfo getTypeInfo() {
+    return (PrimitiveTypeInfo) TypeInfoFactory.timestampTypeInfo;
+  }
 }

@@ -23,6 +23,8 @@ package com.facebook.hive.orc.lazy;
 import org.apache.hadoop.hive.serde2.io.DoubleWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.DoubleObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectInspectorUtils;
+import org.apache.hadoop.hive.serde2.typeinfo.PrimitiveTypeInfo;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoFactory;
 
 public class OrcLazyDoubleObjectInspector extends OrcLazyPrimitiveObjectInspector<OrcLazyDouble, DoubleWritable>
     implements DoubleObjectInspector {
@@ -44,5 +46,10 @@ public class OrcLazyDoubleObjectInspector extends OrcLazyPrimitiveObjectInspecto
   public Object getPrimitiveJavaObject(Object o) {
     DoubleWritable writable = getPrimitiveWritableObject(o);
     return writable == null ? null : Double.valueOf(writable.get());
+  }
+
+  @SuppressWarnings({"override", "UnusedDeclaration", "RedundantCast"}) // FB Hive
+  public PrimitiveTypeInfo getTypeInfo() {
+    return (PrimitiveTypeInfo) TypeInfoFactory.doubleTypeInfo;
   }
 }

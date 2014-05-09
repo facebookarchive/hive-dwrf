@@ -21,6 +21,8 @@ package com.facebook.hive.orc;
 
 import java.io.IOException;
 
+import com.facebook.hive.orc.lazy.OrcLazyRow;
+
 /**
  * A row-by-row iterator for ORC files.
  */
@@ -65,4 +67,9 @@ public interface RecordReader {
    * Seek to a particular row number.
    */
   void seekToRow(long rowCount) throws IOException;
+
+  /**
+   * Get the underlying reader.
+   */
+  OrcLazyRow getReader();
 }
