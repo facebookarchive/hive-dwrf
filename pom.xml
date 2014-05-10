@@ -20,7 +20,7 @@
     <parent>
         <groupId>com.facebook</groupId>
         <artifactId>facebook-oss-pom</artifactId>
-        <version>7</version>
+        <version>11</version>
     </parent>
 
     <groupId>com.facebook.hive</groupId>
