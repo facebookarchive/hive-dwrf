@@ -965,11 +965,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     }
 
     private void convertDictionaryToDirect() throws IOException {
-      // If this is still in the first index stride, savedRowIndex is empty, so we need to
-      // explicitly record the positions for the first index stride
-      if (savedRowIndex.size() == 0)  {
-        rowOutput.getPosition(rowIndexPosition);
-      }
       writeData(false, null, null);
     }
 
@@ -983,17 +978,32 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
         // now that we are writing out the row values, we can finalize the
         // row index
         if (buildIndex) {
-          while (i == rowIndexValueCount.get(rowIndexEntry) &&
-              rowIndexEntry < savedRowIndex.size()) {
-            OrcProto.RowIndexEntry.Builder base =
-                savedRowIndex.get(rowIndexEntry++).toBuilder();
-            RowIndexPositionRecorder recorder = new RowIndexPositionRecorder(base);
+          // If we are not using dictionary encoding and savedRowIndex is not empty, this means
+          // the conversion from dictionary encoding to direct encoding, so allow rowIndexEntry to
+          // exceed the number of saved row indeces, to create the index entry for the current
+          //stride
+          while (rowIndexEntry < rowIndexValueCount.size() &&
+              i == rowIndexValueCount.get(rowIndexEntry) &&
+              (rowIndexEntry < savedRowIndex.size() ||
+                  (!useDictionaryEncoding && rowIndexEntry == savedRowIndex.size()))) {
+            OrcProto.RowIndexEntry.Builder base = null;
+            RowIndexPositionRecorder recorder;
+            if (rowIndexEntry < savedRowIndex.size()) {
+              base = savedRowIndex.get(rowIndexEntry).toBuilder();
+              recorder = new RowIndexPositionRecorder(base);
+            } else {
+              recorder = rowIndexPosition;
+            }
             if (useDictionaryEncoding && dumpOrder != null &&
                 dictionarySize != dictionary.size()) {
               inDictionary.getPosition(recorder);
             }
             rowOutput.getPosition(recorder);
-            rowIndex.addEntry(base.build());
+            if (rowIndexEntry < savedRowIndex.size()) {
+              // If we are constructing an index entry from a saved row index, add it
+              rowIndex.addEntry(base.build());
+            }
+            rowIndexEntry++;
           }
         }
 
@@ -1536,10 +1546,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     private void convertDictionaryToDirect() throws IOException {
       // If this is still in the first index stride, savedRowIndex is empty, so we need to
       // explicitly record the positions for the first index stride
-      if (savedRowIndex.size() == 0)  {
-        rowOutput.getPosition(rowIndexPosition);
-        directLengthOutput.getPosition(rowIndexPosition);
-      }
       writeData(false, null, null, null, null);
     }
 
@@ -1553,23 +1559,39 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
         // now that we are writing out the row values, we can finalize the
         // row index
         if (buildIndex) {
-          while (i == rowIndexValueCount.get(rowIndexEntry) &&
-              rowIndexEntry < savedRowIndex.size()) {
-            OrcProto.RowIndexEntry.Builder base =
-                savedRowIndex.get(rowIndexEntry++).toBuilder();
+       // If we are not using dictionary encoding and savedRowIndex is not empty, this means
+          // the conversion from dictionary encoding to direct encoding, so allow rowIndexEntry to
+          // exceed the number of saved row indeces, to create the index entry for the current
+          //stride
+          while (rowIndexEntry < rowIndexValueCount.size() &&
+              i == rowIndexValueCount.get(rowIndexEntry) &&
+              (rowIndexEntry < savedRowIndex.size() ||
+                  (!useDictionaryEncoding && rowIndexEntry == savedRowIndex.size()))) {
+            OrcProto.RowIndexEntry.Builder base = null;
+            RowIndexPositionRecorder recorder;
+            if (rowIndexEntry < savedRowIndex.size()) {
+              base = savedRowIndex.get(rowIndexEntry).toBuilder();
+              recorder = new RowIndexPositionRecorder(base);
+            } else {
+              recorder = rowIndexPosition;
+            }
+
             if (useStrideDictionaries && useDictionaryEncoding &&
-                !strideDictionaryIndexPopulated[rowIndexEntry - 1] &&
+                !strideDictionaryIndexPopulated[rowIndexEntry] &&
                 dictionary.size() != dictionarySize) {
-              RowIndexPositionRecorder recorder = new RowIndexPositionRecorder(base);
               strideDictionaryOutput.getPosition(recorder);
               strideDictionaryLengthOutput.getPosition(recorder);
             }
             if (useStrideDictionaries && strideDictionarySizes != null &&
                 dictionary.size() != dictionarySize) {
-              base.addPositions(strideDictionarySizes[rowIndexEntry - 1]);
+              base.addPositions(strideDictionarySizes[rowIndexEntry]);
             }
-            recordOutputPosition(rowOutput, base);
-            rowIndex.addEntry(base.build());
+            recordOutputPosition(rowOutput, recorder);
+            if (rowIndexEntry < savedRowIndex.size()) {
+              // If we are constructing an index entry from a saved row index, add it
+              rowIndex.addEntry(base.build());
+            }
+            rowIndexEntry++;
           }
         }
         if (i != length) {
@@ -1592,8 +1614,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     // Calls getPosition on the row output stream if dictionary encoding is used, and the direct
     // output stream if direct encoding is used
     private void recordOutputPosition(PositionedOutputStream rowOutput,
-        OrcProto.RowIndexEntry.Builder base) throws IOException {
-      RowIndexPositionRecorder recorder = new RowIndexPositionRecorder(base);
+        RowIndexPositionRecorder recorder) throws IOException {
       rowOutput.getPosition(recorder);
       if (!useDictionaryEncoding) {
         directLengthOutput.getPosition(recorder);

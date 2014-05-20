@@ -2698,6 +2698,288 @@ public class TestOrcFile {
 
   @Test
   /**
+   * Tests a writing a stripe with a string column, which enters low memory mode before the second
+   * index stride is complete, and does not complete that stride.
+   */
+  public void testStringEnterLowMemoryModeInSecondStride() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (StringStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 1000, memory);
+
+    // Write 1000 rows (the first stride)
+    for (int i = 0; i < 1000; i ++) {
+      writer.addRow(new StringStruct(Integer.toString(i)));
+    }
+
+    // Write 250 more rows (a portion of the second stride)
+    for (int i = 0; i < 250; i ++) {
+      writer.addRow(new StringStruct(Integer.toString(i)));
+    }
+
+    // Force the writer to enter low memory mode, note since the stride length was set to 1000
+    // we're still in the second stride
+    memory.forceEnterLowMemoryMode();
+
+    // Write 250 more rows (which still gets written to the second stride, but not enough to fill
+    // it)
+    for (int i = 0; i < 250; i ++) {
+      writer.addRow(new StringStruct(Integer.toString(i + 250)));
+    }
+
+    writer.close();
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    for (int i = 0; i < 1500; i ++) {
+      lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+      row = (OrcStruct) lazyRow.materialize();
+      assertEquals(Integer.toString(i % 1000),
+          ((Text) ((OrcLazyString) row.getFieldValue(0)).materialize()).toString());
+    }
+    rows.close();
+  }
+
+  @Test
+  /**
+   * Tests a writing a stripe with an int column, which enters low memory mode before the second
+   * index stride is complete, and does not complete that stride.
+   */
+  public void testIntEnterLowMemoryModeInSecondStride() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (IntStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 1000, memory);
+
+    // Write 1000 rows (the first stride)
+    for (int i = 0; i < 1000; i ++) {
+      writer.addRow(new IntStruct(i));
+    }
+
+    // Write 250 more rows (a portion of the second stride)
+    for (int i = 0; i < 250; i ++) {
+      writer.addRow(new IntStruct(i));
+    }
+
+    // Force the writer to enter low memory mode, note since the stride length was set to 1000
+    // we're still in the second stride
+    memory.forceEnterLowMemoryMode();
+
+    // Write 250 more rows (which still gets written to the second stride, but not enough to fill
+    // it)
+    for (int i = 0; i < 250; i ++) {
+      writer.addRow(new IntStruct(i + 250));
+    }
+
+    writer.close();
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    for (int i = 0; i < 1500; i ++) {
+      lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+      row = (OrcStruct) lazyRow.materialize();
+      assertEquals(i % 1000,
+          ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
+    }
+    rows.close();
+  }
+
+  @Test
+  /**
+   * Tests a writing a stripe with a string column, which enters low memory mode just before the
+   * second stride starts
+   */
+  public void testStringEnterLowMemoryModeAtStrideStart() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (StringStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 1000, memory);
+
+    // Write 1000 rows (the first stride)
+    for (int i = 0; i < 1000; i ++) {
+      writer.addRow(new StringStruct(Integer.toString(i)));
+    }
+
+    // Force the writer to enter low memory mode, note since the stride length was set to 1000
+    // we're just starting the second stride
+    memory.forceEnterLowMemoryMode();
+
+    // Write 500 more rows (a portion of the second stride)
+    for (int i = 0; i < 500; i ++) {
+      writer.addRow(new StringStruct(Integer.toString(i)));
+    }
+
+    writer.close();
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    for (int i = 0; i < 1500; i ++) {
+      lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+      row = (OrcStruct) lazyRow.materialize();
+      assertEquals(Integer.toString(i % 1000),
+          ((Text) ((OrcLazyString) row.getFieldValue(0)).materialize()).toString());
+    }
+    rows.close();
+  }
+
+  @Test
+  /**
+   * Tests a writing a stripe with an int column, which enters low memory mode just before the
+   * second stride starts
+   */
+  public void testIntEnterLowMemoryModeAtStrideStart() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (IntStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 1000, memory);
+
+    // Write 1000 rows (the first stride)
+    for (int i = 0; i < 1000; i ++) {
+      writer.addRow(new IntStruct(i));
+    }
+
+    // Force the writer to enter low memory mode, note since the stride length was set to 1000
+    // we're just starting the second stride
+    memory.forceEnterLowMemoryMode();
+
+    // Write 500 more rows (a portion of the second stride)
+    for (int i = 0; i < 500; i ++) {
+      writer.addRow(new IntStruct(i));
+    }
+
+    writer.close();
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    for (int i = 0; i < 1500; i ++) {
+      lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+      row = (OrcStruct) lazyRow.materialize();
+      assertEquals(i % 1000,
+          ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
+    }
+    rows.close();
+  }
+
+  @Test
+  /**
+   * Tests a writing a stripe with a string column, which enters low memory mode just after the
+   * second stride starts
+   */
+  public void testStringEnterLowMemoryModeAfterStrideStart() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (StringStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 1000, memory);
+
+    // Write 1000 rows (the first stride)
+    for (int i = 0; i < 1001; i ++) {
+      writer.addRow(new StringStruct(Integer.toString(i % 1000)));
+    }
+
+    // Force the writer to enter low memory mode, note since the stride length was set to 1000
+    // we're just after starting the second stride
+    memory.forceEnterLowMemoryMode();
+
+    // Write 499 more rows (a portion of the second stride)
+    for (int i = 1; i < 500; i ++) {
+      writer.addRow(new StringStruct(Integer.toString(i)));
+    }
+
+    writer.close();
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    for (int i = 0; i < 1500; i ++) {
+      lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+      row = (OrcStruct) lazyRow.materialize();
+      assertEquals(Integer.toString(i % 1000),
+          ((Text) ((OrcLazyString) row.getFieldValue(0)).materialize()).toString());
+    }
+    rows.close();
+  }
+
+  @Test
+  /**
+   * Tests a writing a stripe with an int column, which enters low memory mode just after the
+   * second stride starts
+   */
+  public void testIntEnterLowMemoryModeAfterStrideStart() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (IntStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 1000, memory);
+
+    // Write 1000 rows (the first stride)
+    for (int i = 0; i < 1001; i ++) {
+      writer.addRow(new IntStruct(i % 1000));
+    }
+
+    // Force the writer to enter low memory mode, note since the stride length was set to 1000
+    // we're just after starting the second stride
+    memory.forceEnterLowMemoryMode();
+
+    // Write 499 more rows (a portion of the second stride)
+    for (int i = 1; i < 500; i ++) {
+      writer.addRow(new IntStruct(i));
+    }
+
+    writer.close();
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    for (int i = 0; i < 1500; i ++) {
+      lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+      row = (OrcStruct) lazyRow.materialize();
+      assertEquals(i % 1000,
+          ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
+    }
+    rows.close();
+  }
+
+  @Test
+  /**
    * Tests writing a stripe with a string column, which doesn't do dictionary encoding, then
    * re-evaluates whether it should do dictionary encoding or not.  While it's re-evaluating, it
    * enters low memory mode.
