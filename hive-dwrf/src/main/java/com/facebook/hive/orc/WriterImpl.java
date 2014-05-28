@@ -1945,11 +1945,12 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       long rawDataSize = 0;
       if (obj != null) {
         MapObjectInspector insp = (MapObjectInspector) inspector;
-        int len = insp.getMapSize(obj);
-        lengths.write(len);
         // this sucks, but it will have to do until we can get a better
         // accessor in the MapObjectInspector.
         Map<?, ?> valueMap = insp.getMap(obj);
+        // Don't use getMapSize(), it's inconsistent for some object inspectors
+        int len = valueMap.size();
+        lengths.write(len);
         for(Map.Entry<?, ?> entry: valueMap.entrySet()) {
           childrenWriters[0].write(entry.getKey());
           childrenWriters[1].write(entry.getValue());
