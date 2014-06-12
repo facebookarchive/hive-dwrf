@@ -97,8 +97,16 @@ public class BitFieldReader {
     } else {
       totalBits -= bitsLeft;
       input.skip(totalBits / 8);
-      current = input.next();
       bitsLeft = (int) (8 - (totalBits % 8));
+
+      // Load the next value only if the stream still has data. If not,
+      // then mark bitsLeft as zero to force exception when values are
+      // attempted to be read.
+      if (input.hasNext()) {
+        current = input.next();
+      } else {
+        bitsLeft = 0;
+      }
     }
   }
 
