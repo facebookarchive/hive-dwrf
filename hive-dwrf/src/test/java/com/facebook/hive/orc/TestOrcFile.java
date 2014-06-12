@@ -24,15 +24,18 @@ import static com.facebook.hive.orc.OrcTestUtils.inner;
 import static com.facebook.hive.orc.OrcTestUtils.list;
 import static com.facebook.hive.orc.OrcTestUtils.map;
 import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertFalse;
 import static junit.framework.Assert.assertNotNull;
 import static junit.framework.Assert.assertNull;
 import static junit.framework.Assert.assertTrue;
 
+import java.io.EOFException;
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -77,7 +80,10 @@ import com.facebook.hive.orc.OrcTestUtils.InnerStruct;
 import com.facebook.hive.orc.OrcTestUtils.IntStruct;
 import com.facebook.hive.orc.OrcTestUtils.MiddleStruct;
 import com.facebook.hive.orc.OrcTestUtils.ReallyBigRow;
+import com.facebook.hive.orc.OrcTestUtils.StringListWithId;
 import com.facebook.hive.orc.OrcTestUtils.StringStruct;
+import com.facebook.hive.orc.lazy.LazyListTreeReader;
+import com.facebook.hive.orc.lazy.LazyTreeReader;
 import com.facebook.hive.orc.lazy.OrcLazyBinary;
 import com.facebook.hive.orc.lazy.OrcLazyBoolean;
 import com.facebook.hive.orc.lazy.OrcLazyByte;
@@ -2531,5 +2537,66 @@ public class TestOrcFile {
       rows.next(lazyRow);
       assertEquals(123, ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
     }
+  }
+
+  /**
+   * Verifies the scenario when {@link com.facebook.hive.orc.BitFieldReader#skip(long)} skips to
+   * the last value and doesn't load the next value if it has reached the end of the stream.
+   *
+   * @throws Exception
+   */
+  @Test
+  public void testSkipWithEmptyArrayInEnd() throws Exception {
+    ObjectInspector inspector;
+    List<String> emptyList = Collections.emptyList();
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (StringListWithId.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    OrcConf.setFloatVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD, 0.01f);
+    OrcConf.setBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_FILE_ENABLE_LOW_MEMORY_MODE, false);
+    Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector, 1000000, CompressionKind.ZLIB, 1000, 1000);
+
+    int numNulls = 4;
+    int numNonNulls = 8;
+    for(int i = 0; i < numNonNulls; i++) {
+      List<String> filledList = new ArrayList<String>();
+      filledList.add("SomeText");
+      filledList.add("SomeMoreText" + i);
+      writer.addRow(new StringListWithId(i, filledList));
+    }
+    for(int j = 0; j < numNulls; j++) {
+      writer.addRow(new StringListWithId(numNonNulls+j, emptyList));
+    }
+
+    writer.close();
+
+    // Prepare to read back the data
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = (OrcLazyStruct) rows.next(null);
+    OrcStruct row = (OrcStruct) lazyRow.materialize();
+    OrcLazyList list = ((OrcLazyList) row.getFieldValue(1));
+    LazyTreeReader lazyReader = list.getLazyTreeReader();
+
+    Object prev = lazyReader.get(numNonNulls - 1, null);
+
+    boolean gotException = false;
+    String expectedExceptionMessage = "Read past end of buffer RLE byte from compressed stream Stream for column 3 " +
+        "kind IN_DICTIONARY base: 60 limit: 66 current stride: 1 compressed offset: 66 uncompressed: 66 to 66";
+    try {
+      lazyReader.get(numNonNulls + 1, prev);
+    } catch (EOFException e) {
+      if(e.getMessage().compareTo(expectedExceptionMessage) == 0) {
+        gotException = true;
+      } else {
+        throw e;
+      }
+    }
+
+    assertFalse("Got EOFException for reading past end of buffer RLE byte", gotException);
   }
 }

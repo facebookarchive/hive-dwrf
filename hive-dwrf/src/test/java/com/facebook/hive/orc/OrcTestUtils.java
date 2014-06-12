@@ -203,4 +203,14 @@ public class OrcTestUtils {
     }
     return result;
   }
+
+  public static class StringListWithId {
+    Integer id;
+    List<String> list = new ArrayList<String>();
+
+    public StringListWithId(Integer id, List<String> l1) {
+      this.id = id;
+      this.list = l1;
+    }
+  }
 }
