@@ -26,9 +26,10 @@ import java.util.Properties;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.ql.io.FSRecordWriter;
+import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
 import com.facebook.hive.orc.OrcSerde.OrcSerdeRow;
+import org.apache.hadoop.hive.ql.io.StatsProvidingRecordWriter;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -40,8 +41,6 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordWriter;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.util.Progressable;
-
-import static org.apache.hadoop.hive.ql.io.FSRecordWriter.StatsProvidingRecordWriter;
 
 /**
  * A Hive OutputFormat for ORC files.
@@ -136,7 +135,7 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
   }
 
   @Override
-  public FSRecordWriter
+  public FileSinkOperator.RecordWriter
      getHiveRecordWriter(JobConf conf,
                          Path path,
                          Class<? extends Writable> valueClass,

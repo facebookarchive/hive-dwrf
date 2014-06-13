@@ -57,7 +57,6 @@
 
     <modules>
         <module>hive-dwrf</module>
-        <module>hive-dwrf-fb-shims</module>
         <module>hive-dwrf-shims</module>
     </modules>
 
@@ -78,7 +77,7 @@
             <dependency>
                 <groupId>com.facebook.presto.hive</groupId>
                 <artifactId>hive-apache</artifactId>
-                <version>0.7</version>
+                <version>0.8</version>
             </dependency>
 
             <dependency>
