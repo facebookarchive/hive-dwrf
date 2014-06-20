@@ -28,7 +28,6 @@ import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
-import com.facebook.hive.orc.OrcSerde.OrcSerdeRow;
 import org.apache.hadoop.hive.ql.io.StatsProvidingRecordWriter;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.hive.serde2.SerDeStats;
@@ -41,6 +40,8 @@ import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordWriter;
 import org.apache.hadoop.mapred.Reporter;
 import org.apache.hadoop.util.Progressable;
+
+import com.facebook.hive.orc.OrcSerde.OrcSerdeRow;
 
 /**
  * A Hive OutputFormat for ORC files.
@@ -127,6 +128,16 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
       getRecordWriter(FileSystem fileSystem, JobConf conf, String name,
                       Progressable reporter) throws IOException {
     ReaderWriterProfiler.setProfilerOptions(conf);
+
+    if (fileSystem == null) {
+      // To be compatible with older file formats like Sequence and RC
+      // Only works if mapred.work.output.dir is set in the conf
+      Path workOutputPath = FileOutputFormat.getWorkOutputPath(conf);
+      if (workOutputPath != null) {
+        fileSystem = workOutputPath.getFileSystem(conf);
+      }
+    }
+
     return new OrcRecordWriter(fileSystem,  new Path(name), conf,
       OrcConf.ConfVars.HIVE_ORC_STRIPE_SIZE.defaultLongVal,
       OrcConf.ConfVars.HIVE_ORC_COMPRESSION.defaultVal,

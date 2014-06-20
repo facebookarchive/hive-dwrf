@@ -33,8 +33,8 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
 import org.apache.hadoop.hive.ql.io.InputFormatChecker;
-import org.apache.hadoop.hive.serde2.SerDe;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
+import org.apache.hadoop.hive.serde2.SerDe;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
@@ -53,6 +53,9 @@ import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
 import org.junit.rules.TestName;
+
+import com.facebook.hive.orc.OrcSerde.OrcSerdeRow;
+import com.facebook.hive.orc.lazy.OrcLazyRow;
 
 public class TestInputOutputFormat {
 
@@ -370,6 +373,61 @@ public class TestInputOutputFormat {
         getStructFieldData(value, fields.get(0))));
     assertEquals(true, reader.next(key, value));
     assertEquals("miles", strInspector.getPrimitiveJavaObject(inspector.
+        getStructFieldData(value, fields.get(0))));
+    assertEquals(false, reader.next(key, value));
+    reader.close();
+  }
+
+  /**
+   * Tests that passing null as the file system to getRecordWriter works, this is
+   * to be compatible with the way Sequence and RC file tolerate nulls.
+   * @throws Exception
+   */
+  @Test
+  public void testNullFileSystem() throws Exception {
+    conf.set("mapred.work.output.dir", testFilePath.toString());
+    JobConf job = new JobConf(conf);
+    Properties properties = new Properties();
+    StructObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = (StructObjectInspector)
+          ObjectInspectorFactory.getReflectionObjectInspector(StringRow.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    OrcSerde serde = new OrcSerde();
+    OrcOutputFormat outFormat = new OrcOutputFormat();
+    RecordWriter<NullWritable, OrcSerdeRow> writer =
+        outFormat.getRecordWriter(null, conf, testFilePath.toString(), Reporter.NULL);
+
+    writer.write(NullWritable.get(), (OrcSerdeRow) serde.serialize(new StringRow("a"), inspector));
+    writer.write(NullWritable.get(), (OrcSerdeRow) serde.serialize(new StringRow("b"), inspector));
+    writer.write(NullWritable.get(), (OrcSerdeRow) serde.serialize(new StringRow("c"), inspector));
+    writer.close(Reporter.NULL);
+    serde = new OrcSerde();
+    properties.setProperty("columns", "str,str2");
+    serde.initialize(conf, properties);
+    inspector = (StructObjectInspector) serde.getObjectInspector();
+    OrcInputFormat in = new OrcInputFormat();
+    FileInputFormat.setInputPaths(conf, testFilePath.toString());
+    InputSplit[] splits = in.getSplits(conf, 1);
+    assertEquals(1, splits.length);
+
+    // read the whole file
+    org.apache.hadoop.mapred.RecordReader<NullWritable, OrcLazyRow> reader =
+        in.getRecordReader(splits[0], conf, Reporter.NULL);
+    NullWritable key = reader.createKey();
+    OrcLazyRow value = (OrcLazyRow) reader.createValue();
+    List<? extends StructField> fields =inspector.getAllStructFieldRefs();
+    StringObjectInspector strInspector = (StringObjectInspector)
+        fields.get(0).getFieldObjectInspector();
+    assertEquals(true, reader.next(key, value));
+    assertEquals("a", strInspector.getPrimitiveJavaObject(inspector.
+        getStructFieldData(value, fields.get(0))));
+    assertEquals(true, reader.next(key, value));
+    assertEquals("b", strInspector.getPrimitiveJavaObject(inspector.
+        getStructFieldData(value, fields.get(0))));
+    assertEquals(true, reader.next(key, value));
+    assertEquals("c", strInspector.getPrimitiveJavaObject(inspector.
         getStructFieldData(value, fields.get(0))));
     assertEquals(false, reader.next(key, value));
     reader.close();
