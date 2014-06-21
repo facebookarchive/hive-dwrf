@@ -24,10 +24,11 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import com.facebook.hive.orc.OrcProto;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.MapTypeInfo;
+
+import com.facebook.hive.orc.OrcProto;
 
 public class OrcLazyMapObjectInspector implements MapObjectInspector {
 
@@ -50,6 +51,7 @@ public class OrcLazyMapObjectInspector implements MapObjectInspector {
     if (data == null) {
       return null;
     }
+
     try {
       return (Map<?, ?>) ((OrcLazyMap) data).materialize();
     } catch (IOException e) {
@@ -64,11 +66,19 @@ public class OrcLazyMapObjectInspector implements MapObjectInspector {
 
   @Override
   public int getMapSize(Object data) {
+    if (data == null) {
+      return -1;
+    }
+
     return getMap(data).size();
   }
 
   @Override
   public Object getMapValueElement(Object data, Object key) {
+    if (data == null) {
+      return null;
+    }
+
     return getMap(data).get(key);
   }
 
