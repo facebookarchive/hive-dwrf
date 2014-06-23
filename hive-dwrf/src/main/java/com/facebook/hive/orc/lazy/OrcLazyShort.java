@@ -30,6 +30,8 @@ public class OrcLazyShort extends OrcLazyObject {
 
   public OrcLazyShort(OrcLazyShort copy) {
     super(copy);
-    previous = new ShortWritable(((ShortWritable)copy.previous).get());
+    if (copy.previous != null) {
+      previous = new ShortWritable(((ShortWritable)copy.previous).get());
+    }
   }
 }

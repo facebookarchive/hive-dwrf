@@ -31,8 +31,8 @@ import org.apache.hadoop.io.Writable;
 
 import com.facebook.hive.orc.InStream;
 import com.facebook.hive.orc.OrcProto;
-import com.facebook.hive.orc.StreamName;
 import com.facebook.hive.orc.OrcProto.RowIndex;
+import com.facebook.hive.orc.StreamName;
 
 
 public abstract class OrcLazyObject implements Writable {
@@ -49,6 +49,14 @@ public abstract class OrcLazyObject implements Writable {
   }
 
   public OrcLazyObject(OrcLazyObject copy) {
+    // Materialize now, so that materialize can't be called out or order on the copy and
+    // calling materialize on both the copy and the original won't advance the tree reader twice
+    try {
+      copy.materialize();
+    } catch (IOException e) {
+      throw new RuntimeException(e);
+    }
+
     materialized = copy.materialized;
     writableCreated = copy.writableCreated;
     currentRow = copy.currentRow;

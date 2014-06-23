@@ -30,6 +30,8 @@ public class OrcLazyString extends OrcLazyObject {
 
   public OrcLazyString(OrcLazyString copy) {
     super(copy);
-    previous = new Text((Text)copy.previous);
+    if (copy.previous != null) {
+      previous = new Text((Text)copy.previous);
+    }
   }
 }

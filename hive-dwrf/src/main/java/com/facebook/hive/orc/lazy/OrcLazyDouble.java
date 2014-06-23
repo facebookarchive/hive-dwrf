@@ -30,6 +30,8 @@ public class OrcLazyDouble extends OrcLazyObject {
 
   public OrcLazyDouble(OrcLazyDouble copy) {
     super(copy);
-    previous = new DoubleWritable(((DoubleWritable)copy.previous).get());
+    if (copy.previous != null) {
+      previous = new DoubleWritable(((DoubleWritable)copy.previous).get());
+    }
   }
 }

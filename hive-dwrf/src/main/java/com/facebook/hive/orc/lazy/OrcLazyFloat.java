@@ -30,6 +30,8 @@ public class OrcLazyFloat extends OrcLazyObject {
 
   public OrcLazyFloat(OrcLazyFloat copy) {
     super(copy);
-    previous = new FloatWritable(((FloatWritable)copy.previous).get());
+    if (copy.previous != null) {
+      previous = new FloatWritable(((FloatWritable)copy.previous).get());
+    }
   }
 }

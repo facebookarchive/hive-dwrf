@@ -30,6 +30,8 @@ public class OrcLazyInt extends OrcLazyObject {
 
   public OrcLazyInt(OrcLazyInt copy) {
     super(copy);
-    previous = new IntWritable(((IntWritable)copy.previous).get());
+    if (copy.previous != null) {
+      previous = new IntWritable(((IntWritable)copy.previous).get());
+    }
   }
 }

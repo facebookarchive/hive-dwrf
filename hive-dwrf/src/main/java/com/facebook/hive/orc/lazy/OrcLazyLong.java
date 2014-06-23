@@ -30,7 +30,9 @@ public class OrcLazyLong extends OrcLazyObject {
 
   public OrcLazyLong(OrcLazyLong copy) {
     super(copy);
-    previous = new LongWritable(((LongWritable)copy.previous).get());
+    if (copy.previous != null) {
+      previous = new LongWritable(((LongWritable)copy.previous).get());
+    }
   }
 
 }

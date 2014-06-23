@@ -29,6 +29,8 @@ public class OrcLazyBoolean extends OrcLazyObject {
 
   public OrcLazyBoolean(OrcLazyBoolean copy) {
     super(copy);
-    previous = new BooleanWritable(((BooleanWritable)copy.previous).get());
+    if (copy.previous != null) {
+      previous = new BooleanWritable(((BooleanWritable)copy.previous).get());
+    }
   }
 }

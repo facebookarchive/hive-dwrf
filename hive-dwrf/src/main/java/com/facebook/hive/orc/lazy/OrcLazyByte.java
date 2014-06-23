@@ -29,6 +29,8 @@ public class OrcLazyByte extends OrcLazyObject {
 
   public OrcLazyByte(OrcLazyByte copy) {
     super(copy);
-    previous = new ByteWritable(((ByteWritable)copy.previous).get());
+    if (copy.previous != null) {
+      previous = new ByteWritable(((ByteWritable)copy.previous).get());
+    }
   }
 }

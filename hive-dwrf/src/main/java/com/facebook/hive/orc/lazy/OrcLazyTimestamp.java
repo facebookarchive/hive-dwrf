@@ -30,6 +30,8 @@ public class OrcLazyTimestamp extends OrcLazyObject {
 
   public OrcLazyTimestamp(OrcLazyTimestamp copy) {
     super(copy);
-    previous = new TimestampWritable(((TimestampWritable)copy.previous));
+    if (copy.previous != null) {
+      previous = new TimestampWritable(((TimestampWritable)copy.previous));
+    }
   }
 }

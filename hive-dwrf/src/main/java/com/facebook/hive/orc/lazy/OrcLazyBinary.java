@@ -30,9 +30,11 @@ public class OrcLazyBinary extends OrcLazyObject {
 
   public OrcLazyBinary(OrcLazyBinary copy) {
     super(copy);
-    BytesWritable copyPrevious = (BytesWritable) copy.previous;
-    byte[] bytes = new byte[copyPrevious.getLength()];
-    System.arraycopy(copyPrevious.getBytes(), 0, bytes, 0, copyPrevious.getLength());
-    previous = new BytesWritable(bytes);
+    if (copy.previous != null) {
+      BytesWritable copyPrevious = (BytesWritable) copy.previous;
+      byte[] bytes = new byte[copyPrevious.getLength()];
+      System.arraycopy(copyPrevious.getBytes(), 0, bytes, 0, copyPrevious.getLength());
+      previous = new BytesWritable(bytes);
+    }
   }
 }
