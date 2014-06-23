@@ -23,10 +23,11 @@ package com.facebook.hive.orc.lazy;
 import java.io.IOException;
 import java.util.List;
 
-import com.facebook.hive.orc.OrcProto;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.ListTypeInfo;
+
+import com.facebook.hive.orc.OrcProto;
 
 public class OrcLazyListObjectInspector implements ListObjectInspector {
 
@@ -56,11 +57,13 @@ public class OrcLazyListObjectInspector implements ListObjectInspector {
 
   @Override
   public Object getListElement(Object data, int index) {
-    if (data == null) {
+    List<?> list = getList(data);
+
+    if (list == null || index < 0 || index >= list.size()) {
       return null;
     }
 
-    return getList(data).get(index);
+    return list.get(index);
   }
 
   @Override
