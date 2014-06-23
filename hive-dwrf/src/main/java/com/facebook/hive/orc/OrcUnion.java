@@ -22,12 +22,13 @@ package com.facebook.hive.orc;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.facebook.hive.orc.lazy.OrcLazyObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.FBSettableUnionObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.UnionObject;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.UnionTypeInfo;
+
+import com.facebook.hive.orc.lazy.OrcLazyObjectInspectorUtils;
 
 /**
  * An in-memory representation of a union type.
@@ -109,11 +110,19 @@ public final class OrcUnion implements UnionObject {
 
     @Override
     public byte getTag(Object obj) {
+      if (obj == null) {
+        return -1;
+      }
+
       return ((OrcUnion) obj).tag;
     }
 
     @Override
     public Object getField(Object obj) {
+      if (obj == null) {
+        return null;
+      }
+
       return ((OrcUnion) obj).object;
     }
 

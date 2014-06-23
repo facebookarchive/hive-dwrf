@@ -89,6 +89,15 @@ public class TestObjectInspector {
   private static final UnionObjectInspector UNION_OI =
       new OrcLazyUnionObjectInspector(UNION_TYPE_INFO);
 
+  private static final ListObjectInspector NON_LAZY_LIST_OI =
+      new OrcStruct.OrcListObjectInspector(LIST_TYPE_INFO);
+  private static final MapObjectInspector NON_LAZY_MAP_OI =
+      new OrcStruct.OrcMapObjectInspector(MAP_TYPE_INFO);
+  private static final StructObjectInspector NON_LAZY_STRUCT_OI =
+      new OrcStruct.OrcStructInspector(STRUCT_TYPE_INFO);
+  private static final UnionObjectInspector NON_LAZY_UNION_OI =
+      new OrcUnion.OrcUnionObjectInspector(UNION_TYPE_INFO);
+
   @Test
   public void TestNullList() {
     Assert.assertNull(LIST_OI.getList(null));
@@ -113,6 +122,32 @@ public class TestObjectInspector {
   public void TestNullUnion() {
     Assert.assertNull(UNION_OI.getField(null));
     Assert.assertEquals(-1, UNION_OI.getTag(null));
+  }
+
+  @Test
+  public void TestNullNonLazyList() {
+    Assert.assertNull(NON_LAZY_LIST_OI.getList(null));
+    Assert.assertEquals(-1, NON_LAZY_LIST_OI.getListLength(null));
+    Assert.assertNull(NON_LAZY_LIST_OI.getListElement(null, 0));
+  }
+
+  @Test
+  public void TestNullNonLazyMap() {
+    Assert.assertNull(NON_LAZY_MAP_OI.getMap(null));
+    Assert.assertEquals(-1, NON_LAZY_MAP_OI.getMapSize(null));
+    Assert.assertNull(NON_LAZY_MAP_OI.getMapValueElement(null, "key"));
+  }
+
+  @Test
+  public void TestNullNonLazyStruct() {
+    Assert.assertNull(NON_LAZY_STRUCT_OI.getStructFieldData(null, NON_LAZY_STRUCT_OI.getStructFieldRef("field0")));
+    Assert.assertNull(NON_LAZY_STRUCT_OI.getStructFieldsDataAsList(null));
+  }
+
+  @Test
+  public void TestNullNonLazyUnion() {
+    Assert.assertNull(NON_LAZY_UNION_OI.getField(null));
+    Assert.assertEquals(-1, NON_LAZY_UNION_OI.getTag(null));
   }
 
   /**
