@@ -124,21 +124,20 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
   }
 
   @Override
-  public RecordWriter<NullWritable, OrcSerdeRow>
-      getRecordWriter(FileSystem fileSystem, JobConf conf, String name,
-                      Progressable reporter) throws IOException {
+  public RecordWriter<NullWritable, OrcSerdeRow> getRecordWriter(FileSystem fileSystem,
+       JobConf conf, String name, Progressable reporter) throws IOException {
     ReaderWriterProfiler.setProfilerOptions(conf);
 
-    if (fileSystem == null) {
-      // To be compatible with older file formats like Sequence and RC
-      // Only works if mapred.work.output.dir is set in the conf
-      Path workOutputPath = FileOutputFormat.getWorkOutputPath(conf);
-      if (workOutputPath != null) {
-        fileSystem = workOutputPath.getFileSystem(conf);
-      }
+    // To be compatible with older file formats like Sequence and RC
+    // Only works if mapred.work.output.dir is set in the conf
+    Path workOutputPath = FileOutputFormat.getWorkOutputPath(conf);
+    Path outputPath = workOutputPath == null ? new Path(name) : new Path(workOutputPath, name);
+
+    if (fileSystem == null && workOutputPath != null) {
+      fileSystem = workOutputPath.getFileSystem(conf);
     }
 
-    return new OrcRecordWriter(fileSystem,  new Path(name), conf,
+    return new OrcRecordWriter(fileSystem, outputPath, conf,
       OrcConf.ConfVars.HIVE_ORC_STRIPE_SIZE.defaultLongVal,
       OrcConf.ConfVars.HIVE_ORC_COMPRESSION.defaultVal,
       OrcConf.ConfVars.HIVE_ORC_COMPRESSION_BLOCK_SIZE.defaultIntVal,
@@ -146,13 +145,9 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
   }
 
   @Override
-  public FileSinkOperator.RecordWriter
-     getHiveRecordWriter(JobConf conf,
-                         Path path,
-                         Class<? extends Writable> valueClass,
-                         boolean isCompressed,
-                         Properties tableProperties,
-                         Progressable reporter) throws IOException {
+  public FileSinkOperator.RecordWriter getHiveRecordWriter(JobConf conf, Path path,
+      Class<? extends Writable> valueClass, boolean isCompressed, Properties tableProperties,
+      Progressable reporter) throws IOException {
     ReaderWriterProfiler.setProfilerOptions(conf);
     String stripeSizeStr = tableProperties.getProperty(OrcFile.STRIPE_SIZE);
     long stripeSize;

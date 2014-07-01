@@ -264,6 +264,48 @@ public class TestInputOutputFormat {
     }
     assertEquals(3, rowNum);
     reader.close();
+  }
+
+  @Test
+  public void testMROutput2() throws Exception {
+    JobConf job = new JobConf(conf);
+    // Test that you can set the output directory using this config
+    job.set("mapred.work.output.dir", testFilePath.getParent().toString());
+    Properties properties = new Properties();
+    StructObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = (StructObjectInspector)
+          ObjectInspectorFactory.getReflectionObjectInspector(StringRow.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    SerDe serde = new OrcSerde();
+    OutputFormat<?, ?> outFormat = new OrcOutputFormat();
+    RecordWriter writer =
+        outFormat.getRecordWriter(fs, job, testFilePath.getName(),
+            Reporter.NULL);
+    writer.write(NullWritable.get(),
+        serde.serialize(new StringRow("a"), inspector));
+    writer.close(Reporter.NULL);
+    serde = new OrcSerde();
+    properties.setProperty("columns", "col");
+    properties.setProperty("columns.types", "string");
+    serde.initialize(conf, properties);
+    inspector = (StructObjectInspector) serde.getObjectInspector();
+    InputFormat<?,?> in = new OrcInputFormat();
+    FileInputFormat.setInputPaths(conf, testFilePath.toString());
+    InputSplit[] splits = in.getSplits(conf, 1);
+    assertEquals(1, splits.length);
+    org.apache.hadoop.mapred.RecordReader reader =
+        in.getRecordReader(splits[0], conf, Reporter.NULL);
+    Object key = reader.createKey();
+    Object value = reader.createValue();
+    int rowNum = 0;
+    List<? extends StructField> fields = inspector.getAllStructFieldRefs();
+    reader.next(key, value);
+    assertEquals("a",
+        ((StringObjectInspector) fields.get(0).getFieldObjectInspector()).getPrimitiveJavaObject(
+            inspector.getStructFieldData(value, fields.get(0))));
+    reader.close();
 
   }
 
@@ -397,7 +439,7 @@ public class TestInputOutputFormat {
     OrcSerde serde = new OrcSerde();
     OrcOutputFormat outFormat = new OrcOutputFormat();
     RecordWriter<NullWritable, OrcSerdeRow> writer =
-        outFormat.getRecordWriter(null, conf, testFilePath.toString(), Reporter.NULL);
+        outFormat.getRecordWriter(null, conf, testFilePath.getName(), Reporter.NULL);
 
     writer.write(NullWritable.get(), (OrcSerdeRow) serde.serialize(new StringRow("a"), inspector));
     writer.write(NullWritable.get(), (OrcSerdeRow) serde.serialize(new StringRow("b"), inspector));
