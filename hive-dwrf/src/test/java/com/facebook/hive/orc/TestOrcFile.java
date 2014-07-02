@@ -40,6 +40,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import com.facebook.hive.orc.statistics.BooleanColumnStatistics;
+import com.facebook.hive.orc.statistics.ColumnStatistics;
+import com.facebook.hive.orc.statistics.DoubleColumnStatistics;
+import com.facebook.hive.orc.statistics.IntegerColumnStatistics;
+import com.facebook.hive.orc.statistics.StringColumnStatistics;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -82,7 +87,6 @@ import com.facebook.hive.orc.OrcTestUtils.MiddleStruct;
 import com.facebook.hive.orc.OrcTestUtils.ReallyBigRow;
 import com.facebook.hive.orc.OrcTestUtils.StringListWithId;
 import com.facebook.hive.orc.OrcTestUtils.StringStruct;
-import com.facebook.hive.orc.lazy.LazyListTreeReader;
 import com.facebook.hive.orc.lazy.LazyTreeReader;
 import com.facebook.hive.orc.lazy.OrcLazyBinary;
 import com.facebook.hive.orc.lazy.OrcLazyBoolean;
@@ -616,7 +620,7 @@ public class TestOrcFile {
       if (s instanceof IntegerColumnStatistics) {
         assertEquals(minInt, ((IntegerColumnStatistics) s).getMinimum());
         assertEquals(maxInt, ((IntegerColumnStatistics) s).getMaximum());
-      } else if (s instanceof  StringColumnStatistics) {
+      } else if (s instanceof StringColumnStatistics) {
         assertEquals(maxStr, ((StringColumnStatistics) s).getMaximum());
         assertEquals(minStr, ((StringColumnStatistics) s).getMinimum());
       }

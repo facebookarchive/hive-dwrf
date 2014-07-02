@@ -17,8 +17,9 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.hive.orc;
+package com.facebook.hive.orc.statistics;
 
+import com.facebook.hive.orc.OrcProto;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.PrimitiveObjectInspector;
 
@@ -38,13 +39,13 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     }
 
     @Override
-    void reset() {
+    public void reset() {
       super.reset();
       trueCount = 0;
     }
 
     @Override
-    void updateBoolean(boolean value) {
+    public void updateBoolean(boolean value) {
       if (value) {
         trueCount += 1;
       }
@@ -58,7 +59,7 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     }
 
     @Override
-    OrcProto.ColumnStatistics.Builder serialize() {
+    public OrcProto.ColumnStatistics.Builder serialize() {
       OrcProto.ColumnStatistics.Builder builder = super.serialize();
       OrcProto.BucketStatistics.Builder bucket =
         OrcProto.BucketStatistics.newBuilder();
@@ -113,7 +114,7 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     }
 
     @Override
-    void reset() {
+    public void reset() {
       super.reset();
       hasMinimum = false;
       minimum = Long.MAX_VALUE;
@@ -123,7 +124,7 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     }
 
     @Override
-    void updateInteger(long value) {
+    public void updateInteger(long value) {
       if (!hasMinimum) {
         hasMinimum = true;
         minimum = value;
@@ -169,7 +170,7 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     }
 
     @Override
-    OrcProto.ColumnStatistics.Builder serialize() {
+    public OrcProto.ColumnStatistics.Builder serialize() {
       OrcProto.ColumnStatistics.Builder builder = super.serialize();
       OrcProto.IntegerStatistics.Builder intb =
         OrcProto.IntegerStatistics.newBuilder();
@@ -247,7 +248,7 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     }
 
     @Override
-    void reset() {
+    public void reset() {
       super.reset();
       hasMinimum = false;
       minimum = Double.MAX_VALUE;
@@ -256,7 +257,7 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     }
 
     @Override
-    void updateDouble(double value) {
+    public void updateDouble(double value) {
       if (!hasMinimum) {
         hasMinimum = true;
         minimum = value;
@@ -289,7 +290,7 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     }
 
     @Override
-    OrcProto.ColumnStatistics.Builder serialize() {
+    public OrcProto.ColumnStatistics.Builder serialize() {
       OrcProto.ColumnStatistics.Builder builder = super.serialize();
       OrcProto.DoubleStatistics.Builder dbl =
         OrcProto.DoubleStatistics.newBuilder();
@@ -352,14 +353,14 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     }
 
     @Override
-    void reset() {
+    public void reset() {
       super.reset();
       minimum = null;
       maximum = null;
     }
 
     @Override
-    void updateString(String value) {
+    public void updateString(String value) {
       if (minimum == null) {
         minimum = value;
         maximum = value;
@@ -387,7 +388,7 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     }
 
     @Override
-    OrcProto.ColumnStatistics.Builder serialize() {
+    public OrcProto.ColumnStatistics.Builder serialize() {
       OrcProto.ColumnStatistics.Builder result = super.serialize();
       OrcProto.StringStatistics.Builder str =
         OrcProto.StringStatistics.newBuilder();
@@ -433,23 +434,23 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
   ColumnStatisticsImpl() {
   }
 
-  void increment() {
+  public void increment() {
     count += 1;
   }
 
-  void updateBoolean(boolean value) {
+  public void updateBoolean(boolean value) {
     throw new UnsupportedOperationException("Can't update boolean");
   }
 
-  void updateInteger(long value) {
+  public void updateInteger(long value) {
     throw new UnsupportedOperationException("Can't update integer");
   }
 
-  void updateDouble(double value) {
+  public void updateDouble(double value) {
     throw new UnsupportedOperationException("Can't update double");
   }
 
-  void updateString(String value) {
+  public void updateString(String value) {
     throw new UnsupportedOperationException("Can't update string");
   }
 
@@ -457,7 +458,7 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     count += stats.count;
   }
 
-  void reset() {
+  public void reset() {
     count = 0;
   }
 
@@ -471,14 +472,14 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     return "count: " + count;
   }
 
-  OrcProto.ColumnStatistics.Builder serialize() {
+  public OrcProto.ColumnStatistics.Builder serialize() {
     OrcProto.ColumnStatistics.Builder builder =
       OrcProto.ColumnStatistics.newBuilder();
     builder.setNumberOfValues(count);
     return builder;
   }
 
-  static ColumnStatisticsImpl create(ObjectInspector inspector) {
+  public static ColumnStatisticsImpl create(ObjectInspector inspector) {
     switch (inspector.getCategory()) {
       case PRIMITIVE:
         switch (((PrimitiveObjectInspector) inspector).getPrimitiveCategory()) {
@@ -502,7 +503,7 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     }
   }
 
-  static ColumnStatisticsImpl deserialize(OrcProto.ColumnStatistics stats) {
+  public static ColumnStatisticsImpl deserialize(OrcProto.ColumnStatistics stats) {
     if (stats.hasBucketStatistics()) {
       return new BooleanStatisticsImpl(stats);
     } else if (stats.hasIntStatistics()) {
