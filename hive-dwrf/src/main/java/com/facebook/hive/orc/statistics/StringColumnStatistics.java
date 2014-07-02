@@ -17,16 +17,21 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.hive.orc;
+package com.facebook.hive.orc.statistics;
 
 /**
- * Statistics that are available for all types of columns.
+ * Statistics for string columns.
  */
-public interface ColumnStatistics {
+public interface StringColumnStatistics extends ColumnStatistics {
   /**
-   * Get the number of values in this column. It will differ from the number
-   * of rows because of NULL values and repeated values.
-   * @return the number of values
+   * Get the minimum string.
+   * @return the minimum
    */
-  long getNumberOfValues();
+  String getMinimum();
+
+  /**
+   * Get the maximum string.
+   * @return the maximum
+   */
+  String getMaximum();
 }

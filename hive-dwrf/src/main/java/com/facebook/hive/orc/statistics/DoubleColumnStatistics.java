@@ -17,7 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.hive.orc;
+package com.facebook.hive.orc.statistics;
 
 /**
  * Statistics for float and double columns.

@@ -33,6 +33,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 
+import com.facebook.hive.orc.statistics.ColumnStatisticsImpl;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
