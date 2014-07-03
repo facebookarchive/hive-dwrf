@@ -2468,6 +2468,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       flushStripe();
       int footerLength = writeFooter(rawWriter.getPos(), columnStats);
       rawWriter.writeByte(writePostScript(footerLength));
+      rawWriter.flush();
       rawWriter.close();
     }
   }
