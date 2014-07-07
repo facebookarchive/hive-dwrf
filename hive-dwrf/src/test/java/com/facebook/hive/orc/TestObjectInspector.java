@@ -12,6 +12,7 @@ import org.apache.hadoop.hive.serde2.io.ShortWritable;
 import org.apache.hadoop.hive.serde2.io.TimestampWritable;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.primitive.BinaryObjectInspector;
@@ -62,6 +63,7 @@ import com.facebook.hive.orc.lazy.OrcLazyMapObjectInspector;
 import com.facebook.hive.orc.lazy.OrcLazyObjectInspectorUtils;
 import com.facebook.hive.orc.lazy.OrcLazyShort;
 import com.facebook.hive.orc.lazy.OrcLazyString;
+import com.facebook.hive.orc.lazy.OrcLazyStruct;
 import com.facebook.hive.orc.lazy.OrcLazyStructObjectInspector;
 import com.facebook.hive.orc.lazy.OrcLazyTimestamp;
 import com.facebook.hive.orc.lazy.OrcLazyUnionObjectInspector;
@@ -70,12 +72,14 @@ import com.google.common.collect.Lists;
 
 public class TestObjectInspector {
 
+  private static final String FIELD_0 = "field0";
+
   private static final ListTypeInfo LIST_TYPE_INFO =
       (ListTypeInfo) TypeInfoFactory.getListTypeInfo(TypeInfoFactory.stringTypeInfo);
   private static final MapTypeInfo MAP_TYPE_INFO = (MapTypeInfo) TypeInfoFactory.getMapTypeInfo(
       TypeInfoFactory.stringTypeInfo, TypeInfoFactory.stringTypeInfo);
   private static final StructTypeInfo STRUCT_TYPE_INFO =
-      (StructTypeInfo) TypeInfoFactory.getStructTypeInfo(Lists.newArrayList("field0"),
+      (StructTypeInfo) TypeInfoFactory.getStructTypeInfo(Lists.newArrayList(FIELD_0),
           Lists.newArrayList((TypeInfo) TypeInfoFactory.stringTypeInfo));
   private static final UnionTypeInfo UNION_TYPE_INFO =
       (UnionTypeInfo) TypeInfoFactory.getUnionTypeInfo(
@@ -114,7 +118,7 @@ public class TestObjectInspector {
 
   @Test
   public void TestNullStruct() {
-    Assert.assertNull(STRUCT_OI.getStructFieldData(null, STRUCT_OI.getStructFieldRef("field0")));
+    Assert.assertNull(STRUCT_OI.getStructFieldData(null, STRUCT_OI.getStructFieldRef(FIELD_0)));
     Assert.assertNull(STRUCT_OI.getStructFieldsDataAsList(null));
   }
 
@@ -140,7 +144,7 @@ public class TestObjectInspector {
 
   @Test
   public void TestNullNonLazyStruct() {
-    Assert.assertNull(NON_LAZY_STRUCT_OI.getStructFieldData(null, NON_LAZY_STRUCT_OI.getStructFieldRef("field0")));
+    Assert.assertNull(NON_LAZY_STRUCT_OI.getStructFieldData(null, NON_LAZY_STRUCT_OI.getStructFieldRef(FIELD_0)));
     Assert.assertNull(NON_LAZY_STRUCT_OI.getStructFieldsDataAsList(null));
   }
 
@@ -538,5 +542,67 @@ public class TestObjectInspector {
 
     Assert.assertEquals(new Timestamp(1), ((TimestampWritable) lazyTimestamp.materialize()).getTimestamp());
     Assert.assertEquals(new Timestamp(1), ((TimestampWritable) lazyTimestamp2.materialize()).getTimestamp());
+  }
+
+  /**
+   * Tests that fields can be accessed from the OrcLazyStructObjectInspector in a case
+   * insensitive manner.
+   * @throws Exception
+   */
+  @Test
+  public void testCaseInsensitiveFieldsLazyStruct() throws Exception {
+    OrcLazyStruct struct = new OrcLazyStruct(null) {
+      @Override
+      public Object materialize() throws IOException {
+        OrcStruct struct = new OrcStruct(Lists.newArrayList(FIELD_0));
+        struct.setFieldValue(0, new Text("a"));
+        return struct;
+      }
+    };
+
+    // Test control case (cases match)
+    StructField field = STRUCT_OI.getStructFieldRef(FIELD_0);
+    Assert.assertEquals("a",
+        ((StringObjectInspector) field.getFieldObjectInspector()).getPrimitiveJavaObject(
+            STRUCT_OI.getStructFieldData(struct, field)));
+    // Test upper case
+    field = STRUCT_OI.getStructFieldRef(FIELD_0.toUpperCase());
+    Assert.assertEquals("a",
+        ((StringObjectInspector) field.getFieldObjectInspector()).getPrimitiveJavaObject(
+            STRUCT_OI.getStructFieldData(struct, field)));
+    // Test lower case (even if someone changes the value of FIELD_0 in the future either upper
+    // or lower case should be different from the actual case)
+    field = STRUCT_OI.getStructFieldRef(FIELD_0.toLowerCase());
+    Assert.assertEquals("a",
+        ((StringObjectInspector) field.getFieldObjectInspector()).getPrimitiveJavaObject(
+            STRUCT_OI.getStructFieldData(struct, field)));
+  }
+
+  /**
+   * Tests that fields can be accessed from the OrcStructObjectInspector in a case
+   * insensitive manner.
+   * @throws Exception
+   */
+  @Test
+  public void testCaseInsensitiveFieldsStruct() throws Exception {
+    OrcStruct struct = new OrcStruct(Lists.newArrayList(FIELD_0));
+    struct.setFieldValue(0, new Text("a"));
+
+    // Test control case (cases match)
+    StructField field = NON_LAZY_STRUCT_OI.getStructFieldRef(FIELD_0);
+    Assert.assertEquals("a",
+        ((StringObjectInspector) field.getFieldObjectInspector()).getPrimitiveJavaObject(
+            NON_LAZY_STRUCT_OI.getStructFieldData(struct, field)));
+    // Test upper case
+    field = NON_LAZY_STRUCT_OI.getStructFieldRef(FIELD_0.toUpperCase());
+    Assert.assertEquals("a",
+        ((StringObjectInspector) field.getFieldObjectInspector()).getPrimitiveJavaObject(
+            NON_LAZY_STRUCT_OI.getStructFieldData(struct, field)));
+    // Test lower case (even if someone changes the value of FIELD_0 in the future either upper
+    // or lower case should be different from the actual case)
+    field = NON_LAZY_STRUCT_OI.getStructFieldRef(FIELD_0.toLowerCase());
+    Assert.assertEquals("a",
+        ((StringObjectInspector) field.getFieldObjectInspector()).getPrimitiveJavaObject(
+            NON_LAZY_STRUCT_OI.getStructFieldData(struct, field)));
   }
 }

@@ -24,13 +24,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.facebook.hive.orc.OrcProto;
-import com.facebook.hive.orc.OrcStruct;
-import com.facebook.hive.orc.OrcStruct.Field;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
+
+import com.facebook.hive.orc.OrcProto;
+import com.facebook.hive.orc.OrcStruct;
+import com.facebook.hive.orc.OrcStruct.Field;
 
 public class OrcLazyStructObjectInspector extends StructObjectInspector {
 
@@ -88,6 +89,7 @@ public class OrcLazyStructObjectInspector extends StructObjectInspector {
 
   @Override
   public StructField getStructFieldRef(String fieldName) {
+    fieldName = fieldName.toLowerCase();
     for(StructField field: fields) {
       if (field.getFieldName().equals(fieldName)) {
         return field;

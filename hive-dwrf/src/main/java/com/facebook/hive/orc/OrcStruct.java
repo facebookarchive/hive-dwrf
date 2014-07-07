@@ -40,7 +40,6 @@ import org.apache.hadoop.hive.serde2.typeinfo.StructTypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.io.Writable;
 
-import com.facebook.hive.orc.OrcProto;
 import com.facebook.hive.orc.lazy.OrcLazyObjectInspectorUtils;
 
 public final class OrcStruct implements Writable {
@@ -215,6 +214,7 @@ public final class OrcStruct implements Writable {
 
     @Override
     public StructField getStructFieldRef(String s) {
+      s = s.toLowerCase();
       for(StructField field: fields) {
         if (field.getFieldName().equals(s)) {
           return field;
