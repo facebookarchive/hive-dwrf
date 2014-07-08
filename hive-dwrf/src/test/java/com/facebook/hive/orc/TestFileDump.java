@@ -55,9 +55,8 @@ public class TestFileDump {
   public void openFileSystem () throws Exception {
     conf = new Configuration();
     fs = FileSystem.getLocal(conf);
-    fs.setWorkingDirectory(workDir);
     fs.mkdirs(workDir);
-    testFilePath = new Path("TestFileDump.testDump.orc");
+    testFilePath = new Path(workDir, "TestFileDump.testDump.orc");
     fs.delete(testFilePath, false);
   }
 
@@ -85,6 +84,24 @@ public class TestFileDump {
     }
     assertNull(eStream.readLine());
     assertNull(aStream.readLine());
+  }
+
+  /**
+   * Calls FileDump on testFilePath and verifies the results match the contents of fileName.
+   */
+  private void checkOutput(String fileName) throws Exception{
+    PrintStream origOut = System.out;
+    URL expectedFileUrl = Resources.getResource(fileName);
+    String outputFilename = workDir + File.separator + fileName;
+    FileOutputStream myOut = new FileOutputStream(outputFilename);
+
+    // replace stdout and run command
+    System.setOut(new PrintStream(myOut));
+    FileDump.main(new String[]{testFilePath.toString()});
+    System.out.flush();
+    System.setOut(origOut);
+
+    checkOutput(expectedFileUrl.getPath(), outputFilename);
   }
 
   @Test
@@ -117,19 +134,7 @@ public class TestFileDump {
           words[curNum]));
     }
     writer.close();
-    PrintStream origOut = System.out;
-    URL expectedFileUrl = Resources.getResource("orc-file-dump.out");
-    String outputFilename = workDir + File.separator + "orc-file-dump.out";
-    FileOutputStream myOut = new FileOutputStream(outputFilename);
-
-    // replace stdout and run command
-    System.setOut(new PrintStream(myOut));
-    FileDump.main(new String[]{testFilePath.getName()});
-    System.out.flush();
-    System.setOut(origOut);
-
-
-    checkOutput(expectedFileUrl.getPath(), outputFilename);
+    checkOutput("orc-file-dump.out");
   }
 
   private void testDictionary(Configuration conf, String expectedOutputFilename) throws Exception {
@@ -185,18 +190,7 @@ public class TestFileDump {
           words[nextInt]));
     }
     writer.close();
-    PrintStream origOut = System.out;
-    URL expectedFileUrl = Resources.getResource(expectedOutputFilename);
-    String outputFilename = workDir + File.separator + expectedOutputFilename;
-    FileOutputStream myOut = new FileOutputStream(outputFilename);
-
-    // replace stdout and run command
-    System.setOut(new PrintStream(myOut));
-    FileDump.main(new String[]{testFilePath.getName()});
-    System.out.flush();
-    System.setOut(origOut);
-
-    checkOutput(expectedFileUrl.getPath(), outputFilename);
+    checkOutput(expectedOutputFilename);
   }
 
   //Test that if the number of distinct characters in distinct strings is less than the configured
@@ -224,18 +218,7 @@ public class TestFileDump {
           Integer.toString(r1.nextInt())));
     }
     writer.close();
-    PrintStream origOut = System.out;
-    URL expectedFileUrl = Resources.getResource("orc-file-dump-entropy-threshold.out");
-    String outputFilename = workDir + File.separator + "orc-file-dump-entropy-threshold.out";
-    FileOutputStream myOut = new FileOutputStream(outputFilename);
-
-    // replace stdout and run command
-    System.setOut(new PrintStream(myOut));
-    FileDump.main(new String[]{testFilePath.getName()});
-    System.out.flush();
-    System.setOut(origOut);
-
-    checkOutput(expectedFileUrl.getPath(), outputFilename);
+    checkOutput("orc-file-dump-entropy-threshold.out");
   }
 
   // Test that if the fraction of rows that have distinct strings is greater than the configured
