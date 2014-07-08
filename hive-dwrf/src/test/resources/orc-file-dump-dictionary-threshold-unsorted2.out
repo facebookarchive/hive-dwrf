@@ -1,4 +1,4 @@
-Structure for TestFileDump.testDump.orc
+Structure for target/test/tmp/TestFileDump.testDump.orc
 Rows: 21000
 Compression: SNAPPY
 Compression size: 10000

@@ -427,7 +427,7 @@ public class TestInputOutputFormat {
    */
   @Test
   public void testNullFileSystem() throws Exception {
-    conf.set("mapred.work.output.dir", testFilePath.toString());
+    conf.set("mapred.work.output.dir", testFilePath.getParent().toString());
     JobConf job = new JobConf(conf);
     Properties properties = new Properties();
     StructObjectInspector inspector;
