@@ -1577,16 +1577,14 @@ public class TestOrcFile {
     RecordReader rows = reader.rows(null);
     OrcLazyStruct lazyRow = null;
     OrcStruct row = null;
-    for(int i = 0; i < COUNT; i++) {
-      rows.seekToRow(i);
+    for(int i = 0; i < COUNT / n; i++) {
+      rows.seekToRow(i * n);
       lazyRow = (OrcLazyStruct) rows.next(lazyRow);
-      if (i % n == 0) {
-        row = (OrcStruct) lazyRow.materialize();
-        if (withoutNextIsNull) {
-          compareRowsWithoutNextIsNull(row, inputs, i, numNulls, true);
-        } else {
-          compareRows(row, inputs, i, numNulls, true);
-        }
+      row = (OrcStruct) lazyRow.materialize();
+      if (withoutNextIsNull) {
+        compareRowsWithoutNextIsNull(row, inputs, i * n, numNulls, true);
+      } else {
+        compareRows(row, inputs, i * n, numNulls, true);
       }
     }
     rows.close();
@@ -2233,32 +2231,6 @@ public class TestOrcFile {
     }
     assertEquals(5, i);
     assertEquals(2500, reader.getNumberOfRows());
-  }
-
-  /**
-   *
-   * MemoryManagerWithForce.
-   *
-   * An implementation of MemoryManager with the ability to force writers to flush their stripes
-   * and to enter low memory mode.
-   */
-  private static class MemoryManagerWithForce extends MemoryManager {
-
-    MemoryManagerWithForce(Configuration conf) {
-      super(conf);
-    }
-
-    public void forceFlushStripe() throws IOException {
-      for (WriterInfo writer : writerList.values()) {
-        writer.callback.checkMemory(0);
-      }
-    }
-
-    public void forceEnterLowMemoryMode() throws IOException {
-      for (WriterInfo writer : writerList.values()) {
-        writer.callback.enterLowMemoryMode();
-      }
-    }
   }
 
   @Test
@@ -3088,6 +3060,54 @@ public class TestOrcFile {
       row = (OrcStruct) lazyRow.materialize();
       assertEquals(i % 1000,
           ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
+    }
+    rows.close();
+  }
+
+  @Test
+  /**
+   * Tests calling seekToRow to make sure it updates the stripe accordingly
+   */
+  public void testSeekToRow() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (IntStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 10000, memory);
+
+    // Write 100 rows
+    for (int i = 0; i < 100; i++) {
+      writer.addRow(new IntStruct(i));
+    }
+
+    // Flush the first stripe
+    memory.forceFlushStripe();
+
+    // Write 100 more rows
+    for (int i = 0; i < 100; i++) {
+      writer.addRow(new IntStruct(i + 100));
+    }
+
+    writer.close();
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    RecordReader rows = reader.rows(null);
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row = null;
+    lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+    row = (OrcStruct) lazyRow.materialize();
+    assertEquals(0, ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
+    // Seek to row 98 which is almost at the end of a stripe, this way it stays in the current
+    // stripe, and if the row is not updated correctly will read off the end of a stream.
+    rows.seekToRow(98);
+    for (int i = 98; i < 200; i++) {
+      lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+      row = (OrcStruct) lazyRow.materialize();
+      assertEquals(i, ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
     }
     rows.close();
   }

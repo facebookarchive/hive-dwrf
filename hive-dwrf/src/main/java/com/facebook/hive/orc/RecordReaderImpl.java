@@ -491,11 +491,17 @@ class RecordReaderImpl implements RecordReader {
 
   @Override
   public void seekToRow(long rowNumber) throws IOException {
+    // Update the stripe
     int rightStripe = findStripe(rowNumber);
     if (rightStripe != currentStripe) {
       currentStripe = rightStripe;
       readStripe();
     }
+
+    // Update the row number within the stripe
+    rowInStripe = rowNumber - rowBaseInStripe;
+
+    // Update the reader
     reader.seekToRow(rowNumber);
   }
 
