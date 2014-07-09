@@ -26,17 +26,16 @@ import java.util.List;
 import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 
 /**
- * A reader that reads a sequence of bytes. A control byte is read before
- * each run with positive values 0 to 127 meaning 3 to 130 repetitions. If the
- * byte is -1 to -128, 1 to 128 literal byte values follow.
+ * Reads a run length encoded stream of bytes.
+ * See {@link RunLengthByteWriter} for details about storage.
  */
+
 public class RunLengthByteReader {
   private final InStream input;
-  private final byte[] literals =
-    new byte[RunLengthByteWriter.MAX_LITERAL_SIZE];
+  private final byte[] literals = new byte[RunLengthConstants.MAX_LITERAL_SIZE];
   private int numLiterals = 0;
   private int used = 0;
-  private boolean repeat = false;
+  private boolean isRunLengthEncoded = false;
   private int[] indeces;
 
   public RunLengthByteReader(InStream input) throws IOException {
@@ -46,23 +45,25 @@ public class RunLengthByteReader {
   private void readValues() throws IOException {
     int control = input.read();
     used = 0;
-    if (control == -1) {
+    if (control == RunLengthConstants.END_OF_BUFFER_BYTE) {
       throw new EOFException("Read past end of buffer RLE byte from " + input);
-    } else if (control < 0x80) {
-      repeat = true;
-      numLiterals = control + RunLengthByteWriter.MIN_REPEAT_SIZE;
-      int val = input.read();
-      if (val == -1) {
+    }
+    else if (control < RunLengthConstants.MAX_LITERAL_SIZE) {
+      isRunLengthEncoded = true;
+      numLiterals = control + RunLengthConstants.MIN_REPEAT_SIZE;
+      int repeatedByte = input.read();
+      if (repeatedByte == RunLengthConstants.END_OF_BUFFER_BYTE) {
         throw new EOFException("Reading RLE byte got EOF");
       }
-      literals[0] = (byte) val;
-    } else {
-      repeat = false;
-      numLiterals = 0x100 - control;
+      literals[0] = (byte) repeatedByte;
+    }
+    else {
+      isRunLengthEncoded = false;
+      numLiterals = 0x100 - control; // convert back from 2's compliment
       int bytes = 0;
       while (bytes < numLiterals) {
         int result = input.read(literals, bytes, numLiterals - bytes);
-        if (result == -1) {
+        if (result == RunLengthConstants.END_OF_BUFFER_BYTE) {
           throw new EOFException("Reading RLE byte literal got EOF");
         }
         bytes += result;
@@ -75,22 +76,18 @@ public class RunLengthByteReader {
   }
 
   public byte next() throws IOException {
-    byte result;
     if (used == numLiterals) {
       readValues();
     }
-    if (repeat) {
-      used += 1;
-      result = literals[0];
-    } else {
-      result = literals[used++];
-    }
+
+    byte result = isRunLengthEncoded == true ? literals[0] : literals[used];
+    used++;
     return result;
   }
 
   public void seek(int index) throws IOException {
     input.seek(index);
-    int consumed = (int) indeces[index];
+    int consumed = indeces[index];
     if (consumed != 0) {
       // a loop is required for cases where we break the run into two parts
       while (consumed > 0) {
