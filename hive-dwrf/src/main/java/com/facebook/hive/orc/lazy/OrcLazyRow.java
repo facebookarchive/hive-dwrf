@@ -102,7 +102,7 @@ public class OrcLazyRow extends OrcLazyStruct {
     seekToRow(0);
   }
 
-  protected OrcLazyObject[] getRawFields() {
+  public OrcLazyObject[] getRawFields() {
     return fields;
   }
 
