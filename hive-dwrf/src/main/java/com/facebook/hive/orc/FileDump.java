@@ -19,6 +19,7 @@
  */
 package com.facebook.hive.orc;
 
+import com.facebook.hive.orc.compression.CompressionKind;
 import com.facebook.hive.orc.statistics.ColumnStatistics;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;

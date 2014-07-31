@@ -17,14 +17,14 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.hive.orc;
+package com.facebook.hive.orc.compression;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
 import org.apache.hadoop.conf.Configuration;
 
-interface CompressionCodec {
+public interface CompressionCodec {
   /**
    * Compress the in buffer to the out buffer.
    * @param in the bytes to compress
