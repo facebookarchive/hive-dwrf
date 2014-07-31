@@ -111,8 +111,10 @@ public final class ReaderImpl implements Reader {
 
   @Override
   public Iterable<String> getMetadataKeys() {
-    List<String> result = new ArrayList<String>();
-    for(OrcProto.UserMetadataItem item: footer.getMetadataList()) {
+    List<OrcProto.UserMetadataItem> metadata = footer.getMetadataList();
+    List<String> result = new ArrayList<String>(metadata.size());
+
+    for(OrcProto.UserMetadataItem item: metadata) {
       result.add(item.getName());
     }
     return result;
