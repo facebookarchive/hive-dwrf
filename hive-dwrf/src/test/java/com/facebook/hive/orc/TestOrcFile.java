@@ -41,6 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
+import com.facebook.hive.orc.compression.CompressionKind;
 import com.facebook.hive.orc.statistics.BooleanColumnStatistics;
 import com.facebook.hive.orc.statistics.ColumnStatistics;
 import com.facebook.hive.orc.statistics.DoubleColumnStatistics;
@@ -75,8 +76,6 @@ import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
-import org.apache.hadoop.mapred.FileSplit;
-import org.apache.hadoop.mapred.JobConf;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;

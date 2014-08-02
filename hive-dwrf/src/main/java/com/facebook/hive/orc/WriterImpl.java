@@ -33,6 +33,10 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 
+import com.facebook.hive.orc.compression.CompressionCodec;
+import com.facebook.hive.orc.compression.CompressionKind;
+import com.facebook.hive.orc.compression.SnappyCodec;
+import com.facebook.hive.orc.compression.ZlibCodec;
 import com.facebook.hive.orc.statistics.ColumnStatisticsImpl;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
