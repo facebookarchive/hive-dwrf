@@ -30,6 +30,7 @@ import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 
 public abstract class InStream extends InputStream {
 
+  public static final int END_OF_BUFFER = -1;
   private final boolean useVInts;
 
   private static class UncompressedStream extends InStream {
@@ -69,7 +70,7 @@ public abstract class InStream extends InputStream {
     @Override
     public int read() throws IOException {
       if (offset == limit) {
-        return -1;
+        return END_OF_BUFFER;
       }
       if (array == null) {
         array = new byte[limit];
@@ -81,7 +82,7 @@ public abstract class InStream extends InputStream {
     @Override
     public int read(byte[] data, int offset, int length) throws IOException {
       if (this.offset == limit) {
-        return -1;
+        return END_OF_BUFFER;
       }
       if (array == null) {
         array = new byte[limit];
@@ -336,7 +337,7 @@ public abstract class InStream extends InputStream {
         // If all chunks have been read, and all data from this chunk has been read, there's no
         // data left to read
         if (currentChunk >= numChunks && compressedOffset >= chunkLength) {
-          return -1;
+          return END_OF_BUFFER;
         }
         readHeader();
       }
@@ -349,7 +350,7 @@ public abstract class InStream extends InputStream {
         // If all chunks have been read, and all data from this chunk has been read, there's no
         // data left to read
         if (currentChunk >= numChunks && compressedOffset >= chunkLength) {
-          return -1;
+          return END_OF_BUFFER;
         }
         readHeader();
       }
