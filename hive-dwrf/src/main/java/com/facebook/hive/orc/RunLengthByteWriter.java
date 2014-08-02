@@ -22,38 +22,18 @@ package com.facebook.hive.orc;
 import java.io.IOException;
 
 /**
- * Writes a run length encoded stream of bytes.
- * Before each 'run', the control byte is written. Its structure is:
- *
- *    ---------------------------------------
- *    |    bit 0    | bits 1 to 7           |
- *    =======================================
- *    |    0 / 1    | the length of the run |
- *    =======================================
- *
- * If the control byte is an integer in range [0 to 127] ie. 0th bit is 0, run length encoding was
- * used. The minimum number of repetitions seen before the writer switches to run length encoding
- * is {@link RunLengthConstants#MIN_REPEAT_SIZE}. The length stored in this case which ranges
- * from (0 to 127) actually maps to (3 to 130) repetitions. The repeating byte is written post
- * the control byte.
- *
- * If the control byte is an integer in range [128 to 255], ie. 0th bit is 1, run length encoding
- * was NOT used. If a 'run' is not run length encoded, the bits are written off as is. The max
- * number of bytes stored in such 'run' would be 128 (we store it as 2's compliment).
+ * A streamFactory that writes a sequence of bytes. A control byte is written before
+ * each run with positive values 0 to 127 meaning 2 to 129 repetitions. If the
+ * bytes is -1 to -128, 1 to 128 literal byte values follow.
  */
-
 class RunLengthByteWriter {
+  static final int MIN_REPEAT_SIZE = 3;
+  static final int MAX_LITERAL_SIZE = 128;
+  static final int MAX_REPEAT_SIZE= 127 + MIN_REPEAT_SIZE;
   private final PositionedOutputStream output;
-  private final byte[] literals = new byte[RunLengthConstants.MAX_LITERAL_SIZE];
-
-  // Number of bytes in the current 'run'
+  private final byte[] literals = new byte[MAX_LITERAL_SIZE];
   private int numLiterals = 0;
-
-  // When set to true, it means that the current 'run' would be run length encoded which happens
-  // only when the number of repeats found >= {@link RunLengthConstants#MIN_REPEAT_SIZE}
-  private boolean isRunLengthEncoded = false;
-
-  // Keeps the length of repeat of the last byte seen in current 'run'
+  private boolean repeat = false;
   private int tailRunLength = 0;
 
   RunLengthByteWriter(PositionedOutputStream output) {
@@ -61,25 +41,18 @@ class RunLengthByteWriter {
   }
 
   private void writeValues() throws IOException {
-    if (numLiterals == 0) {
-      return;
+    if (numLiterals != 0) {
+      if (repeat) {
+        output.write(numLiterals - MIN_REPEAT_SIZE);
+        output.write(literals, 0, 1);
+     } else {
+        output.write(-numLiterals);
+        output.write(literals, 0, numLiterals);
+      }
+      repeat = false;
+      tailRunLength = 0;
+      numLiterals = 0;
     }
-
-    if (isRunLengthEncoded) {
-      // The number of repetitions would be in range 3 to 130. We map this to the range 0 to 127
-      // as there are only 7 bits in control byte to store this. This is followed by the byte
-      // which is repeated.
-      output.write(numLiterals - RunLengthConstants.MIN_REPEAT_SIZE);
-      output.write(literals, 0, 1);
-    } else {
-      output.write(-numLiterals);
-      output.write(literals, 0, numLiterals); // all the bytes in this 'run'
-    }
-
-    // reset everything for the next 'run'
-    isRunLengthEncoded = false;
-    tailRunLength = 0;
-    numLiterals = 0;
   }
 
   void flush() throws IOException {
@@ -88,13 +61,13 @@ class RunLengthByteWriter {
   }
 
   void write(byte value) throws IOException {
-    if (numLiterals == 0) {       // the start of the stream
+    if (numLiterals == 0) {
       literals[numLiterals++] = value;
       tailRunLength = 1;
-    } else if (isRunLengthEncoded) {
+    } else if (repeat) {
       if (value == literals[0]) {
         numLiterals += 1;
-        if (numLiterals == RunLengthConstants.MAX_REPEAT_SIZE) {
+        if (numLiterals == MAX_REPEAT_SIZE) {
           writeValues();
         }
       } else {
@@ -108,18 +81,20 @@ class RunLengthByteWriter {
       } else {
         tailRunLength = 1;
       }
-
-      if (tailRunLength == RunLengthConstants.MIN_REPEAT_SIZE) {
-        if (numLiterals + 1 > RunLengthConstants.MIN_REPEAT_SIZE) {
-          numLiterals -= RunLengthConstants.MIN_REPEAT_SIZE - 1;
+      if (tailRunLength == MIN_REPEAT_SIZE) {
+        if (numLiterals + 1 == MIN_REPEAT_SIZE) {
+          repeat = true;
+          numLiterals += 1;
+        } else {
+          numLiterals -= MIN_REPEAT_SIZE - 1;
           writeValues();
           literals[0] = value;
+          repeat = true;
+          numLiterals = MIN_REPEAT_SIZE;
         }
-        isRunLengthEncoded = true;
-        numLiterals = RunLengthConstants.MIN_REPEAT_SIZE;
       } else {
         literals[numLiterals++] = value;
-        if (numLiterals == RunLengthConstants.MAX_LITERAL_SIZE) {
+        if (numLiterals == MAX_LITERAL_SIZE) {
           writeValues();
         }
       }

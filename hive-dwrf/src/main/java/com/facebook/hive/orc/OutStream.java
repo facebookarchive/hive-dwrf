@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.facebook.hive.orc.compression.CompressionCodec;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 
 class OutStream extends PositionedOutputStream {

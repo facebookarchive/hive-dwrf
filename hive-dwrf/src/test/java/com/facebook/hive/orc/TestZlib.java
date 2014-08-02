@@ -18,8 +18,6 @@
 
 package com.facebook.hive.orc;
 
-import com.facebook.hive.orc.compression.CompressionCodec;
-import com.facebook.hive.orc.compression.ZlibCodec;
 import org.junit.Test;
 
 import java.io.IOException;

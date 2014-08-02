@@ -28,12 +28,14 @@ import java.io.IOException;
  * literal vint values follow.
  */
 class RunLengthIntegerWriter extends PositionedOutputStream {
+  static final int MIN_REPEAT_SIZE = 3;
   static final int MAX_DELTA = 127;
   static final int MIN_DELTA = -128;
-
+  static final int MAX_LITERAL_SIZE = 128;
+  private static final int MAX_REPEAT_SIZE = 127 + MIN_REPEAT_SIZE;
   private final PositionedOutputStream output;
   private final boolean signed;
-  private final long[] literals = new long[RunLengthConstants.MAX_LITERAL_SIZE];
+  private final long[] literals = new long[MAX_LITERAL_SIZE];
   private int numLiterals = 0;
   private long delta = 0;
   private boolean repeat = false;
@@ -52,7 +54,7 @@ class RunLengthIntegerWriter extends PositionedOutputStream {
   private void writeValues() throws IOException {
     if (numLiterals != 0) {
       if (repeat) {
-        output.write(numLiterals - RunLengthConstants.MIN_REPEAT_SIZE);
+        output.write(numLiterals - MIN_REPEAT_SIZE);
         output.write((byte) delta);
         SerializationUtils.writeIntegerType(output, literals[0], numBytes, signed, useVInts);
       } else {
@@ -85,7 +87,7 @@ class RunLengthIntegerWriter extends PositionedOutputStream {
     } else if (repeat) {
       if (value == literals[0] + delta * numLiterals) {
         numLiterals += 1;
-        if (numLiterals == RunLengthConstants.MAX_REPEAT_SIZE) {
+        if (numLiterals == MAX_REPEAT_SIZE) {
           writeValues();
         }
       } else {
@@ -111,21 +113,21 @@ class RunLengthIntegerWriter extends PositionedOutputStream {
           tailRunLength = 2;
         }
       }
-      if (tailRunLength == RunLengthConstants.MIN_REPEAT_SIZE) {
-        if (numLiterals + 1 == RunLengthConstants.MIN_REPEAT_SIZE) {
+      if (tailRunLength == MIN_REPEAT_SIZE) {
+        if (numLiterals + 1 == MIN_REPEAT_SIZE) {
           repeat = true;
           numLiterals += 1;
         } else {
-          numLiterals -= RunLengthConstants.MIN_REPEAT_SIZE - 1;
+          numLiterals -= MIN_REPEAT_SIZE - 1;
           long base = literals[numLiterals];
           writeValues();
           literals[0] = base;
           repeat = true;
-          numLiterals = RunLengthConstants.MIN_REPEAT_SIZE;
+          numLiterals = MIN_REPEAT_SIZE;
         }
       } else {
         literals[numLiterals++] = value;
-        if (numLiterals == RunLengthConstants.MAX_LITERAL_SIZE) {
+        if (numLiterals == MAX_LITERAL_SIZE) {
           writeValues();
         }
       }

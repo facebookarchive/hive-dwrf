@@ -46,16 +46,25 @@ public class LazyListTreeReader extends LazyTreeReader {
   public Object next(Object previous) throws IOException {
     List<Object> result = null;
     if (valuePresent) {
-      final int length = nextLength();
-      final List<Object> prevResult = previous == null ?
-          null : (ArrayList<Object>) previous;
-      final int prevLength = prevResult == null ? -1 : prevResult.size();
-
+      if (previous == null) {
+        result = new ArrayList<Object>();
+      } else {
+        result = (ArrayList<Object>) previous;
+      }
+      int prevLength = result.size();
+      int length = nextLength();
+      // extend the list to the new length
+      for(int i=prevLength; i < length; ++i) {
+        result.add(null);
+      }
       // read the new elements into the array
-      result = new ArrayList<Object>(length);
-      for(int i=0; i < length; i++) {
-        result.add(elementReader.getInComplexType(i < prevLength ?
-            prevResult.get(i) : null, previousRow));
+      for(int i=0; i< length; i++) {
+        result.set(i, elementReader.getInComplexType(i < prevLength ?
+            result.get(i) : null, previousRow));
+      }
+      // remove any extra elements
+      for(int i=prevLength - 1; i >= length; --i) {
+        result.remove(i);
       }
     }
     return result;

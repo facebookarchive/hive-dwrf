@@ -33,7 +33,6 @@ import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 public class OrcLazyRowObjectInspector extends OrcLazyStructObjectInspector {
 
   public OrcLazyRowObjectInspector(StructTypeInfo info) {
-    super(info.getAllStructFieldNames().size());
     ArrayList<String> fieldNames = info.getAllStructFieldNames();
     ArrayList<TypeInfo> fieldTypes = info.getAllStructFieldTypeInfos();
     for(int i=0; i < fieldNames.size(); ++i) {
@@ -43,7 +42,6 @@ public class OrcLazyRowObjectInspector extends OrcLazyStructObjectInspector {
   }
 
   public OrcLazyRowObjectInspector(int columnId, List<OrcProto.Type> types) {
-    super(types.get(columnId).getSubtypesCount());
     OrcProto.Type type = types.get(columnId);
     int fieldCount = type.getSubtypesCount();
     for(int i=0; i < fieldCount; ++i) {
