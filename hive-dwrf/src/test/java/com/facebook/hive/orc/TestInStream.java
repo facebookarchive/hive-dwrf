@@ -18,9 +18,6 @@
 
 package com.facebook.hive.orc;
 
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.fail;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -37,6 +34,9 @@ import org.junit.Test;
 import com.facebook.hive.orc.OrcProto.RowIndex;
 import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 import com.facebook.hive.orc.WriterImpl.RowIndexPositionRecorder;
+
+import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.fail;
 
 public class TestInStream {
 
@@ -84,6 +84,57 @@ public class TestInStream {
       in.seek(i);
       assertEquals(i & 0xff, in.read());
     }
+  }
+
+  /**
+   * There was a bug where if seek was called on a compressed stream that was initialized from a
+   * byte buffer, then all inputs were read, then available was called, the stream would attempt
+   * to read additional data, fail, and then report a corrupt header.  This test verifies that
+   * that series of events no longer fails.
+   *
+   * @throws Exception
+   */
+  @Test
+  public void testCompressedSeekReadAllAvailable() throws Exception {
+    // Prepare an output stream
+    ReaderWriterProfiler.setProfilerOptions(null);
+    OutputCollector collect = new OutputCollector();
+    CompressionCodec codec = new ZlibCodec();
+    OutStream out = new OutStream("test", 300, codec, collect);
+    RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
+    RowIndexEntry.Builder rowIndexEntry = OrcProto.RowIndexEntry.newBuilder();
+    WriterImpl.RowIndexPositionRecorder rowIndexPosition =
+        new RowIndexPositionRecorder(rowIndexEntry);
+
+    // Write some data to the output stream and build index entries
+    for(int i=0; i < 1024; ++i) {
+      out.getPosition(rowIndexPosition);
+      rowIndex.addEntry(rowIndexEntry.build());
+      rowIndexEntry.clear();
+      out.write(i);
+    }
+    out.flush();
+
+    // Create an input stream based on the byte buffer which the output stream constructed
+    ByteBuffer inBuf = ByteBuffer.allocate(collect.buffer.size());
+    collect.buffer.setByteBuffer(inBuf, 0, collect.buffer.size());
+    inBuf.flip();
+    InStream in = InStream.create("test", inBuf, codec, 300);
+
+    // Load the index entries that were built so we can seek
+    in.loadIndeces(rowIndex.build().getEntryList(), 0);
+
+    // Seek to the beginning
+    in.seek(0);
+
+    // Read all the data from the input stream
+    for(int i=0; i < 1024; ++i) {
+      int x = in.read();
+      assertEquals(i & 0xff, x);
+    }
+
+    // Check that there are no more bytes available from the input stream
+    assertEquals(0, in.available());
   }
 
   @Test
