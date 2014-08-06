@@ -34,7 +34,7 @@ import com.google.common.primitives.Ints;
  * and an offset/length for each entry.
  */
 class StringDictionaryEncoder extends DictionaryEncoder {
-  private final DynamicByteArray byteArray = new DynamicByteArray();
+  private final DynamicByteArray byteArray;
 
   // The following int arrays represent entries in the dictionary
   // int[]'s were used instead of DynamicIntArrays because they are
@@ -128,6 +128,8 @@ class StringDictionaryEncoder extends DictionaryEncoder {
       if (++numValues >= maxFill) {
         rehash(it.unimi.dsi.fastutil.HashCommon.arraySize(numValues + 1, LOAD_FACTOR));
       }
+      // Add one to the total memory for the int key
+      memoryEstimate.incrementTotalMemory(4);
       return 0;
     }
 
@@ -167,6 +169,8 @@ class StringDictionaryEncoder extends DictionaryEncoder {
         return;
       }
 
+      // Decrement the total memory by the size of all the int keys we had added
+      memoryEstimate.decrementTotalMemory(numValues * 4);
       numValues = 0;
       // Set all values to 0
       for (int i = 0; i < length; i++) {
@@ -180,39 +184,51 @@ class StringDictionaryEncoder extends DictionaryEncoder {
     }
 
   public class TextPositionComparator implements IntComparator {
-   @Override
-   public int compare (Integer k1, Integer k2) {
-     return this.compare(k1.intValue(), k2.intValue());
-   }
+    @Override
+    public int compare (Integer k1, Integer k2) {
+      return this.compare(k1.intValue(), k2.intValue());
+    }
 
-	 @Override
-	 public int compare (int k1, int k2) {
-	   if (sortByStride) {
-  	   if ((counts[k1] == 1 || counts[k2] == 1) && (counts[k1] != 1 || counts[k2] != 1)) {
-  	     return Ints.compare(counts[k1], counts[k2]);
-  	   }
+    @Override
+    public int compare (int k1, int k2) {
+      if (sortByStride) {
+        if ((counts[k1] == 1 || counts[k2] == 1) && (counts[k1] != 1 || counts[k2] != 1)) {
+          return Ints.compare(counts[k1], counts[k2]);
+        }
 
-  	   if ((counts[k1] == 1 && counts[k2] == 1) && indexStrides[k1] != indexStrides[k2]) {
-  	     return Ints.compare(indexStrides[k1], indexStrides[k2]);
-  	   }
-	   }
+        if ((counts[k1] == 1 && counts[k2] == 1) && indexStrides[k1] != indexStrides[k2]) {
+          return Ints.compare(indexStrides[k1], indexStrides[k2]);
+        }
+      }
 
-		 int k1Length = getEnd(k1) - offsets[k1];
+      int k1Length = getEnd(k1) - offsets[k1];
 
-		 int k2Length = getEnd(k2) - offsets[k2];
+      int k2Length = getEnd(k2) - offsets[k2];
 
-		 return byteArray.compare(offsets[k1], k1Length, offsets[k2], k2Length);
-	 }
+      return byteArray.compare(offsets[k1], k1Length, offsets[k2], k2Length);
+    }
   }
 
-  public StringDictionaryEncoder() {
-    super();
-    this.sortByStride = false;
+  public StringDictionaryEncoder(MemoryEstimate memoryEstimate) {
+    this(true, false, memoryEstimate);
   }
 
-  public StringDictionaryEncoder(boolean sortKeys, boolean sortByStride) {
-    super(sortKeys);
+  /**
+   * Returns the size of the int arrays used by this class, it's 4 times the length of the arrays
+   */
+  private int getSizeOfIntArrays() {
+    return (offsets.length + hashcodes.length + nexts.length + counts.length +
+        indexStrides.length) * 4;
+  }
+
+  public StringDictionaryEncoder(boolean sortKeys, boolean sortByStride,
+      MemoryEstimate memoryEstimate) {
+    super(sortKeys, memoryEstimate);
     this.sortByStride = sortByStride;
+    this.byteArray = new DynamicByteArray(memoryEstimate);
+    // Add to the memory the size of each int[] (length of array * size of int)
+    // Current list of arrays offsets, hashcodes, nexts, counts, indexStrides
+    memoryEstimate.incrementTotalMemory(getSizeOfIntArrays());
   }
 
   public int add(Text value, int indexStride) {
@@ -231,15 +247,21 @@ class StringDictionaryEncoder extends DictionaryEncoder {
       numElements += 1;
       // If we've outgrown the arrays, resize them
       if (newKeyIndex + 1 >= offsets.length) {
+        // Make sure the memory estimate reflects the new array sizes
+        memoryEstimate.decrementTotalMemory(getSizeOfIntArrays());
         offsets = getDoubleSizeArray(offsets);
         hashcodes = getDoubleSizeArray(hashcodes);
         nexts = getDoubleSizeArray(nexts);
         counts = getDoubleSizeArray(counts);
         indexStrides = getDoubleSizeArray(indexStrides);
+        memoryEstimate.incrementTotalMemory(getSizeOfIntArrays());
       }
       // set current key offset and length
       offsets[newKeyIndex] = byteArray.add(newKey.getBytes(), 0, len);
       indexStrides[newKeyIndex] = indexStride;
+
+      // Update the size of the dictionary in memory
+      memoryEstimate.incrementDictionaryMemory(len);
       return valRow;
     }
   }
@@ -346,13 +368,20 @@ class StringDictionaryEncoder extends DictionaryEncoder {
    */
   @Override
   public void clear() {
+    // Subtract the amount of memory being used for the dictionary
+    memoryEstimate.decrementDictionaryMemory(byteArray.size());
     byteArray.clear();
+    // Add the new size
+    memoryEstimate.incrementDictionaryMemory(byteArray.size());
     htDictionary.clear();
+    // Make sure the memory estimate reflects the new array sizes
+    memoryEstimate.decrementTotalMemory(getSizeOfIntArrays());
     offsets = new int[DynamicIntArray.DEFAULT_SIZE];
     hashcodes = new int[DynamicIntArray.DEFAULT_SIZE];
     nexts = new int[DynamicIntArray.DEFAULT_SIZE];
     counts = new int[DynamicIntArray.DEFAULT_SIZE];
     indexStrides = new int[DynamicIntArray.DEFAULT_SIZE];
+    memoryEstimate.incrementTotalMemory(getSizeOfIntArrays());
     numElements = 0;
   }
 
@@ -370,25 +399,6 @@ class StringDictionaryEncoder extends DictionaryEncoder {
   }
 
   /**
-   * Calculate the approximate size in memory.
-   * @return the number of bytes used in storing the tree.
-   */
-  public long getSizeInBytes() {
-    // one for dictionary keys
-    long refSizes = (htDictionary.size() * 4);
-
-    // 2 int fields per element (TextCompressed object)
-    long textCompressedSizes = offsets.length * 4 + hashcodes.length * 4 + nexts.length * 4 +
-        counts.length * 4 + indexStrides.length * 4;
-
-    // bytes in the characters
-    // size of the int array storing the offsets
-    long totalSize =  getCharacterSize();
-    totalSize += refSizes + textCompressedSizes;
-    return totalSize;
-  }
-
-  /**
    * Get the number of elements in the set.
    */
   @Override
@@ -396,4 +406,11 @@ class StringDictionaryEncoder extends DictionaryEncoder {
     return numElements;
   }
 
+  // A cleanup method that should be called before allowing the object to leave scope
+  public void cleanup() {
+    htDictionary.clear();
+    memoryEstimate.decrementTotalMemory(byteArray.getSizeInBytes());
+    memoryEstimate.decrementTotalMemory(getSizeOfIntArrays());
+    memoryEstimate.decrementDictionaryMemory(byteArray.size());
+  }
 }

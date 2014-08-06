@@ -65,8 +65,9 @@ class MemoryManager {
   protected static class WriterInfo {
     long allocation;
     Callback callback;
-    // Flag to indicate if this writer was flushed the last time memory was checked
-    boolean flushedLastCheck = true;
+    // Count to indicate the number of times this writer was flushed since the last time memory
+    // was checked
+    int flushedCount = 0;
     // This value is multiplied by the allocation to get an allocation adjusted based on how often
     // this writer gets flushed
     double allocationMultiplier = 1;
@@ -77,14 +78,6 @@ class MemoryManager {
   }
 
   public interface Callback {
-    /**
-     * The writer needs to check its memory usage
-     * @param newScale the current scale factor for memory allocations
-     * @return true if the writer was over the limit
-     * @throws IOException
-     */
-    boolean checkMemory(double newScale) throws IOException;
-
     /**
      * If the initial amount of memory needed by a writer is greater than the amount allocated,
      * call this to try to get the writers to use less memory to avoid an OOM
@@ -189,6 +182,18 @@ class MemoryManager {
     }
   }
 
+  boolean shouldFlush(MemoryEstimate memoryEstimate, Path path, long stripeSize, long maxDictSize) {
+    WriterInfo writer = writerList.get(path);
+    long limit = Math.round(stripeSize * currentScale * writer.allocationMultiplier);
+    if (memoryEstimate.getTotalMemory() > limit
+        || (maxDictSize > 0 && memoryEstimate.getDictionaryMemory() > maxDictSize)) {
+      writer.flushedCount++;
+      return true;
+    }
+
+    return false;
+  }
+
   // A list of writers to share allocations taken from writers which don't need them
   private final List<WriterInfo> writersForAllocation = new ArrayList<WriterInfo>();
   // A list of writers to take allocations from and give to more needy writers
@@ -201,21 +206,16 @@ class MemoryManager {
   private void notifyWriters() throws IOException {
     LOG.debug("Notifying writers after " + rowsAddedSinceCheck);
     for(WriterInfo writer: writerList.values()) {
-      boolean flushed = writer.callback.checkMemory(currentScale * writer.allocationMultiplier);
-
       if (lowMemoryMode) {
         // If we're in low memory mode and a writer
         // 1) flushes twice in a row, mark it as needy
         // 2) doesn't flush twice in a row, mark it for a decreased allocation
-        if (!flushed && !writer.flushedLastCheck) {
+        if (writer.flushedCount == 0) {
           writersForDeallocation.add(writer);
-        } else if (flushed && writer.flushedLastCheck){
+        } else if (writer.flushedCount >= 2){
           writersForAllocation.add(writer);
         }
-        writer.flushedLastCheck = flushed;
-      }
-      if (LOG.isDebugEnabled() && flushed) {
-        LOG.debug("flushed " + writer.toString());
+        writer.flushedCount = 0;
       }
     }
 

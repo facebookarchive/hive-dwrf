@@ -44,7 +44,7 @@ import static junit.framework.Assert.fail;
 public class TestInStream {
 
   static class OutputCollector implements OutStream.OutputReceiver {
-    DynamicByteArray buffer = new DynamicByteArray();
+    DynamicByteArray buffer = new DynamicByteArray(new MemoryEstimate());
 
     @Override
     public void output(ByteBuffer buffer) throws IOException {
@@ -57,7 +57,7 @@ public class TestInStream {
   public void testUncompressed() throws Exception {
     ReaderWriterProfiler.setProfilerOptions(null);
     OutputCollector collect = new OutputCollector();
-    OutStream out = new OutStream("test", 100, null, collect);
+    OutStream out = new OutStream("test", 100, null, collect, new MemoryEstimate());
     RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
     RowIndexEntry.Builder rowIndexEntry = OrcProto.RowIndexEntry.newBuilder();
     WriterImpl.RowIndexPositionRecorder rowIndexPosition = new RowIndexPositionRecorder(rowIndexEntry);
@@ -103,7 +103,7 @@ public class TestInStream {
     ReaderWriterProfiler.setProfilerOptions(null);
     OutputCollector collect = new OutputCollector();
     CompressionCodec codec = new ZlibCodec();
-    OutStream out = new OutStream("test", 300, codec, collect);
+    OutStream out = new OutStream("test", 300, codec, collect, new MemoryEstimate());
     RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
     RowIndexEntry.Builder rowIndexEntry = OrcProto.RowIndexEntry.newBuilder();
     WriterImpl.RowIndexPositionRecorder rowIndexPosition =
@@ -145,7 +145,7 @@ public class TestInStream {
     ReaderWriterProfiler.setProfilerOptions(null);
     OutputCollector collect = new OutputCollector();
     CompressionCodec codec = new ZlibCodec();
-    OutStream out = new OutStream("test", 300, codec, collect);
+    OutStream out = new OutStream("test", 300, codec, collect, new MemoryEstimate());
     RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
     RowIndexEntry.Builder rowIndexEntry = OrcProto.RowIndexEntry.newBuilder();
     WriterImpl.RowIndexPositionRecorder rowIndexPosition = new RowIndexPositionRecorder(rowIndexEntry);
@@ -181,7 +181,7 @@ public class TestInStream {
     ReaderWriterProfiler.setProfilerOptions(null);
     OutputCollector collect = new OutputCollector();
     CompressionCodec codec = new ZlibCodec();
-    OutStream out = new OutStream("test", 500, codec, collect);
+    OutStream out = new OutStream("test", 500, codec, collect, new MemoryEstimate());
     for(int i=0; i < 1024; ++i) {
       out.write(i);
     }
