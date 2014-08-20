@@ -129,6 +129,14 @@ public class TestMemoryManager {
       calls[i] = mock(MemoryManager.Callback.class);
       mgr.addWriter(new Path(Integer.toString(i)), pool/4, calls[i], pool / 4);
     }
+    // add enough rows to get the memory manager to check the limits
+    for(int i=0; i < 10000; ++i) {
+      mgr.addedRow();
+    }
+    for(int call=0; call < calls.length; ++call) {
+      verify(calls[call], times(2))
+          .checkMemory(doubleThat(closeTo(0.2, ERROR)));
+    }
   }
 
   private static class MemoryManagerForTest extends MemoryManager {
@@ -140,10 +148,6 @@ public class TestMemoryManager {
     public double getAllocationMultiplierForPath(Path path) {
       return writerList.get(path).allocationMultiplier;
     }
-
-    public void incrementFlushCount(Path path, int increment) {
-      writerList.get(path).flushedCount += increment;
-    }
   }
 
   private void initializeLowMemoryModeTest(MemoryManagerForTest mgr,
@@ -151,6 +155,7 @@ public class TestMemoryManager {
     long pool = mgr.getTotalMemoryPool();
     for(int i=0; i < calls.length; ++i) {
       calls[i] = mock(MemoryManager.Callback.class);
+      when(calls[i].checkMemory(anyDouble())).thenReturn(i % 2 == 0);
 
       // Each writer requests 1/4 of the pool, so by the 5th one, 1/4 of the pool - 1 should be
       // greater than the amount of memory the manager can actually allocate to that pool
@@ -161,9 +166,6 @@ public class TestMemoryManager {
     }
     for (int i = 5; i < calls.length; i++) {
       verify(calls[i], times(0)).enterLowMemoryMode();
-    }
-    for (int i = 0; i < calls.length / 2; i++) {
-      mgr.incrementFlushCount(new Path(Integer.toString(i * 2)), 2);
     }
     // add enough rows to get the memory manager to check the limits twice
     for (int i=0; i < 10000; i++) {
@@ -199,12 +201,8 @@ public class TestMemoryManager {
 
     initializeLowMemoryModeTest(mgr, calls);
 
-    for (int i = 0; i < calls.length / 2; i++) {
-      mgr.incrementFlushCount(new Path(Integer.toString(i * 2)), 2);
-    }
-
     // add enough rows to get the memory manager to check the limits again
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < 5000; i++) {
       mgr.addedRow();
     }
 
@@ -219,8 +217,23 @@ public class TestMemoryManager {
     }
 
     // Switch it around
-    for (int i = 0; i < calls.length / 2; i++) {
-      mgr.incrementFlushCount(new Path(Integer.toString((i * 2) + 1)), 2);
+    for(int i=0; i < calls.length; ++i) {
+      when(calls[i].checkMemory(anyDouble())).thenReturn(i % 2 != 0);
+    }
+
+    // add enough rows to get the memory manager to check the limits again
+    for (int i = 0; i < 5000; i++) {
+      mgr.addedRow();
+    }
+
+    for(int i = 0; i < calls.length; i++) {
+      if (i % 2 == 0) {
+        Assert.assertEquals("Popular writers not getting more memory", 1.75,
+            mgr.getAllocationMultiplierForPath(new Path(Integer.toString(i))));
+      } else {
+        Assert.assertEquals("Unpopular writers hanging onto memory", 0.25,
+            mgr.getAllocationMultiplierForPath(new Path(Integer.toString(i))));
+      }
     }
 
     // add enough rows to get the memory manager to check the limits again

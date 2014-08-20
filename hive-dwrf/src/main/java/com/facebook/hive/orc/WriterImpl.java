@@ -33,10 +33,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 
-import com.facebook.hive.orc.compression.CompressionCodec;
-import com.facebook.hive.orc.compression.CompressionKind;
-import com.facebook.hive.orc.compression.SnappyCodec;
-import com.facebook.hive.orc.compression.ZlibCodec;
 import com.facebook.hive.orc.statistics.ColumnStatisticsImpl;
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -133,8 +129,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
   private final MemoryManager memoryManager;
   private final boolean useVInts;
   private final int dfsBytesPerChecksum;
+  private final long initialSize;
   private final long maxDictSize;
-  private final MemoryEstimate memoryEstimate = new MemoryEstimate();
 
   private final Configuration conf;
 
@@ -159,7 +155,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     codec = createCodec(compress, conf);
     useVInts = OrcConf.getBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_USE_VINTS);
     treeWriter = createTreeWriter(inspector, streamFactory, false, conf, useVInts,
-        memoryManager.isLowMemoryMode(), memoryEstimate);
+        memoryManager.isLowMemoryMode());
     dfsBytesPerChecksum = conf.getInt("io.bytes.per.checksum", 512);
     if (buildIndex && rowIndexStride < MIN_ROW_INDEX_STRIDE) {
       throw new IllegalArgumentException("Row stride must be at least " +
@@ -167,7 +163,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     }
     maxDictSize = OrcConf.getLongVar(conf, OrcConf.ConfVars.HIVE_ORC_MAX_DICTIONARY_SIZE);
     // ensure that we are able to handle callbacks before we register ourselves
-    memoryManager.addWriter(path, stripeSize, this, memoryEstimate.getTotalMemory());
+    initialSize = estimateStripeSize().getTotalMemory();
+    memoryManager.addWriter(path, stripeSize, this, initialSize);
   }
 
   static CompressionCodec createCodec(CompressionKind kind) {
@@ -215,6 +212,22 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     }
   }
 
+  @Override
+  public synchronized boolean checkMemory(double newScale) throws IOException {
+    long limit = (long) Math.round(stripeSize * newScale);
+    MemoryEstimate size = estimateStripeSize();
+    if (LOG.isDebugEnabled()) {
+      LOG.debug("ORC writer " + path + " size = " + size.getTotalMemory() + " limit = " +
+                limit);
+    }
+    if (size.getTotalMemory() > limit ||
+        (maxDictSize > 0 && size.getDictionaryMemory() > maxDictSize)) {
+      flushStripe();
+      return true;
+    }
+    return false;
+  }
+
   /**
    * This class is used to hold the contents of streams as they are buffered.
    * The TreeWriters write to the outStream and the codec compresses the
@@ -227,7 +240,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
 
     BufferedStream(String name, int bufferSize,
                    CompressionCodec codec) throws IOException {
-      outStream = new OutStream(name, bufferSize, codec, this, memoryEstimate);
+      outStream = new OutStream(name, bufferSize, codec, this);
     }
 
     /**
@@ -266,9 +279,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
      */
     public void clear() throws IOException {
       outStream.clear();
-      for(ByteBuffer buf: output) {
-        memoryEstimate.decrementTotalMemory(buf.capacity());
-      }
       output.clear();
     }
 
@@ -313,7 +323,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     public void output(ByteBuffer buffer) throws IOException {
       output.write(buffer.array(), buffer.arrayOffset() + buffer.position(),
         buffer.remaining());
-      memoryEstimate.decrementTotalMemory(buffer.capacity());
     }
   }
 
@@ -411,7 +420,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     private int numStripes = 0;
     private boolean foundNulls;
     private OutStream isPresentOutStream;
-    protected final MemoryEstimate memoryEstimate;
 
     /**
      * Create a tree writer
@@ -424,12 +432,11 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     TreeWriter(int columnId, ObjectInspector inspector,
                StreamFactory streamFactory,
                boolean nullable, Configuration conf,
-               boolean useVInts, MemoryEstimate memoryEstimate) throws IOException {
+               boolean useVInts) throws IOException {
       this.id = columnId;
       this.inspector = inspector;
       this.conf = conf;
       this.useVInts = useVInts;
-      this.memoryEstimate = memoryEstimate;
       this.isCompressed = streamFactory.isCompressed();
       if (nullable) {
         isPresentOutStream = streamFactory.createStream(id, OrcProto.Stream.Kind.PRESENT);
@@ -623,6 +630,16 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       }
     }
 
+    /**
+     * Estimate how much memory the writer is consuming excluding the streams.
+     * @return the number of bytes.
+     */
+    void estimateMemory(MemoryEstimate memoryEstimate) {
+      for (TreeWriter child: childrenWriters) {
+        child.estimateMemory(memoryEstimate);
+      }
+    }
+
     public void abandonDictionaries() throws IOException {
       for (TreeWriter child: childrenWriters) {
         child.abandonDictionaries();
@@ -645,9 +662,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
                       ObjectInspector inspector,
                       StreamFactory writer,
                       boolean nullable, Configuration conf,
-                      boolean useVInts, boolean lowMemoryMode,
-                      MemoryEstimate memoryEstimate) throws IOException {
-      super(columnId, inspector, writer, nullable, conf, useVInts, memoryEstimate);
+                      boolean useVInts, boolean lowMemoryMode) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       PositionedOutputStream out = writer.createStream(id,
           OrcProto.Stream.Kind.DATA);
       this.writer = new BitFieldWriter(out, 1);
@@ -686,9 +702,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
                       ObjectInspector inspector,
                       StreamFactory writer,
                       boolean nullable, Configuration conf,
-                      boolean useVInts, boolean lowMemoryMode,
-                      MemoryEstimate memoryEstimate) throws IOException {
-      super(columnId, inspector, writer, nullable, conf, useVInts, memoryEstimate);
+                      boolean useVInts, boolean lowMemoryMode) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       this.writer = new RunLengthByteWriter(writer.createStream(id,
           OrcProto.Stream.Kind.DATA));
       recordPosition(rowIndexPosition);
@@ -746,8 +761,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
 
     IntegerTreeWriter(int columnId, ObjectInspector inspector, StreamFactory writerFactory,
         boolean nullable, Configuration conf, boolean useVInts, int numBytes,
-        boolean lowMemoryMode, MemoryEstimate memoryEstimate) throws IOException {
-      super(columnId, inspector, writerFactory, nullable, conf, useVInts, memoryEstimate);
+        boolean lowMemoryMode) throws IOException {
+      super(columnId, inspector, writerFactory, nullable, conf, useVInts);
       writer = writerFactory;
       sortKeys = OrcConf.getBoolVar(conf,
           OrcConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS);
@@ -760,8 +775,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
           OrcConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL);
 
       if (!lowMemoryMode) {
-        dictionary = new IntDictionaryEncoder(sortKeys, numBytes, useVInts, memoryEstimate);
-        rows = new DynamicIntArray(memoryEstimate);
+        dictionary = new IntDictionaryEncoder(sortKeys, numBytes, useVInts);
+        rows = new DynamicIntArray();
       } else {
         abandonDictionaries = true;
         rowOutput = writer.createStream(id,
@@ -820,8 +835,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
           default:
             throw new IllegalArgumentException("Bad Category: DictionaryEncoding not available for " + inspector.getCategory());
         }
-        // Increment the total memory for the buffered long
-        memoryEstimate.incrementTotalMemory(RawDatasizeConst.LONG_SIZE);
         bufferedBytes += RawDatasizeConst.LONG_SIZE;
       } else {
         buffer[bufferIndex++] = null;
@@ -850,7 +863,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
         super.flushRow(val);
       }
       bufferIndex = 0;
-      memoryEstimate.decrementTotalMemory(bufferedBytes);
       bufferedBytes = 0;
     }
 
@@ -936,20 +948,16 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       if (useCarriedOverDirectEncoding())  {
         rowOutput = writer.createStream(id, OrcProto.Stream.Kind.DATA);
         rowOutput.getPosition(rowIndexPosition);
-        if (dictionary != null) {
-          dictionary.cleanup();
-          dictionary = null;
-          rows.cleanup();
-          rows = null;
-        }
+        dictionary = null;
+        rows = null;
       } else {
         if (dictionary == null) {
-          dictionary = new IntDictionaryEncoder(sortKeys, numBytes, useVInts, memoryEstimate);
+          dictionary = new IntDictionaryEncoder(sortKeys, numBytes, useVInts);
         } else {
           dictionary.clear();
         }
         if (rows == null) {
-          rows = new DynamicIntArray(memoryEstimate);
+          rows = new DynamicIntArray();
         } else {
           rows.clear();
         }
@@ -1056,6 +1064,15 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     }
 
     @Override
+    void estimateMemory(MemoryEstimate memoryEstimate) {
+      memoryEstimate.incrementTotalMemory((rows == null ? 0 : rows.size() * 4) +
+          (dictionary == null ? 0 : dictionary.getByteSize()) + bufferedBytes +
+          (rowOutput == null ? 0 : rowOutput.getBufferSize()));
+      memoryEstimate.incrementDictionaryMemory(dictionary == null ? 0 :
+        dictionary.getUncompressedLength());
+    }
+
+    @Override
     public void abandonDictionaries() throws IOException {
       boolean useCarriedOverDirectEncoding = useCarriedOverDirectEncoding();
       abandonDictionaries = true;
@@ -1067,12 +1084,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
           rowOutput.getPosition(rowIndexPosition);
         }
       }
-      if (dictionary != null) {
-        dictionary.cleanup();
-        dictionary = null;
-        rows.cleanup();
-        rows = null;
-      }
+      dictionary = null;
+      rows = null;
       savedRowIndex.clear();
     }
   }
@@ -1084,9 +1097,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
                       ObjectInspector inspector,
                       StreamFactory writer,
                       boolean nullable, Configuration conf,
-                      boolean useVInts, boolean lowMemoryMode,
-                      MemoryEstimate memoryEstimate) throws IOException {
-      super(columnId, inspector, writer, nullable, conf, useVInts, memoryEstimate);
+                      boolean useVInts, boolean lowMemoryMode) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       this.stream = writer.createStream(id,
           OrcProto.Stream.Kind.DATA);
       recordPosition(rowIndexPosition);
@@ -1124,9 +1136,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
                     ObjectInspector inspector,
                     StreamFactory writer,
                     boolean nullable, Configuration conf,
-                    boolean useVInts, boolean lowMemoryMode,
-                    MemoryEstimate memoryEstimate) throws IOException {
-      super(columnId, inspector, writer, nullable, conf, useVInts, memoryEstimate);
+                    boolean useVInts, boolean lowMemoryMode) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       this.stream = writer.createStream(id,
           OrcProto.Stream.Kind.DATA);
       recordPosition(rowIndexPosition);
@@ -1198,9 +1209,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
                      ObjectInspector inspector,
                      StreamFactory writerFactory,
                      boolean nullable, Configuration conf,
-                     boolean useVInts, boolean lowMemoryMode,
-                     MemoryEstimate memoryEstimate) throws IOException {
-      super(columnId, inspector, writerFactory, nullable, conf, useVInts, memoryEstimate);
+                     boolean useVInts, boolean lowMemoryMode) throws IOException {
+      super(columnId, inspector, writerFactory, nullable, conf, useVInts);
       writer = writerFactory;
       sortKeys = OrcConf.getBoolVar(conf,
           OrcConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS);
@@ -1210,8 +1220,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
           OrcConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL);
 
       if (!lowMemoryMode) {
-        dictionary = new StringDictionaryEncoder(sortKeys, useStrideDictionaries, memoryEstimate);
-        rows = new DynamicIntArray(memoryEstimate);
+        dictionary = new StringDictionaryEncoder(sortKeys, useStrideDictionaries);
+        rows = new DynamicIntArray();
       } else {
         abandonDictionaries = true;
         rowOutput = writer.createStream(id,
@@ -1263,8 +1273,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
         Text val = ((StringObjectInspector) inspector).getPrimitiveWritableObject(obj);
         buffer[bufferIndex++] = new Text(val);
         setRawDataSize(val.getLength());
-        // Increment the memory estimate by the buffered bytes
-        memoryEstimate.incrementTotalMemory(val.getLength());
         bufferedBytes += val.getLength();
       } else {
           buffer[bufferIndex++] = null;
@@ -1293,7 +1301,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
         super.flushRow(val);
       }
       bufferIndex = 0;
-      memoryEstimate.decrementTotalMemory(bufferedBytes);
       bufferedBytes = 0;
     }
 
@@ -1519,20 +1526,16 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
         rowOutput = writer.createStream(id, OrcProto.Stream.Kind.DATA);
         rowOutput.getPosition(rowIndexPosition);
         directLengthOutput.getPosition(rowIndexPosition);
-        if (dictionary != null) {
-          dictionary.cleanup();
-          dictionary = null;
-          rows.cleanup();
-          rows = null;
-        }
+        dictionary = null;
+        rows = null;
       } else {
         if (dictionary == null) {
-          dictionary = new StringDictionaryEncoder(sortKeys, useStrideDictionaries, memoryEstimate);
+          dictionary = new StringDictionaryEncoder(sortKeys, useStrideDictionaries);
         } else {
           dictionary.clear();
         }
         if (rows == null) {
-          rows = new DynamicIntArray(memoryEstimate);
+          rows = new DynamicIntArray();
         } else {
           rows.clear();
         }
@@ -1663,6 +1666,19 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     }
 
     @Override
+    void estimateMemory(MemoryEstimate memoryEstimate) {
+      memoryEstimate.incrementTotalMemory((rows == null ? 0 : rows.getSizeInBytes()) +
+          (dictionary == null ? 0 : dictionary.getSizeInBytes()) + bufferedBytes +
+          (rowOutput == null ? 0 : rowOutput.getBufferSize()) +
+          (directLengthOutput == null ? 0 : directLengthOutput.getBufferSize()) +
+          (strideDictionaryOutput == null ? 0 : strideDictionaryOutput.getBufferSize()) +
+          (strideDictionaryLengthOutput == null ? 0 :
+            strideDictionaryLengthOutput.getBufferSize()));
+      memoryEstimate.incrementDictionaryMemory(dictionary == null ? 0 :
+        dictionary.getUncompressedLength());
+    }
+
+    @Override
     public void abandonDictionaries() throws IOException {
       boolean useCarriedOverDirectEncoding = useCarriedOverDirectEncoding();
       abandonDictionaries = true;
@@ -1676,12 +1692,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
           directLengthOutput.getPosition(rowIndexPosition);
         }
       }
-      if (dictionary != null) {
-        dictionary.cleanup();
-        dictionary = null;
-        rows.cleanup();
-        rows = null;
-      }
+      dictionary = null;
+      rows = null;
       savedRowIndex.clear();
     }
   }
@@ -1694,9 +1706,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
                      ObjectInspector inspector,
                      StreamFactory writer,
                      boolean nullable, Configuration conf,
-                     boolean useVInts, boolean lowMemoryMode,
-                     MemoryEstimate memoryEstimate) throws IOException {
-      super(columnId, inspector, writer, nullable, conf, useVInts, memoryEstimate);
+                     boolean useVInts, boolean lowMemoryMode) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       this.stream = writer.createStream(id,
           OrcProto.Stream.Kind.DATA);
       this.length = new RunLengthIntegerWriter(writer.createStream(id,
@@ -1748,9 +1759,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
                      ObjectInspector inspector,
                      StreamFactory writer,
                      boolean nullable, Configuration conf,
-                     boolean useVInts, boolean lowMemoryMode,
-                     MemoryEstimate memoryEstimate) throws IOException {
-      super(columnId, inspector, writer, nullable, conf, useVInts, memoryEstimate);
+                     boolean useVInts, boolean lowMemoryMode) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       this.seconds = new RunLengthIntegerWriter(writer.createStream(id,
           OrcProto.Stream.Kind.DATA), true, LONG_BYTE_SIZE, useVInts);
       this.nanos = new RunLengthIntegerWriter(writer.createStream(id,
@@ -1814,9 +1824,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
                      ObjectInspector inspector,
                      StreamFactory writer,
                      boolean nullable, Configuration conf,
-                     boolean useVInts, boolean lowMemoryMode,
-                     MemoryEstimate memoryEstimate) throws IOException {
-      super(columnId, inspector, writer, nullable, conf, useVInts, memoryEstimate);
+                     boolean useVInts, boolean lowMemoryMode) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       StructObjectInspector structObjectInspector =
         (StructObjectInspector) inspector;
       fields = structObjectInspector.getAllStructFieldRefs();
@@ -1824,7 +1833,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       for(int i=0; i < childrenWriters.length; ++i) {
         childrenWriters[i] = createTreeWriter(
           fields.get(i).getFieldObjectInspector(), writer, true, conf, useVInts,
-          lowMemoryMode, memoryEstimate);
+          lowMemoryMode);
       }
       recordPosition(rowIndexPosition);
     }
@@ -1863,14 +1872,13 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
                    ObjectInspector inspector,
                    StreamFactory writer,
                    boolean nullable, Configuration conf,
-                   boolean useVInts, boolean lowMemoryMode,
-                   MemoryEstimate memoryEstimate) throws IOException {
-      super(columnId, inspector, writer, nullable, conf, useVInts, memoryEstimate);
+                   boolean useVInts, boolean lowMemoryMode) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       ListObjectInspector listObjectInspector = (ListObjectInspector) inspector;
       childrenWriters = new TreeWriter[1];
       childrenWriters[0] =
         createTreeWriter(listObjectInspector.getListElementObjectInspector(),
-          writer, true, conf, useVInts, lowMemoryMode, memoryEstimate);
+          writer, true, conf, useVInts, lowMemoryMode);
       lengths =
         new RunLengthIntegerWriter(writer.createStream(columnId,
             OrcProto.Stream.Kind.LENGTH), false, INT_BYTE_SIZE, useVInts);
@@ -1917,17 +1925,16 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
                   ObjectInspector inspector,
                   StreamFactory writer,
                   boolean nullable, Configuration conf,
-                  boolean useVInts, boolean lowMemoryMode,
-                  MemoryEstimate memoryEstimate) throws IOException {
-      super(columnId, inspector, writer, nullable, conf, useVInts, memoryEstimate);
+                  boolean useVInts, boolean lowMemoryMode) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       MapObjectInspector insp = (MapObjectInspector) inspector;
       childrenWriters = new TreeWriter[2];
       childrenWriters[0] =
         createTreeWriter(insp.getMapKeyObjectInspector(), writer, true, conf, useVInts,
-            lowMemoryMode, memoryEstimate);
+            lowMemoryMode);
       childrenWriters[1] =
         createTreeWriter(insp.getMapValueObjectInspector(), writer, true, conf, useVInts,
-            lowMemoryMode, memoryEstimate);
+            lowMemoryMode);
       lengths =
         new RunLengthIntegerWriter(writer.createStream(columnId,
             OrcProto.Stream.Kind.LENGTH), false, INT_BYTE_SIZE, useVInts);
@@ -1980,15 +1987,14 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
                   ObjectInspector inspector,
                   StreamFactory writer,
                   boolean nullable, Configuration conf,
-                  boolean useVInts, boolean lowMemoryMode,
-                  MemoryEstimate memoryEstimate) throws IOException {
-      super(columnId, inspector, writer, nullable, conf, useVInts, memoryEstimate);
+                  boolean useVInts, boolean lowMemoryMode) throws IOException {
+      super(columnId, inspector, writer, nullable, conf, useVInts);
       UnionObjectInspector insp = (UnionObjectInspector) inspector;
       List<ObjectInspector> choices = insp.getObjectInspectors();
       childrenWriters = new TreeWriter[choices.size()];
       for(int i=0; i < childrenWriters.length; ++i) {
         childrenWriters[i] = createTreeWriter(choices.get(i), writer, true, conf, useVInts,
-            lowMemoryMode, memoryEstimate);
+            lowMemoryMode);
       }
       tags =
         new RunLengthByteWriter(writer.createStream(columnId,
@@ -2030,59 +2036,59 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
 
   private static TreeWriter createTreeWriter(ObjectInspector inspector,
       StreamFactory streamFactory, boolean nullable, Configuration conf, boolean useVInts,
-      boolean lowMemoryMode, MemoryEstimate memoryEstimate) throws IOException {
+      boolean lowMemoryMode) throws IOException {
     switch (inspector.getCategory()) {
       case PRIMITIVE:
         switch (((PrimitiveObjectInspector) inspector).getPrimitiveCategory()) {
           case BOOLEAN:
             return new BooleanTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable, conf, useVInts, lowMemoryMode, memoryEstimate);
+                inspector, streamFactory, nullable, conf, useVInts, lowMemoryMode);
           case BYTE:
             return new ByteTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable, conf, useVInts, lowMemoryMode, memoryEstimate);
+                inspector, streamFactory, nullable, conf, useVInts, lowMemoryMode);
           case SHORT:
             return new IntegerTreeWriter(streamFactory.getNextColumnId(),
                 inspector, streamFactory, nullable, conf, useVInts , SHORT_BYTE_SIZE,
-                lowMemoryMode, memoryEstimate);
+                lowMemoryMode);
           case INT:
             return new IntegerTreeWriter(streamFactory.getNextColumnId(),
                 inspector, streamFactory, nullable, conf, useVInts , INT_BYTE_SIZE,
-                lowMemoryMode, memoryEstimate);
+                lowMemoryMode);
           case LONG:
             return new IntegerTreeWriter(streamFactory.getNextColumnId(),
                 inspector, streamFactory, nullable, conf, useVInts , LONG_BYTE_SIZE,
-                lowMemoryMode, memoryEstimate);
+                lowMemoryMode);
           case FLOAT:
             return new FloatTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable, conf, useVInts, lowMemoryMode, memoryEstimate);
+                inspector, streamFactory, nullable, conf, useVInts, lowMemoryMode);
           case DOUBLE:
             return new DoubleTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable, conf, useVInts, lowMemoryMode, memoryEstimate);
+                inspector, streamFactory, nullable, conf, useVInts, lowMemoryMode);
           case STRING:
             return new StringTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable, conf, useVInts, lowMemoryMode, memoryEstimate);
+                inspector, streamFactory, nullable, conf, useVInts, lowMemoryMode);
           case BINARY:
             return new BinaryTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable, conf, useVInts, lowMemoryMode, memoryEstimate);
+                inspector, streamFactory, nullable, conf, useVInts, lowMemoryMode);
           case TIMESTAMP:
             return new TimestampTreeWriter(streamFactory.getNextColumnId(),
-                inspector, streamFactory, nullable, conf, useVInts, lowMemoryMode, memoryEstimate);
+                inspector, streamFactory, nullable, conf, useVInts, lowMemoryMode);
           default:
             throw new IllegalArgumentException("Bad primitive category " +
               ((PrimitiveObjectInspector) inspector).getPrimitiveCategory());
         }
       case STRUCT:
         return new StructTreeWriter(streamFactory.getNextColumnId(), inspector,
-            streamFactory, nullable, conf, useVInts, lowMemoryMode, memoryEstimate);
+            streamFactory, nullable, conf, useVInts, lowMemoryMode);
       case MAP:
         return new MapTreeWriter(streamFactory.getNextColumnId(), inspector,
-            streamFactory, nullable, conf, useVInts, lowMemoryMode, memoryEstimate);
+            streamFactory, nullable, conf, useVInts, lowMemoryMode);
       case LIST:
         return new ListTreeWriter(streamFactory.getNextColumnId(), inspector,
-            streamFactory, nullable, conf, useVInts, lowMemoryMode, memoryEstimate);
+            streamFactory, nullable, conf, useVInts, lowMemoryMode);
       case UNION:
         return new UnionTreeWriter(streamFactory.getNextColumnId(), inspector,
-            streamFactory, nullable, conf, useVInts, lowMemoryMode, memoryEstimate);
+            streamFactory, nullable, conf, useVInts, lowMemoryMode);
       default:
         throw new IllegalArgumentException("Bad category: " +
           inspector.getCategory());
@@ -2176,7 +2182,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       rawWriter.writeBytes(OrcFile.MAGIC);
       headerLength = rawWriter.getPos();
       writer = new OutStream("metadata", bufferSize, codec,
-        new DirectStream(rawWriter), memoryEstimate);
+        new DirectStream(rawWriter));
       protobufWriter = CodedOutputStream.newInstance(writer);
     }
   }
@@ -2195,8 +2201,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
           .setIndexLength(si.getIndexLength())
           .setDataLength(si.getDataLength())
           .setNumberOfRows(si.getNumberOfRows())
-          .setFooterLength(si.getFooterLength())
-          .setRawDataSize(si.getRawDataSize()).build();
+          .setFooterLength(si.getFooterLength()).build();
     stripes.add(dirEntry);
     rowCount += si.getNumberOfRows();
     rawWriter.write(data);
@@ -2238,7 +2243,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     return streamList;
   }
 
-  protected void flushStripe() throws IOException {
+  private void flushStripe() throws IOException {
     ensureWriter();
 
     ReaderWriterProfiler.start(ReaderWriterProfiler.Counter.ENCODING_TIME);
@@ -2369,6 +2374,58 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     return (int) length;
   }
 
+  /**
+   *
+   * MemoryEstimate.
+   *
+   * Wrapper around some values derived from the TreeWriters used to estimate the amount of
+   * memory being used.
+   *
+   */
+  private class MemoryEstimate {
+    // The estimate of the total amount of memory currently being used
+    private long totalMemory;
+    // The memory being used by the dictionaries (note this should only account for memory
+    // actually being used, not memory allocated for potential use in the future)
+    private long dictionaryMemory;
+
+    public long getTotalMemory() {
+      return totalMemory;
+    }
+
+    public void setTotalMemory(long totalMemory) {
+      this.totalMemory = totalMemory;
+    }
+
+    public long getDictionaryMemory() {
+      return dictionaryMemory;
+    }
+
+    public void setDictionaryMemory(long dictionaryMemory) {
+      this.dictionaryMemory = dictionaryMemory;
+    }
+
+    public void incrementTotalMemory(long increment) {
+      totalMemory += increment;
+    }
+
+    public void incrementDictionaryMemory(long increment) {
+      dictionaryMemory += increment;
+    }
+  }
+
+  private MemoryEstimate estimateStripeSize() {
+    long result = 0;
+    for(BufferedStream stream: streams.values()) {
+      result += stream.getBufferSize();
+    }
+
+    MemoryEstimate memoryEstimate = new MemoryEstimate();
+    treeWriter.estimateMemory(memoryEstimate);
+    memoryEstimate.incrementTotalMemory(result);
+    return memoryEstimate;
+  }
+
   @Override
   public synchronized void addUserMetadata(String name, ByteBuffer value) {
     userMetadata.put(name, ByteString.copyFrom(value));
@@ -2388,9 +2445,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
           createRowIndexEntry();
         }
       }
-    }
-    if (memoryManager.shouldFlush(memoryEstimate, path, stripeSize, maxDictSize)) {
-      flushStripe();
     }
     memoryManager.addedRow();
     ReaderWriterProfiler.end(ReaderWriterProfiler.Counter.ENCODING_TIME);

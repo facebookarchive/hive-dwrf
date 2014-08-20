@@ -36,18 +36,15 @@ import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
-import com.facebook.hive.orc.compression.CompressionKind;
 import com.facebook.hive.orc.statistics.BooleanColumnStatistics;
 import com.facebook.hive.orc.statistics.ColumnStatistics;
 import com.facebook.hive.orc.statistics.DoubleColumnStatistics;
 import com.facebook.hive.orc.statistics.IntegerColumnStatistics;
 import com.facebook.hive.orc.statistics.StringColumnStatistics;
-import com.google.common.collect.ImmutableList;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -740,24 +737,18 @@ public class TestOrcFile {
    */
   @Test
   public void testUnionAndTimestamp() throws Exception {
-    final List<OrcProto.Type> types = ImmutableList.of(
-        OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.STRUCT)
-                                  .addFieldNames("time")
-                                  .addFieldNames("union")
-                                  .addSubtypes(1)
-                                  .addSubtypes(2)
-                                  .build(),
-        OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.TIMESTAMP)
-                                  .build(),
-        OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.UNION)
-                                  .addSubtypes(3)
-                                  .addSubtypes(4)
-                                  .build(),
-        OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.INT)
-                                  .build(),
-        OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.STRING)
-                                  .build()
-    );
+    List<OrcProto.Type> types = new ArrayList<OrcProto.Type>();
+    types.add(OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.STRUCT).
+        addFieldNames("time").addFieldNames("union").
+        addSubtypes(1).addSubtypes(2).build());
+    types.add(OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.TIMESTAMP).
+        build());
+    types.add(OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.UNION).
+        addSubtypes(3).addSubtypes(4).build());
+    types.add(OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.INT).
+        build());
+    types.add(OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.STRING).
+        build());
 
     ObjectInspector inspector;
     synchronized (TestOrcFile.class) {
@@ -765,7 +756,7 @@ public class TestOrcFile {
     }
     ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
-        15 * 1024, CompressionKind.NONE, 100, 10000);
+        1000, CompressionKind.NONE, 100, 10000);
     OrcStruct row = new OrcStruct(types.get(0).getFieldNamesList());
     OrcUnion union = new OrcUnion();
     row.setFieldValue(1, union);
@@ -1324,13 +1315,14 @@ public class TestOrcFile {
     if (((OrcLazyObject) row.getFieldValue(17)).nextIsNull()) {
       assertNull(expected.middle);
     } else {
-      final List<InnerStruct> expectedList = expected.middle.list;
-      final OrcStruct actualMiddle = (OrcStruct) ((OrcLazyStruct) row.getFieldValue(17)).materialize();
-      final List<OrcStruct> actualList =
+      List<InnerStruct> expectedList = expected.middle.list;
+      OrcStruct actualMiddle = (OrcStruct) ((OrcLazyStruct) row.getFieldValue(17)).materialize();
+      List<OrcStruct> actualList =
           (List) actualMiddle.getFieldValue(0);
       compareListOfStructs(expectedList, actualList);
-      final List<String> actualFieldNames = actualMiddle.getFieldNames();
-      final List<String> expectedFieldNames = ImmutableList.of("list");
+      List<String> actualFieldNames = actualMiddle.getFieldNames();
+      List<String> expectedFieldNames = new ArrayList<String>();
+      expectedFieldNames.add("list");
       compareLists(expectedFieldNames, actualFieldNames);
     }
     if (((OrcLazyObject) row.getFieldValue(18)).nextIsNull()) {
@@ -1501,11 +1493,12 @@ public class TestOrcFile {
     if (middle == null) {
       assertNull(expected.middle);
     } else {
-      final List<InnerStruct> expectedList = expected.middle.list;
-      final List<OrcStruct> actualList = (List) middle.getFieldValue(0);
+      List<InnerStruct> expectedList = expected.middle.list;
+      List<OrcStruct> actualList = (List) middle.getFieldValue(0);
       compareListOfStructs(expectedList, actualList);
-      final List<String> actualFieldNames = middle.getFieldNames();
-      final List<String> expectedFieldNames = ImmutableList.of("list");
+      List<String> actualFieldNames = middle.getFieldNames();
+      List<String> expectedFieldNames = new ArrayList<String>();
+      expectedFieldNames.add("list");
       compareLists(expectedFieldNames, actualFieldNames);
     }
 
@@ -2204,15 +2197,9 @@ public class TestOrcFile {
 
     @Override
     void addedRow() throws IOException {
-
-    }
-
-    @Override
-    boolean shouldFlush(MemoryEstimate memoryEstimate, Path path, long stripeSize,
-        long maxDictSize) {
-      long limit = Math.round(stripeSize * rate);
-      return memoryEstimate.getTotalMemory() > limit ||
-          (maxDictSize > 0 && memoryEstimate.getDictionaryMemory() > maxDictSize);
+      if (++rows % 100 == 0) {
+        callback.checkMemory(rate);
+      }
     }
   }
 
@@ -2293,23 +2280,24 @@ public class TestOrcFile {
           (StringStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD, 1);
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL, 2);
     OrcConf.setBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_BUILD_STRIDE_DICTIONARY, true);
     OrcConf.setBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS, true);
-    WriterImplWithForceFlush writer = new WriterImplWithForceFlush(fs, testFilePath, conf,
-        inspector, 1000000, CompressionKind.NONE, 100, 1000, new MemoryManager(conf));
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 1000, memory);
     // Write a stripe which is not dictionary encoded
     for (int i = 0; i < 2000; i++) {
       writer.addRow(new StringStruct(Integer.toString(i)));
     }
-    writer.forceFlushStripe();
+    memory.forceFlushStripe();
     // Write another stripe (doesn't matter what)
     for (int i = 0; i < 2000; i++) {
       writer.addRow(new StringStruct(Integer.toString(i)));
     }
-    writer.forceFlushStripe();
+    memory.forceFlushStripe();
     // Write a stripe which will be dictionary encoded
     // Note: it is important that this string is lexicographically after the string in the next
     // index stride.  This way, if sorting by index strides is not working, this value will appear
@@ -2322,7 +2310,7 @@ public class TestOrcFile {
     for (int i = 0; i < 999; i++) {
       writer.addRow(new StringStruct("123"));
     }
-    writer.forceFlushStripe();
+    memory.forceFlushStripe();
     writer.close();
     Reader reader = OrcFile.createReader(fs, testFilePath, conf);
     RecordReader rows = reader.rows(null);
@@ -2415,21 +2403,22 @@ public class TestOrcFile {
           (StringStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD, 1);
-    WriterImplWithForceFlush writer = new WriterImplWithForceFlush(fs, testFilePath, conf,
-        inspector, 1000000, CompressionKind.NONE, 100, 1000, new MemoryManager(conf));
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 1000, memory);
     writer.addRow(new StringStruct("a"));
     writer.addRow(new StringStruct("b"));
     writer.addRow(new StringStruct("c"));
     for (int i = 0; i < 997; i++) {
       writer.addRow(new StringStruct("123"));
     }
-    writer.forceFlushStripe();
+    memory.forceFlushStripe();
     for (int i = 0; i < 1000; i++) {
       writer.addRow(new StringStruct("123"));
     }
-    writer.forceFlushStripe();
+    memory.forceFlushStripe();
     writer.addRow(new StringStruct("a"));
     writer.addRow(new StringStruct("b"));
     writer.addRow(new StringStruct("c"));
@@ -2480,20 +2469,21 @@ public class TestOrcFile {
           (IntStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
-    WriterImplWithForceFlush writer = new WriterImplWithForceFlush(fs, testFilePath, conf,
-        inspector, 1000000, CompressionKind.NONE, 100, 1000, new MemoryManager(conf));
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 1000, memory);
     writer.addRow(new IntStruct(1));
     writer.addRow(new IntStruct(2));
     writer.addRow(new IntStruct(3));
     for (int i = 0; i < 997; i++) {
       writer.addRow(new IntStruct(123));
     }
-    writer.forceFlushStripe();
+    memory.forceFlushStripe();
     for (int i = 0; i < 1000; i++) {
       writer.addRow(new IntStruct(123));
     }
-    writer.forceFlushStripe();
+    memory.forceFlushStripe();
     writer.addRow(new IntStruct(1));
     writer.addRow(new IntStruct(2));
     writer.addRow(new IntStruct(3));
@@ -2555,7 +2545,7 @@ public class TestOrcFile {
     int numNulls = 4;
     int numNonNulls = 8;
     for(int i = 0; i < numNonNulls; i++) {
-      List<String> filledList = new ArrayList<String>(2);
+      List<String> filledList = new ArrayList<String>();
       filledList.add("SomeText");
       filledList.add("SomeMoreText" + i);
       writer.addRow(new StringListWithId(i, filledList));
@@ -2981,8 +2971,8 @@ public class TestOrcFile {
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL, 1);
     MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
-    WriterImplWithForceFlush writer = new WriterImplWithForceFlush(fs, testFilePath, conf,
-        inspector, 1000000, CompressionKind.NONE, 100, 10000, memory);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 10000, memory);
 
     // Write 500 rows, they wil be directly encoded
     for (int i = 0; i < 1000; i ++) {
@@ -2990,7 +2980,7 @@ public class TestOrcFile {
     }
 
     // Flush the first stripe
-    writer.forceFlushStripe();
+    memory.forceFlushStripe();
 
     // Write 500 more rows
     for (int i = 0; i < 500; i ++) {
@@ -3036,8 +3026,8 @@ public class TestOrcFile {
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL, 1);
     MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
-    WriterImplWithForceFlush writer = new WriterImplWithForceFlush(fs, testFilePath, conf,
-        inspector, 1000000, CompressionKind.NONE, 100, 10000, memory);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 10000, memory);
 
     // Write 500 rows
     for (int i = 0; i < 1000; i ++) {
@@ -3045,7 +3035,7 @@ public class TestOrcFile {
     }
 
     // Flush the first stripe
-    writer.forceFlushStripe();
+    memory.forceFlushStripe();
 
     // Write 500 more rows
     for (int i = 0; i < 500; i ++) {
@@ -3085,9 +3075,10 @@ public class TestOrcFile {
           (IntStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
-    WriterImplWithForceFlush writer = new WriterImplWithForceFlush(fs, testFilePath, conf,
-        inspector, 1000000, CompressionKind.NONE, 100, 10000, new MemoryManager(conf));
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 10000, memory);
 
     // Write 100 rows
     for (int i = 0; i < 100; i++) {
@@ -3095,7 +3086,7 @@ public class TestOrcFile {
     }
 
     // Flush the first stripe
-    writer.forceFlushStripe();
+    memory.forceFlushStripe();
 
     // Write 100 more rows
     for (int i = 0; i < 100; i++) {
@@ -3118,82 +3109,6 @@ public class TestOrcFile {
       row = (OrcStruct) lazyRow.materialize();
       assertEquals(i, ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
     }
-    rows.close();
-  }
-
-  @Test
-  /**
-   * Tests that when a reader is initialized using offset, length the stripes included are
-   * those that start in the range [offset, offset + length)
-   */
-  public void testSplitStripe() throws Exception {
-    ObjectInspector inspector;
-    synchronized (TestOrcFile.class) {
-      inspector = ObjectInspectorFactory.getReflectionObjectInspector
-          (IntStruct.class,
-              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
-    }
-    // Reevaluate if we should use dictionary encoding on every stripe
-    OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL, 1);
-    ReaderWriterProfiler.setProfilerOptions(conf);
-    WriterImplWithForceFlush writer = new WriterImplWithForceFlush(fs, testFilePath, conf,
-        inspector, 1000000, CompressionKind.NONE, 100, 10000, new MemoryManager(conf));
-
-    // Write 100 rows
-    for (int i = 0; i < 100; i ++) {
-      writer.addRow(new IntStruct(i));
-    }
-
-    // Flush the first stripe
-    writer.forceFlushStripe();
-
-    // Write 100 more rows
-    for (int i = 0; i < 100; i ++) {
-      writer.addRow(new IntStruct(i + 100));
-    }
-
-    writer.close();
-
-    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
-    Iterator<StripeInformation> stripes = reader.getStripes().iterator();
-
-    StripeInformation firstStripe = stripes.next();
-    StripeInformation secondStripe = stripes.next();
-
-    // Create a record reader that has the offset and length of the first stripe
-    RecordReader rows = reader.rows(firstStripe.getOffset(),
-        secondStripe.getOffset() - firstStripe.getOffset(), null);
-
-    // Read what we wrote for the first stripe
-    OrcLazyStruct lazyRow = null;
-    OrcStruct row;
-    for (int i = 0; i < 100; i ++) {
-      lazyRow = (OrcLazyStruct) rows.next(lazyRow);
-      row = (OrcStruct) lazyRow.materialize();
-      assertEquals(i,
-          ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
-    }
-
-    // Make sure that there's no additional data
-    assertFalse(rows.hasNext());
-    rows.close();
-
-    // Create a record reader that has the offset and length of the second stripe
-    // Since this is the last stripe it has length equal to the length of the file containing
-    // stripes - the offset of the second stripe
-    rows = reader.rows(secondStripe.getOffset(),
-        reader.getContentLength() - secondStripe.getOffset(), null);
-
-    // Read what we wrote for the first stripe
-    for (int i = 0; i < 100; i ++) {
-      lazyRow = (OrcLazyStruct) rows.next(lazyRow);
-      row = (OrcStruct) lazyRow.materialize();
-      assertEquals(i + 100,
-          ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
-    }
-
-    // Make sure that there's no additional data
-    assertFalse(rows.hasNext());
     rows.close();
   }
 }

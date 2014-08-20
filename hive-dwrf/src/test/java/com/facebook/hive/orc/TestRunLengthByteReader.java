@@ -21,8 +21,6 @@ import static junit.framework.Assert.assertEquals;
 
 import java.nio.ByteBuffer;
 
-import com.facebook.hive.orc.compression.CompressionCodec;
-import com.facebook.hive.orc.compression.SnappyCodec;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.junit.Test;
 
@@ -38,7 +36,7 @@ public class TestRunLengthByteReader {
 
     ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthByteWriter out = new RunLengthByteWriter(new OutStream("test", 100,
-        null, collect, new MemoryEstimate()));
+        null, collect));
     RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
     RowIndexEntry.Builder rowIndexEntry = OrcProto.RowIndexEntry.newBuilder();
     WriterImpl.RowIndexPositionRecorder rowIndexPosition = new RowIndexPositionRecorder(rowIndexEntry);
@@ -86,7 +84,7 @@ public class TestRunLengthByteReader {
 
     ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthByteWriter out = new RunLengthByteWriter(new OutStream("test", 500,
-        codec, collect, new MemoryEstimate()));
+        codec, collect));
     RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
     RowIndexEntry.Builder rowIndexEntry = OrcProto.RowIndexEntry.newBuilder();
     WriterImpl.RowIndexPositionRecorder rowIndexPosition = new RowIndexPositionRecorder(rowIndexEntry);
@@ -132,7 +130,7 @@ public class TestRunLengthByteReader {
     TestInStream.OutputCollector collect = new TestInStream.OutputCollector();
     ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthByteWriter out = new RunLengthByteWriter(new OutStream("test", 100,
-        null, collect, new MemoryEstimate()));
+        null, collect));
     for(int i=0; i < 2048; ++i) {
       if (i < 1024) {
         out.write((byte) (i/16));

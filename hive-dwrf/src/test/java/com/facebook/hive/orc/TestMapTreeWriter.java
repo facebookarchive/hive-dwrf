@@ -27,7 +27,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import com.facebook.hive.orc.compression.CompressionKind;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -250,7 +249,7 @@ public class TestMapTreeWriter {
   private static class MapStructObjectInspector extends StructObjectInspector {
 
     public MapStructObjectInspector() {
-      this.fields = new ArrayList<MapField>(1);
+      this.fields = new ArrayList<MapField>();
       fields.add(new MapField());
     }
 

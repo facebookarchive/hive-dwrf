@@ -22,8 +22,6 @@ import static junit.framework.Assert.assertEquals;
 import java.nio.ByteBuffer;
 import java.util.Random;
 
-import com.facebook.hive.orc.compression.CompressionCodec;
-import com.facebook.hive.orc.compression.ZlibCodec;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.junit.Test;
 
@@ -37,7 +35,7 @@ public class TestRunLengthIntegerReader {
     TestInStream.OutputCollector collect = new TestInStream.OutputCollector();
     ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthIntegerWriter out = new RunLengthIntegerWriter(
-        new OutStream("test", 1000, codec, collect, new MemoryEstimate()), true, 4, true);
+        new OutStream("test", 1000, codec, collect), true, 4, true);
     RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
     RowIndexEntry.Builder rowIndexEntry = OrcProto.RowIndexEntry.newBuilder();
     WriterImpl.RowIndexPositionRecorder rowIndexPosition = new RowIndexPositionRecorder(rowIndexEntry);
@@ -105,7 +103,7 @@ public class TestRunLengthIntegerReader {
     TestInStream.OutputCollector collect = new TestInStream.OutputCollector();
     ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthIntegerWriter out = new RunLengthIntegerWriter(
-        new OutStream("test", 100, null, collect, new MemoryEstimate()), true, 4, true);
+        new OutStream("test", 100, null, collect), true, 4, true);
     for(int i=0; i < 2048; ++i) {
       if (i < 1024) {
         out.write(i);
