@@ -38,7 +38,7 @@ public class TestRunLengthByteReader {
 
     ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthByteWriter out = new RunLengthByteWriter(new OutStream("test", 100,
-        null, collect));
+        null, collect, new MemoryEstimate()));
     RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
     RowIndexEntry.Builder rowIndexEntry = OrcProto.RowIndexEntry.newBuilder();
     WriterImpl.RowIndexPositionRecorder rowIndexPosition = new RowIndexPositionRecorder(rowIndexEntry);
@@ -86,7 +86,7 @@ public class TestRunLengthByteReader {
 
     ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthByteWriter out = new RunLengthByteWriter(new OutStream("test", 500,
-        codec, collect));
+        codec, collect, new MemoryEstimate()));
     RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
     RowIndexEntry.Builder rowIndexEntry = OrcProto.RowIndexEntry.newBuilder();
     WriterImpl.RowIndexPositionRecorder rowIndexPosition = new RowIndexPositionRecorder(rowIndexEntry);
@@ -132,7 +132,7 @@ public class TestRunLengthByteReader {
     TestInStream.OutputCollector collect = new TestInStream.OutputCollector();
     ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthByteWriter out = new RunLengthByteWriter(new OutStream("test", 100,
-        null, collect));
+        null, collect, new MemoryEstimate()));
     for(int i=0; i < 2048; ++i) {
       if (i < 1024) {
         out.write((byte) (i/16));
