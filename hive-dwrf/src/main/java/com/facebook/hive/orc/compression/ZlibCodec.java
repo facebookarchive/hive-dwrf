@@ -17,7 +17,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.facebook.hive.orc;
+package com.facebook.hive.orc.compression;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -25,9 +25,11 @@ import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
+import com.facebook.hive.orc.OrcConf;
+import com.facebook.hive.orc.compression.CompressionCodec;
 import org.apache.hadoop.conf.Configuration;
 
-class ZlibCodec implements CompressionCodec {
+public class ZlibCodec implements CompressionCodec {
 
   private int compressionLevel;
 

@@ -24,6 +24,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import com.facebook.hive.orc.compression.CompressionCodec;
 import org.apache.hadoop.fs.FSDataInputStream;
 
 import com.facebook.hive.orc.OrcProto.RowIndexEntry;

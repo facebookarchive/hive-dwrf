@@ -27,6 +27,8 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
+import com.facebook.hive.orc.compression.CompressionCodec;
+import com.facebook.hive.orc.compression.CompressionKind;
 import com.facebook.hive.orc.statistics.ColumnStatistics;
 import com.facebook.hive.orc.statistics.ColumnStatisticsImpl;
 import org.apache.hadoop.conf.Configuration;
