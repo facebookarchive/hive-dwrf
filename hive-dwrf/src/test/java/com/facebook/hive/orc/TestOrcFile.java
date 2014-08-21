@@ -47,6 +47,7 @@ import com.facebook.hive.orc.statistics.ColumnStatistics;
 import com.facebook.hive.orc.statistics.DoubleColumnStatistics;
 import com.facebook.hive.orc.statistics.IntegerColumnStatistics;
 import com.facebook.hive.orc.statistics.StringColumnStatistics;
+import com.google.common.collect.ImmutableList;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -739,18 +740,24 @@ public class TestOrcFile {
    */
   @Test
   public void testUnionAndTimestamp() throws Exception {
-    List<OrcProto.Type> types = new ArrayList<OrcProto.Type>();
-    types.add(OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.STRUCT).
-        addFieldNames("time").addFieldNames("union").
-        addSubtypes(1).addSubtypes(2).build());
-    types.add(OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.TIMESTAMP).
-        build());
-    types.add(OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.UNION).
-        addSubtypes(3).addSubtypes(4).build());
-    types.add(OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.INT).
-        build());
-    types.add(OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.STRING).
-        build());
+    final List<OrcProto.Type> types = ImmutableList.of(
+        OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.STRUCT)
+                                  .addFieldNames("time")
+                                  .addFieldNames("union")
+                                  .addSubtypes(1)
+                                  .addSubtypes(2)
+                                  .build(),
+        OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.TIMESTAMP)
+                                  .build(),
+        OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.UNION)
+                                  .addSubtypes(3)
+                                  .addSubtypes(4)
+                                  .build(),
+        OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.INT)
+                                  .build(),
+        OrcProto.Type.newBuilder().setKind(OrcProto.Type.Kind.STRING)
+                                  .build()
+    );
 
     ObjectInspector inspector;
     synchronized (TestOrcFile.class) {
@@ -1317,14 +1324,13 @@ public class TestOrcFile {
     if (((OrcLazyObject) row.getFieldValue(17)).nextIsNull()) {
       assertNull(expected.middle);
     } else {
-      List<InnerStruct> expectedList = expected.middle.list;
-      OrcStruct actualMiddle = (OrcStruct) ((OrcLazyStruct) row.getFieldValue(17)).materialize();
-      List<OrcStruct> actualList =
+      final List<InnerStruct> expectedList = expected.middle.list;
+      final OrcStruct actualMiddle = (OrcStruct) ((OrcLazyStruct) row.getFieldValue(17)).materialize();
+      final List<OrcStruct> actualList =
           (List) actualMiddle.getFieldValue(0);
       compareListOfStructs(expectedList, actualList);
-      List<String> actualFieldNames = actualMiddle.getFieldNames();
-      List<String> expectedFieldNames = new ArrayList<String>();
-      expectedFieldNames.add("list");
+      final List<String> actualFieldNames = actualMiddle.getFieldNames();
+      final List<String> expectedFieldNames = ImmutableList.of("list");
       compareLists(expectedFieldNames, actualFieldNames);
     }
     if (((OrcLazyObject) row.getFieldValue(18)).nextIsNull()) {
@@ -1495,12 +1501,11 @@ public class TestOrcFile {
     if (middle == null) {
       assertNull(expected.middle);
     } else {
-      List<InnerStruct> expectedList = expected.middle.list;
-      List<OrcStruct> actualList = (List) middle.getFieldValue(0);
+      final List<InnerStruct> expectedList = expected.middle.list;
+      final List<OrcStruct> actualList = (List) middle.getFieldValue(0);
       compareListOfStructs(expectedList, actualList);
-      List<String> actualFieldNames = middle.getFieldNames();
-      List<String> expectedFieldNames = new ArrayList<String>();
-      expectedFieldNames.add("list");
+      final List<String> actualFieldNames = middle.getFieldNames();
+      final List<String> expectedFieldNames = ImmutableList.of("list");
       compareLists(expectedFieldNames, actualFieldNames);
     }
 
@@ -2547,7 +2552,7 @@ public class TestOrcFile {
     int numNulls = 4;
     int numNonNulls = 8;
     for(int i = 0; i < numNonNulls; i++) {
-      List<String> filledList = new ArrayList<String>();
+      List<String> filledList = new ArrayList<String>(2);
       filledList.add("SomeText");
       filledList.add("SomeMoreText" + i);
       writer.addRow(new StringListWithId(i, filledList));

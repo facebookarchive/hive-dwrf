@@ -48,16 +48,11 @@ public class LazyMapTreeReader extends LazyTreeReader {
   public Object next(Object previous) throws IOException {
     Map<Object, Object> result = null;
     if (valuePresent) {
-      if (previous == null) {
-        result = new HashMap<Object, Object>();
-      } else {
-        result = (HashMap<Object, Object>) previous;
-      }
-      // for now just clear and create new objects
-      result.clear();
-      int length = nextLength();
+      final int length = nextLength();
+      result = new HashMap<Object, Object>(length);
+
       // read the new elements into the array
-      for(int i=0; i< length; i++) {
+      for(int i=0; i < length; i++) {
         result.put(keyReader.getInComplexType(null, previousRow),
             valueReader.getInComplexType(null, previousRow));
       }
