@@ -22,7 +22,6 @@ package com.facebook.hive.orc;
 import it.unimi.dsi.fastutil.ints.IntArrays;
 import it.unimi.dsi.fastutil.ints.IntComparator;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
-import org.apache.hadoop.hive.ql.io.slice.SizeOf;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -34,21 +33,20 @@ class IntDictionaryEncoder extends DictionaryEncoder {
   private final int numBytes;
   private final boolean useVInts;
 
-  protected final DynamicLongArray keys;
-  protected final DynamicIntArray counts;
+  protected final DynamicLongArray keys = new DynamicLongArray();
+  protected final DynamicIntArray counts = new DynamicIntArray();
   protected Long2IntOpenHashMapWithByteSize dictionary = new Long2IntOpenHashMapWithByteSize();
 
-  public IntDictionaryEncoder(int numBytes, boolean useVInts, MemoryEstimate memoryEstimate) {
-    this(true, numBytes, useVInts, memoryEstimate);
-  }
-
-  public IntDictionaryEncoder(boolean sortKeys, int numBytes, boolean useVInts,
-      MemoryEstimate memoryEstimate) {
-    super(sortKeys, memoryEstimate);
+  public IntDictionaryEncoder(int numBytes, boolean useVInts) {
+    super();
     this.numBytes = numBytes;
     this.useVInts = useVInts;
-    this.keys = new DynamicLongArray(memoryEstimate);
-    this.counts = new DynamicIntArray(memoryEstimate);
+  }
+
+  public IntDictionaryEncoder(boolean sortKeys, int numBytes, boolean useVInts) {
+    super(sortKeys);
+    this.numBytes = numBytes;
+    this.useVInts = useVInts;
   }
 
   public long getValue(int position) {
@@ -60,27 +58,17 @@ class IntDictionaryEncoder extends DictionaryEncoder {
 
     public Long2IntOpenHashMapWithByteSize() {
       super();
-      memoryEstimate.incrementTotalMemory(getByteSize());
-    }
-
-    @Override
-    protected void rehash(final int newN) {
-      // rehash resizes the arrays, so need to account for this in the memory estimate
-      memoryEstimate.decrementTotalMemory(getByteSize());
-      super.rehash(newN);
-      memoryEstimate.incrementTotalMemory(getByteSize());
     }
 
     public int getByteSize() {
       int size = key.length * 8 + value.length * 4 + used.length;
 
+      // If we're close to the point where the dictionary is going to be rehashed, be pessimistic
+      // and adjust the size assuming we will
+      if (size + 5000 >= maxFill) {
+        return (int) (size / f);
+      }
       return size;
-    }
-
-    // A cleanup method that should be called before allowing the object to leave scope
-    public void cleanup() {
-      // Account for the destruction of the arrays used by this object
-      memoryEstimate.decrementTotalMemory(getByteSize());
     }
   }
 
@@ -112,6 +100,7 @@ class IntDictionaryEncoder extends DictionaryEncoder {
         context.setOriginalPosition(keysArray == null? pos : keysArray[pos]);
         visitor.visit(context);
       }
+      keysArray = null;
   }
 
   public void visit(Visitor<Long> visitor) throws IOException {
@@ -122,10 +111,7 @@ class IntDictionaryEncoder extends DictionaryEncoder {
   public void clear() {
     keys.clear();
     counts.clear();
-    dictionary.cleanup();
     dictionary = new Long2IntOpenHashMapWithByteSize();
-    // Decrement the dictionary memory by the total size of all the elements
-    memoryEstimate.decrementDictionaryMemory(SizeOf.SIZE_OF_LONG * numElements);
     numElements = 0;
   }
 
@@ -156,9 +142,6 @@ class IntDictionaryEncoder extends DictionaryEncoder {
       dictionary.put(value, valRow);
       keys.add(newKey);
       counts.add(1);
-
-      // Add the size of one element to the dictionary size in memory
-      memoryEstimate.incrementDictionaryMemory(SizeOf.SIZE_OF_LONG);
       return valRow;
     }
   }
@@ -193,8 +176,20 @@ class IntDictionaryEncoder extends DictionaryEncoder {
     @Override
     public int getIndexStride() {
       throw new UnsupportedOperationException("IntDictionaryEncoder does not currently track the" +
-          " index stride");
+      		" index stride");
     }
+  }
+
+  public long getByteSize() {
+
+    // Long2IntOpenHashMap stores per element:
+    // key in long[] (8 bytes)
+    // value in int[] (4 bytes)
+    // whether each bucket was used or not in boolean [] (1 byte
+    long posSizes = dictionary.getByteSize();
+
+    return keys.getSizeInBytes() + counts.getSizeInBytes() +
+        posSizes;
   }
 
   public int getUncompressedLength() {
@@ -210,13 +205,5 @@ class IntDictionaryEncoder extends DictionaryEncoder {
     return numElements;
   }
 
-  // A cleanup method that should be called before allowing the object to leave scope
-  public void cleanup() {
-    keys.cleanup();
-    counts.cleanup();
-    dictionary.cleanup();
-    // Decrement the dictionary memory by the total size of all the elements
-    memoryEstimate.decrementDictionaryMemory(SizeOf.SIZE_OF_LONG * numElements);
-  }
 }
 

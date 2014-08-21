@@ -27,8 +27,6 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 
-import com.facebook.hive.orc.compression.CompressionCodec;
-import com.facebook.hive.orc.compression.CompressionKind;
 import com.facebook.hive.orc.statistics.ColumnStatistics;
 import com.facebook.hive.orc.statistics.ColumnStatisticsImpl;
 import org.apache.hadoop.conf.Configuration;
@@ -111,10 +109,8 @@ public final class ReaderImpl implements Reader {
 
   @Override
   public Iterable<String> getMetadataKeys() {
-    List<OrcProto.UserMetadataItem> metadata = footer.getMetadataList();
-    List<String> result = new ArrayList<String>(metadata.size());
-
-    for(OrcProto.UserMetadataItem item: metadata) {
+    List<String> result = new ArrayList<String>();
+    for(OrcProto.UserMetadataItem item: footer.getMetadataList()) {
       result.add(item.getName());
     }
     return result;

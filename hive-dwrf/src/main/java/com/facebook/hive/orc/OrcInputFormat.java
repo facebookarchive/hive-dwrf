@@ -32,7 +32,6 @@ import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.io.InputFormatChecker;
 import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileSplit;
@@ -49,13 +48,12 @@ import com.facebook.hive.orc.lazy.OrcLazyRow;
 public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcLazyRow>
   implements InputFormatChecker {
 
-  public static class OrcRecordReader
+  static class OrcRecordReader
       implements RecordReader<NullWritable, OrcLazyRow> {
     private final com.facebook.hive.orc.RecordReader reader;
     private final long offset;
     private final long length;
     private float progress = 0.0f;
-    private ObjectInspector objectInspector = null;
 
     OrcRecordReader(Reader file, Configuration conf,
                     long offset, long length) throws IOException {
@@ -63,7 +61,6 @@ public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcLazyRow>
           findIncludedColumns(file.getTypes(), conf));
       this.offset = offset;
       this.length = length;
-      this.objectInspector = file.getObjectInspector();
     }
 
     @Override
@@ -100,10 +97,6 @@ public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcLazyRow>
     @Override
     public float getProgress() throws IOException {
       return progress;
-    }
-
-    public ObjectInspector getObjectInspector() throws IOException {
-      return objectInspector;
     }
   }
 

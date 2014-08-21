@@ -127,7 +127,7 @@ public class TestInputOutputFormat {
     assertEquals(1, splits.length);
 
     // the the validate input method
-    ArrayList<FileStatus> fileList = new ArrayList<FileStatus>(3);
+    ArrayList<FileStatus> fileList = new ArrayList<FileStatus>();
     assertEquals(false,
         ((InputFormatChecker) in).validateInput(fs, new HiveConf(), fileList));
     fileList.add(fs.getFileStatus(testFilePath));

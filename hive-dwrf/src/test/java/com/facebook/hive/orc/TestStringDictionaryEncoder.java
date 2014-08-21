@@ -64,8 +64,7 @@ public class TestStringDictionaryEncoder {
   }
 
   private StringDictionaryEncoder buildDictionary(String[] values, boolean sortKeys) {
-    StringDictionaryEncoder dictEncoder = new StringDictionaryEncoder(sortKeys, false,
-        new MemoryEstimate());
+    StringDictionaryEncoder dictEncoder = new StringDictionaryEncoder(sortKeys, false);
     for(String value : values) {
       dictEncoder.add(new Text(value), 0);
     }
@@ -74,7 +73,7 @@ public class TestStringDictionaryEncoder {
 
   @Test
   public void test1() throws Exception {
-    StringDictionaryEncoder dict = new StringDictionaryEncoder(new MemoryEstimate());
+    StringDictionaryEncoder dict = new StringDictionaryEncoder();
 
     String [] addKeys = new String[] {
       "owen", "ashutosh", "owen", "alan", "alan", "ashutosh", "greg", "eric", "arun", "eric14", "o", "ziggy", "z",
@@ -99,9 +98,7 @@ public class TestStringDictionaryEncoder {
 
   private void testUnsorted(boolean strideDictionaries) throws Exception {
 
-    MemoryEstimate memoryEstimate = new MemoryEstimate();
-    StringDictionaryEncoder dict = new StringDictionaryEncoder(false, strideDictionaries,
-        memoryEstimate);
+    StringDictionaryEncoder dict = new StringDictionaryEncoder(false, strideDictionaries);
     String [] addKeys = new String[] {
       "owen", "ashutosh", "owen", "alan", "alan", "ashutosh", "greg", "eric", "arun", "eric14", "o", "ziggy", "z",
     };
@@ -123,7 +120,7 @@ public class TestStringDictionaryEncoder {
     }
     checkContent(dict, expectedUniqueValues, expectedOrder);
     dict.clear();
-    assertEquals(688128, memoryEstimate.getTotalMemory());
+    assertEquals(688128, dict.getSizeInBytes());
     assertEquals(0, dict.size());
   }
 
@@ -133,8 +130,7 @@ public class TestStringDictionaryEncoder {
    */
   public void testSortedAcrossIndices() throws Exception {
 
-    MemoryEstimate memoryEstimate = new MemoryEstimate();
-    StringDictionaryEncoder dict = new StringDictionaryEncoder(true, true, memoryEstimate);
+    StringDictionaryEncoder dict = new StringDictionaryEncoder(true, true);
     String [] addKeys = new String[] {
       "owen", "ashutosh", "owen", "alan", "alan", "ashutosh", "greg", "eric", "arun", "eric14",
       "o", "ziggy", "z",
@@ -154,7 +150,7 @@ public class TestStringDictionaryEncoder {
     }
     checkContent(dict, expectedUniqueValues, expectedOrder);
     dict.clear();
-    assertEquals(688128, memoryEstimate.getTotalMemory());
+    assertEquals(688128, dict.getSizeInBytes());
     assertEquals(0, dict.size());
   }
 
@@ -170,8 +166,7 @@ public class TestStringDictionaryEncoder {
 
   @Test
   public void testSortedStrideDictionaries() throws Exception {
-    MemoryEstimate memoryEstimate = new MemoryEstimate();
-    StringDictionaryEncoder dict = new StringDictionaryEncoder(true, true, memoryEstimate);
+    StringDictionaryEncoder dict = new StringDictionaryEncoder(true, true);
     String [] addKeys = new String[] {
       "owen", "ashutosh", "owen", "alan", "alan", "ashutosh", "greg", "eric", "arun", "eric14", "o", "ziggy", "z",
     };
@@ -190,7 +185,7 @@ public class TestStringDictionaryEncoder {
     }
     checkContent(dict, expectedUniqueValues, expectedOrder);
     dict.clear();
-    assertEquals(688128, memoryEstimate.getTotalMemory());
+    assertEquals(688128, dict.getSizeInBytes());
     assertEquals(0, dict.size());
   }
 
