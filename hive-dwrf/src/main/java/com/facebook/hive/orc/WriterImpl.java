@@ -2205,7 +2205,8 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
           .setIndexLength(si.getIndexLength())
           .setDataLength(si.getDataLength())
           .setNumberOfRows(si.getNumberOfRows())
-          .setFooterLength(si.getFooterLength()).build();
+          .setFooterLength(si.getFooterLength())
+          .setRawDataSize(si.getRawDataSize()).build();
     stripes.add(dirEntry);
     rowCount += si.getNumberOfRows();
     rawWriter.write(data);
