@@ -36,7 +36,7 @@ public class TestBitFieldReader {
     TestInStream.OutputCollector collect = new TestInStream.OutputCollector();
     final int COUNT = 16384;
     BitFieldWriter out = new BitFieldWriter(
-        new OutStream("test", 500, codec, collect), 1);
+        new OutStream("test", 500, codec, collect, new MemoryEstimate()), 1);
     RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
     RowIndexEntry.Builder rowIndexEntry = OrcProto.RowIndexEntry.newBuilder();
     WriterImpl.RowIndexPositionRecorder rowIndexPosition = new RowIndexPositionRecorder(rowIndexEntry);
@@ -93,7 +93,7 @@ public class TestBitFieldReader {
     ReaderWriterProfiler.setProfilerOptions(null);
     TestInStream.OutputCollector collect = new TestInStream.OutputCollector();
     BitFieldWriter out = new BitFieldWriter(
-        new OutStream("test", 100, null, collect), 1);
+        new OutStream("test", 100, null, collect, new MemoryEstimate()), 1);
     final int COUNT = 16384;
     for(int i=0; i < COUNT; ++i) {
       if (i < COUNT/2) {
