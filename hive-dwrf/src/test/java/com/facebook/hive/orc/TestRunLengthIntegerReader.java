@@ -22,6 +22,8 @@ import static junit.framework.Assert.assertEquals;
 import java.nio.ByteBuffer;
 import java.util.Random;
 
+import com.facebook.hive.orc.compression.CompressionCodec;
+import com.facebook.hive.orc.compression.ZlibCodec;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.junit.Test;
 

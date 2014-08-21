@@ -18,15 +18,16 @@
  * limitations under the License.
  */
 
-package com.facebook.hive.orc;
+package com.facebook.hive.orc.compression;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 
+import com.facebook.hive.orc.compression.CompressionCodec;
 import org.apache.hadoop.conf.Configuration;
 import org.iq80.snappy.Snappy;
 
-class SnappyCodec implements CompressionCodec {
+public class SnappyCodec implements CompressionCodec {
 
   @Override
   public void reloadConfigurations(Configuration conf) {
