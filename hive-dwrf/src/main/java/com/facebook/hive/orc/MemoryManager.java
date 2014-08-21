@@ -115,6 +115,7 @@ class MemoryManager {
     // manager wasn't told that a writer wasn't still in use and the task
     // starts writing to the same path.
     if (oldVal == null) {
+      LOG.info("Registering writer for path " + path.toString());
       oldVal = new WriterInfo(requestedAllocation, callback);
       writerList.put(path, oldVal);
       totalAllocation += requestedAllocation;
@@ -148,6 +149,7 @@ class MemoryManager {
   synchronized void removeWriter(Path path) throws IOException {
     WriterInfo val = writerList.get(path);
     if (val != null) {
+      LOG.info("Unregeristering writer for path " + path.toString());
       writerList.remove(path);
       totalAllocation -= val.allocation;
       updateScale(false);
@@ -182,8 +184,13 @@ class MemoryManager {
     }
   }
 
-  boolean shouldFlush(MemoryEstimate memoryEstimate, Path path, long stripeSize, long maxDictSize) {
+  boolean shouldFlush(MemoryEstimate memoryEstimate, Path path, long stripeSize, long maxDictSize)
+      throws IOException {
+
     WriterInfo writer = writerList.get(path);
+    if (writer == null) {
+      throw new IOException("No writer registered for path " + path.toString());
+    }
     long limit = Math.round(stripeSize * currentScale * writer.allocationMultiplier);
     if (memoryEstimate.getTotalMemory() > limit
         || (maxDictSize > 0 && memoryEstimate.getDictionaryMemory() > maxDictSize)) {
