@@ -19,6 +19,9 @@
  */
 package com.facebook.hive.orc;
 
+import com.facebook.hive.orc.OrcProto.RowIndexEntry;
+import org.apache.hadoop.fs.FSDataInputStream;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
@@ -416,8 +419,12 @@ public abstract class InStream extends InputStream {
         // Otherwise uncompressed is null and for this index, no bytes of uncompressed data need
         // to be skipped, so it is sufficient to update currentStride, if read is called, it will
         // read the appropriate stride from disk
-        currentChunk = compressedStrides[index];
-        readData();
+        if (file != null) {
+          // if file is not null we need to read compressed data for the specified index from the
+          // file, otherwise we are using a ByteBuffer and there's no need to read any data
+          currentChunk = compressedStrides[index];
+          readData();
+        }
         compressedOffset = newCompressedOffset;
       }
     }
