@@ -37,31 +37,15 @@ import org.apache.hadoop.hive.ql.io.slice.Slices;
  * NOTE: Like standard Collection implementations/arrays, this class is not
  * synchronized.
  */
-final class DynamicLongArray {
+final class DynamicLongArray extends DynamicArray {
   static final int DEFAULT_SIZE = SizeOf.SIZE_OF_LONG * 8 * 1024;
 
-  private Slice data;              // the real data
-  private int length;              // max set element index +1
-
-  public DynamicLongArray() {
-    this(DEFAULT_SIZE);
+  public DynamicLongArray(MemoryEstimate memoryEstimate) {
+    this(DEFAULT_SIZE, memoryEstimate);
   }
 
-  public DynamicLongArray(int size) {
-
-    data = Slices.allocate(size);
-  }
-
-  /**
-   * Ensure that the given index is valid.
-   */
-  private void grow(int index) {
-    if ((index * SizeOf.SIZE_OF_LONG) + (SizeOf.SIZE_OF_LONG - 1) >= data.length()) {
-      int newSize = Math.max((index * SizeOf.SIZE_OF_LONG) + DEFAULT_SIZE, 2 * data.length());
-      Slice newSlice = Slices.allocate(newSize);
-      newSlice.setBytes(0, data);
-      data = newSlice;
-    }
+  public DynamicLongArray(int size, MemoryEstimate memoryEstimate) {
+    super(size, memoryEstimate, SizeOf.SIZE_OF_LONG, DEFAULT_SIZE);
   }
 
   public long get(int index) {
@@ -98,15 +82,6 @@ final class DynamicLongArray {
     length += 1;
   }
 
-  public int size() {
-    return length;
-  }
-
-  public void clear() {
-    length = 0;
-    data = Slices.allocate(DEFAULT_SIZE);
-  }
-
   @Override
   public String toString() {
     int i;
@@ -122,10 +97,6 @@ final class DynamicLongArray {
     sb.append('}');
 
     return sb.toString();
-  }
-
-  public long getSizeInBytes() {
-    return data.length();
   }
 }
 

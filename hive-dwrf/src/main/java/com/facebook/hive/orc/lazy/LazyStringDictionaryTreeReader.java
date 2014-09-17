@@ -24,19 +24,22 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.hadoop.io.Text;
-
 import com.facebook.hive.orc.BitFieldReader;
 import com.facebook.hive.orc.DynamicByteArray;
 import com.facebook.hive.orc.InStream;
+import com.facebook.hive.orc.MemoryEstimate;
 import com.facebook.hive.orc.OrcProto;
-import com.facebook.hive.orc.OrcProto.RowIndex;
-import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 import com.facebook.hive.orc.RunLengthIntegerReader;
 import com.facebook.hive.orc.StreamName;
 import com.facebook.hive.orc.WriterImpl;
+import org.apache.hadoop.io.Text;
+
+import com.facebook.hive.orc.OrcProto.RowIndex;
+import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 
 public class LazyStringDictionaryTreeReader extends LazyTreeReader {
+  private static final MemoryEstimate DUMMY_MEMORY_ESTIMATE = new MemoryEstimate();
+
   private DynamicByteArray dictionaryBuffer = null;
   private DynamicByteArray strideDictionaryBuffer;
   private int dictionarySize;
@@ -82,7 +85,8 @@ public class LazyStringDictionaryTreeReader extends LazyTreeReader {
         OrcProto.Stream.Kind.DICTIONARY_DATA);
     in = streams.get(name);
     if (in.available() > 0) {
-      dictionaryBuffer = new DynamicByteArray(dictionaryOffsets[dictionarySize]);
+      dictionaryBuffer = new DynamicByteArray(dictionaryOffsets[dictionarySize],
+          DUMMY_MEMORY_ESTIMATE);
       dictionaryBuffer.readAll(in);
     } else {
       dictionaryBuffer = null;
@@ -164,7 +168,7 @@ public class LazyStringDictionaryTreeReader extends LazyTreeReader {
     strideDictionaryOffsets[unitDictionarySize] = offset;
     if (offset != 0) {
       directReader.seek(indexEntry);
-      strideDictionaryBuffer = new DynamicByteArray(offset);
+      strideDictionaryBuffer = new DynamicByteArray(offset, DUMMY_MEMORY_ESTIMATE);
       strideDictionaryBuffer.read(directReader, offset);
     } else {
       // It only contains the empty string

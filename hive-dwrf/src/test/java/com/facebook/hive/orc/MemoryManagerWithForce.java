@@ -17,12 +17,6 @@ public class MemoryManagerWithForce extends MemoryManager {
     super(conf);
   }
 
-  public void forceFlushStripe() throws IOException {
-    for (WriterInfo writer : writerList.values()) {
-      writer.callback.checkMemory(0);
-    }
-  }
-
   public void forceEnterLowMemoryMode() throws IOException {
     for (WriterInfo writer : writerList.values()) {
       writer.callback.enterLowMemoryMode();
