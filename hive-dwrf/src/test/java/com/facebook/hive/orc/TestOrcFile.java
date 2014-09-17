@@ -36,6 +36,7 @@ import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -74,6 +75,8 @@ import org.apache.hadoop.io.FloatWritable;
 import org.apache.hadoop.io.IntWritable;
 import org.apache.hadoop.io.LongWritable;
 import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapred.FileSplit;
+import org.apache.hadoop.mapred.JobConf;
 import org.junit.Before;
 import org.junit.Rule;
 import org.junit.Test;
@@ -3109,6 +3112,83 @@ public class TestOrcFile {
       row = (OrcStruct) lazyRow.materialize();
       assertEquals(i, ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
     }
+    rows.close();
+  }
+
+  @Test
+  /**
+   * Tests that when a reader is initialized using offset, length the stripes included are
+   * those that start in the range [offset, offset + length)
+   */
+  public void testSplitStripe() throws Exception {
+    ObjectInspector inspector;
+    synchronized (TestOrcFile.class) {
+      inspector = ObjectInspectorFactory.getReflectionObjectInspector
+          (IntStruct.class,
+              ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    }
+    // Reevaluate if we should use dictionary encoding on every stripe
+    OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL, 1);
+    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
+        1000000, CompressionKind.NONE, 100, 10000, memory);
+
+    // Write 100 rows
+    for (int i = 0; i < 100; i ++) {
+      writer.addRow(new IntStruct(i));
+    }
+
+    // Flush the first stripe
+    memory.forceFlushStripe();
+
+    // Write 100 more rows
+    for (int i = 0; i < 100; i ++) {
+      writer.addRow(new IntStruct(i + 100));
+    }
+
+    writer.close();
+
+    Reader reader = OrcFile.createReader(fs, testFilePath, conf);
+    Iterator<StripeInformation> stripes = reader.getStripes().iterator();
+
+    StripeInformation firstStripe = stripes.next();
+    StripeInformation secondStripe = stripes.next();
+
+    // Create a record reader that has the offset and length of the first stripe
+    RecordReader rows = reader.rows(firstStripe.getOffset(),
+        secondStripe.getOffset() - firstStripe.getOffset(), null);
+
+    // Read what we wrote for the first stripe
+    OrcLazyStruct lazyRow = null;
+    OrcStruct row;
+    for (int i = 0; i < 100; i ++) {
+      lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+      row = (OrcStruct) lazyRow.materialize();
+      assertEquals(i,
+          ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
+    }
+
+    // Make sure that there's no additional data
+    assertFalse(rows.hasNext());
+    rows.close();
+
+    // Create a record reader that has the offset and length of the second stripe
+    // Since this is the last stripe it has length equal to the length of the file containing
+    // stripes - the offset of the second stripe
+    rows = reader.rows(secondStripe.getOffset(),
+        reader.getContentLength() - secondStripe.getOffset(), null);
+
+    // Read what we wrote for the first stripe
+    for (int i = 0; i < 100; i ++) {
+      lazyRow = (OrcLazyStruct) rows.next(lazyRow);
+      row = (OrcStruct) lazyRow.materialize();
+      assertEquals(i + 100,
+          ((IntWritable) ((OrcLazyInt) row.getFieldValue(0)).materialize()).get());
+    }
+
+    // Make sure that there's no additional data
+    assertFalse(rows.hasNext());
     rows.close();
   }
 }
