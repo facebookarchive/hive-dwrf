@@ -23,9 +23,9 @@ package com.facebook.hive.orc;
 import java.io.IOException;
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
@@ -53,7 +53,7 @@ class MemoryManager {
   private static final int ROWS_BETWEEN_CHECKS = 5000;
   private final long totalMemoryPool;
   protected final Map<Path, WriterInfo> writerList =
-      new HashMap<Path, WriterInfo>();
+      new ConcurrentHashMap<Path, WriterInfo>();
   private long totalAllocation = 0;
   private double currentScale = 1;
   private int rowsAddedSinceCheck = 0;
