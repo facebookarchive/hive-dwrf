@@ -24,7 +24,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import com.facebook.hive.orc.compression.CompressionKind;
 import com.facebook.hive.orc.statistics.ColumnStatistics;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 

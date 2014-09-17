@@ -24,7 +24,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
-import org.apache.hadoop.hive.ql.io.slice.SizeOf;
 import org.apache.hadoop.hive.ql.io.slice.Slice;
 import org.apache.hadoop.hive.ql.io.slice.Slices;
 import org.apache.hadoop.io.Text;
@@ -33,15 +32,33 @@ import org.apache.hadoop.io.Text;
  * A class that is a growable array of bytes. Growth is managed in terms of
  * chunks that are allocated when needed.
  */
-public final class DynamicByteArray extends DynamicArray {
+public final class DynamicByteArray {
   static final int DEFAULT_SIZE = 32 * 1024;
 
-  public DynamicByteArray(MemoryEstimate memoryEstimate) {
-    this(DEFAULT_SIZE, memoryEstimate);
+  private Slice data;                 // the real data
+  private int length = 0;
+
+  public DynamicByteArray() {
+    this(DEFAULT_SIZE);
   }
 
-  public DynamicByteArray(int size, MemoryEstimate memoryEstimate) {
-    super(size, memoryEstimate, SizeOf.SIZE_OF_BYTE, DEFAULT_SIZE);
+  public DynamicByteArray(int size) {
+    if (size == 0) {
+      throw new IllegalArgumentException("bad chunksize");
+    }
+    data = Slices.allocate(size);
+  }
+
+  /**
+   * Ensure that the given index is valid.
+   */
+  private void grow(int index) {
+    if (index >= data.length()) {
+      int newSize = Math.max(index + DEFAULT_SIZE, 2 * data.length());
+      Slice newSlice = Slices.allocate(newSize);
+      newSlice.setBytes(0, data);
+      data = newSlice;
+    }
   }
 
   public byte get(int index) {
@@ -138,6 +155,22 @@ public final class DynamicByteArray extends DynamicArray {
   }
 
   /**
+   * Get the size of the array.
+   * @return the number of bytes in the array
+   */
+  public int size() {
+    return length;
+  }
+
+  /**
+   * Clear the array to its original pristine state.
+   */
+  public void clear() {
+    length = 0;
+    data = Slices.allocate(DEFAULT_SIZE);
+  }
+
+  /**
    * Set a text value from the bytes in this dynamic array.
    * @param result the value to set
    * @param offset the start of the bytes to copy
@@ -180,6 +213,13 @@ public final class DynamicByteArray extends DynamicArray {
   public void setByteBuffer(ByteBuffer result, int offset, int length) {
     result.clear();
     result.put(data.getBytes(), offset, length);
+  }
+
+  /**
+   * Get the size of the buffers.
+   */
+  public long getSizeInBytes() {
+    return data.length();
   }
 }
 
