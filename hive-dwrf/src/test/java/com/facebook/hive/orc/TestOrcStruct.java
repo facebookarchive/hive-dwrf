@@ -25,6 +25,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableMap;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -39,14 +41,14 @@ public class TestOrcStruct {
 
   @Test
   public void testStruct() throws Exception {
-    List<String> fieldNames = new ArrayList<String>();
-    for (int i = 0; i < 4; i++) {
-      fieldNames.add("field" + i);
-    }
+    final List<String> fieldNames = ImmutableList.of(
+        "field0", "field1", "field2", "field3");
+    final List<String> fieldNames2 = ImmutableList.of(
+        "field0", "field1", "field2");
+
     OrcStruct st1 = new OrcStruct(fieldNames);
     OrcStruct st2 = new OrcStruct(fieldNames);
-    fieldNames.remove(3);
-    OrcStruct st3 = new OrcStruct(fieldNames);
+    OrcStruct st3 = new OrcStruct(fieldNames2);
     st1.setFieldValue(0, "hop");
     st1.setFieldValue(1, "on");
     st1.setFieldValue(2, "pop");
@@ -88,17 +90,18 @@ public class TestOrcStruct {
     assertEquals(null,
         inspector.getAllStructFieldRefs().get(0).getFieldComment());
     assertEquals(null, inspector.getStructFieldRef("UNKNOWN"));
-    List<String> fieldNames = new ArrayList<String>();
-    for (int i = 0; i < 13; i++) {
-      fieldNames.add("field" + i);
-    }
+    final List<String> fieldNames = ImmutableList.of(
+        "field0", "field1", "field2", "field3", "field4",
+        "field5", "field6", "field7", "field8", "field9",
+        "field10", "field11", "field12");
+
     OrcStruct s1 = new OrcStruct(fieldNames);
     for(int i=0; i < 13; ++i) {
       s1.setFieldValue(i, i);
     }
 
-    List<Object> list = new ArrayList<Object>();
-    list.addAll(Arrays.asList(0,1,2,3,4,5,6,7,8,9,10,11,12));
+    final List<Object> list = ImmutableList.of(
+        (Object)0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12);
     assertEquals(list, inspector.getStructFieldsDataAsList(s1));
     ListObjectInspector listOI = (ListObjectInspector)
         inspector.getAllStructFieldRefs().get(12).getFieldObjectInspector();
@@ -106,10 +109,9 @@ public class TestOrcStruct {
     assertEquals(10, listOI.getListElement(list, 10));
     assertEquals(13, listOI.getListLength(list));
 
-    Map<Integer, Integer> map = new HashMap<Integer,Integer>();
-    map.put(1,2);
-    map.put(2,4);
-    map.put(3,6);
+    final Map<Integer, Integer> map = ImmutableMap.of(1,2,
+                                                2,4,
+                                                3,6);
     MapObjectInspector mapOI = (MapObjectInspector)
         inspector.getAllStructFieldRefs().get(10).getFieldObjectInspector();
     assertEquals(3, mapOI.getMapSize(map));

@@ -250,7 +250,7 @@ public class TestMapTreeWriter {
   private static class MapStructObjectInspector extends StructObjectInspector {
 
     public MapStructObjectInspector() {
-      this.fields = new ArrayList<MapField>();
+      this.fields = new ArrayList<MapField>(1);
       fields.add(new MapField());
     }
 
