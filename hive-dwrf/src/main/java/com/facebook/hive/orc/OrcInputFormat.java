@@ -24,7 +24,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -33,6 +36,7 @@ import org.apache.hadoop.hive.ql.io.InputFormatChecker;
 import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.io.IOUtils;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileSplit;
@@ -48,6 +52,8 @@ import com.facebook.hive.orc.lazy.OrcLazyRow;
  */
 public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcLazyRow>
   implements InputFormatChecker {
+
+  private static final Log LOG = LogFactory.getLog(OrcInputFormat.class);
 
   public static class OrcRecordReader
       implements RecordReader<NullWritable, OrcLazyRow> {
@@ -171,8 +177,48 @@ public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcLazyRow>
     Path path = fileSplit.getPath();
     FileSystem fs = path.getFileSystem(conf);
     reporter.setStatus(fileSplit.toString());
-    return new OrcRecordReader(OrcFile.createReader(fs, path, conf), conf,
-                               fileSplit.getStart(), fileSplit.getLength());
+
+    /**
+     * When a non ORC file is read by ORC reader, we get IndexOutOfBoundsException exception while
+     * creating a reader. Caught that exception and checked the file header to see if the input file
+     * was ORC or not. If its not ORC, throw a NotAnORCFileException with the file attempted to be
+     * reading (thus helping to figure out which table-partition was being read).
+     */
+    try {
+      return new OrcRecordReader(
+          OrcFile.createReader(fs, path, conf),
+          conf,
+          fileSplit.getStart(),
+          fileSplit.getLength());
+    } catch (IndexOutOfBoundsException e) {
+      checkIfORC(fs, path);
+      throw e;
+    }
+  }
+
+  /**
+   * Reads the file header (first 40 bytes) and checks if the first three characters are 'ORC'.
+   */
+  private static void checkIfORC(FileSystem fs, Path path) throws IOException {
+    // hardcoded to 40 because "SEQ-org.apache.hadoop.hive.ql.io.RCFile", the header, is of 40 chars
+    final int buffLen = 40;
+    final byte header[] = new byte[buffLen];
+    final FSDataInputStream file = fs.open(path);
+    final long fileLength = fs.getFileStatus(path).getLen();
+    int sizeToBeRead = buffLen;
+    if (buffLen > fileLength) {
+      sizeToBeRead = (int)fileLength;
+    }
+
+    IOUtils.readFully(file, header, 0, sizeToBeRead);
+    file.close();
+
+    final String headerString = new String(header);
+    if (headerString.startsWith("ORC")) {
+      LOG.error("Possibly the phantom issue while reading data : " + path);
+    } else {
+      throw new NotAnORCFileException("Input file = " + path + " , header = " + headerString);
+    }
   }
 
   @Override
