@@ -215,7 +215,7 @@ public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcLazyRow>
 
     final String headerString = new String(header);
     if (headerString.startsWith("ORC")) {
-      LOG.error("Possibly the phantom issue while reading data : " + path);
+      LOG.error("Error while parsing the footer of the file : " + path);
     } else {
       throw new NotAnORCFileException("Input file = " + path + " , header = " + headerString);
     }
