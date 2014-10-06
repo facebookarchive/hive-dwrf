@@ -37,8 +37,8 @@ public class OrcLazyStructObjectInspector extends StructObjectInspector {
 
   protected final List<StructField> fields;
 
-  protected OrcLazyStructObjectInspector() {
-    this.fields = new ArrayList<StructField>();
+  public OrcLazyStructObjectInspector(int numFields) {
+    this.fields = new ArrayList<StructField>(numFields);
   }
 
   public OrcLazyStructObjectInspector(StructTypeInfo info) {

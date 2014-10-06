@@ -42,10 +42,10 @@ public class OrcTestUtils {
   }
 
   public static class MiddleStruct {
-    List<InnerStruct> list = new ArrayList<InnerStruct>();
+    List<InnerStruct> list = null;
 
     public MiddleStruct(InnerStruct... items) {
-      list.clear();
+      list = new ArrayList<InnerStruct>(items.length);
       for(InnerStruct item: items) {
         list.add(item);
       }
@@ -81,8 +81,8 @@ public class OrcTestUtils {
     Text string2;
     Text string3;
     MiddleStruct middle;
-    List<InnerStruct> list = new ArrayList<InnerStruct>();
-    Map<Text, InnerStruct> map = new HashMap<Text, InnerStruct>();
+    List<InnerStruct> list = null;
+    Map<Text, InnerStruct> map = null;
 
     public ReallyBigRow(Boolean b1, Byte b2, Short s1, Integer i1, Long l1, Short s2, Integer i2,
         Long l2, Short s3, Integer i3, Long l3, Float f1, Double d1, BytesWritable b3, String s4,
@@ -141,8 +141,8 @@ public class OrcTestUtils {
     BytesWritable bytes1;
     Text string1;
     MiddleStruct middle;
-    List<InnerStruct> list = new ArrayList<InnerStruct>();
-    Map<Text, InnerStruct> map = new HashMap<Text, InnerStruct>();
+    List<InnerStruct> list = null;
+    Map<Text, InnerStruct> map = null;
 
     public BigRow(Boolean b1, Byte b2, Short s1, Integer i1, Long l1, Float f1,
            Double d1,
@@ -172,7 +172,7 @@ public class OrcTestUtils {
   }
 
   public static Map<Text, InnerStruct> map(InnerStruct... items)  {
-    Map<Text, InnerStruct> result = new HashMap<Text, InnerStruct>();
+    Map<Text, InnerStruct> result = new HashMap<Text, InnerStruct>(items.length);
     for(InnerStruct i: items) {
       result.put(i == null || i.string1 == null ? null : new Text(i.string1), i);
     }
@@ -180,7 +180,7 @@ public class OrcTestUtils {
   }
 
   public static List<InnerStruct> list(InnerStruct... items) {
-    List<InnerStruct> result = new ArrayList<InnerStruct>();
+    List<InnerStruct> result = new ArrayList<InnerStruct>(items.length);
     for(InnerStruct s: items) {
       result.add(s);
     }
@@ -206,7 +206,7 @@ public class OrcTestUtils {
 
   public static class StringListWithId {
     Integer id;
-    List<String> list = new ArrayList<String>();
+    List<String> list = null;
 
     public StringListWithId(Integer id, List<String> l1) {
       this.id = id;
