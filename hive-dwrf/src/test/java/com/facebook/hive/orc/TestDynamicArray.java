@@ -28,7 +28,7 @@ public class TestDynamicArray {
 
   @Test
   public void testByteArray() throws Exception {
-    DynamicByteArray dba = new DynamicByteArray(10, new MemoryEstimate());
+    DynamicByteArray dba = new DynamicByteArray(10);
     dba.add((byte) 0);
     dba.add((byte) 1);
     dba.set(3, (byte) 3);
@@ -68,7 +68,7 @@ public class TestDynamicArray {
 
   @Test
   public void testIntArray() throws Exception {
-    DynamicIntArray dia = new DynamicIntArray(10, new MemoryEstimate());
+    DynamicIntArray dia = new DynamicIntArray(10);
     for(int i=0; i < 10000; ++i) {
       dia.add(2*i);
     }
@@ -90,7 +90,7 @@ public class TestDynamicArray {
 
   @Test
   public void testLongArray() throws Exception {
-    DynamicLongArray dia = new DynamicLongArray(10, new MemoryEstimate());
+    DynamicLongArray dia = new DynamicLongArray(10);
     for(int i=0; i < 10000; ++i) {
       dia.add((long)(2*i) + (long)Integer.MAX_VALUE);
     }

@@ -24,7 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
-import com.facebook.hive.orc.compression.CompressionCodec;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 
 class OutStream extends PositionedOutputStream {
@@ -75,19 +74,16 @@ class OutStream extends PositionedOutputStream {
   private final CompressionCodec codec;
   private long compressedBytes = 0;
   private long uncompressedBytes = 0;
-  private final MemoryEstimate memoryEstimate;
 
   OutStream(String name,
             int bufferSize,
             CompressionCodec codec,
-            OutputReceiver receiver,
-            MemoryEstimate memoryEstimate) throws IOException {
+            OutputReceiver receiver) throws IOException {
     this.name = name;
     this.bufferSize = bufferSize;
     this.codec = codec;
     this.receiver = receiver;
     this.suppress = false;
-    this.memoryEstimate = memoryEstimate;
 
     if (!COMPRESSED_FOR_REUSE.containsKey(bufferSize + HEADER_SIZE)) {
       COMPRESSED_FOR_REUSE.put(bufferSize + HEADER_SIZE,
@@ -98,18 +94,9 @@ class OutStream extends PositionedOutputStream {
   public void clear() throws IOException {
     uncompressedBytes = 0;
     compressedBytes = 0;
-    if (overflow != null) {
-      memoryEstimate.decrementTotalMemory(overflow.capacity());
-      overflow = null;
-    }
-    if (current != null) {
-      memoryEstimate.decrementTotalMemory(current.capacity());
-      current = null;
-    }
-    if (compressed != null) {
-      memoryEstimate.decrementTotalMemory(compressed.capacity());
-      compressed = null;
-    }
+    overflow = null;
+    current = null;
+    compressed = null;
     suppress = false;
   }
 
@@ -141,7 +128,6 @@ class OutStream extends PositionedOutputStream {
       writeHeader(current, 0, bufferSize, true);
       current.position(HEADER_SIZE);
     }
-    memoryEstimate.incrementTotalMemory(current.capacity());
   }
 
   /**
@@ -206,10 +192,8 @@ class OutStream extends PositionedOutputStream {
         } else {
           compressed = getNewOutputBuffer();
         }
-        memoryEstimate.incrementTotalMemory(compressed.capacity());
       } else if (overflow == null) {
         overflow = getNewOutputBuffer();
-        memoryEstimate.incrementTotalMemory(overflow.capacity());
       }
       int sizePosn = compressed.position();
       compressed.position(compressed.position() + HEADER_SIZE);

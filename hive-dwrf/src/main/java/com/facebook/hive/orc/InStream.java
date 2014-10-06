@@ -19,22 +19,17 @@
  */
 package com.facebook.hive.orc;
 
-import com.facebook.hive.orc.OrcProto.RowIndexEntry;
-import org.apache.hadoop.fs.FSDataInputStream;
-
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import com.facebook.hive.orc.compression.CompressionCodec;
 import org.apache.hadoop.fs.FSDataInputStream;
 
 import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 
 public abstract class InStream extends InputStream {
 
-  public static final int END_OF_BUFFER = -1;
   private final boolean useVInts;
 
   private static class UncompressedStream extends InStream {
@@ -74,7 +69,7 @@ public abstract class InStream extends InputStream {
     @Override
     public int read() throws IOException {
       if (offset == limit) {
-        return END_OF_BUFFER;
+        return -1;
       }
       if (array == null) {
         array = new byte[limit];
@@ -86,7 +81,7 @@ public abstract class InStream extends InputStream {
     @Override
     public int read(byte[] data, int offset, int length) throws IOException {
       if (this.offset == limit) {
-        return END_OF_BUFFER;
+        return -1;
       }
       if (array == null) {
         array = new byte[limit];
@@ -341,7 +336,7 @@ public abstract class InStream extends InputStream {
         // If all chunks have been read, and all data from this chunk has been read, there's no
         // data left to read
         if (currentChunk >= numChunks && compressedOffset >= chunkLength) {
-          return END_OF_BUFFER;
+          return -1;
         }
         readHeader();
       }
@@ -354,7 +349,7 @@ public abstract class InStream extends InputStream {
         // If all chunks have been read, and all data from this chunk has been read, there's no
         // data left to read
         if (currentChunk >= numChunks && compressedOffset >= chunkLength) {
-          return END_OF_BUFFER;
+          return -1;
         }
         readHeader();
       }
@@ -419,12 +414,8 @@ public abstract class InStream extends InputStream {
         // Otherwise uncompressed is null and for this index, no bytes of uncompressed data need
         // to be skipped, so it is sufficient to update currentStride, if read is called, it will
         // read the appropriate stride from disk
-        if (file != null) {
-          // if file is not null we need to read compressed data for the specified index from the
-          // file, otherwise we are using a ByteBuffer and there's no need to read any data
-          currentChunk = compressedStrides[index];
-          readData();
-        }
+        currentChunk = compressedStrides[index];
+        readData();
         compressedOffset = newCompressedOffset;
       }
     }

@@ -29,12 +29,18 @@ import java.io.OutputStream;
  * handles the key and comparisons with the key.
  */
 abstract class DictionaryEncoder {
+  public static final int NULL = -1;
   protected final boolean sortKeys;
-  protected final MemoryEstimate memoryEstimate;
 
-  public DictionaryEncoder(boolean sortKeys, MemoryEstimate memoryEstimate) {
+  /**
+   * Create a set with a default initial capacity.
+   */
+  public DictionaryEncoder() {
+    this(true);
+  }
+
+  public DictionaryEncoder(boolean sortKeys) {
     this.sortKeys = sortKeys;
-    this.memoryEstimate = memoryEstimate;
   }
 
   /**

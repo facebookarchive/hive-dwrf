@@ -35,8 +35,7 @@ public class TestIntDictionaryEncoder {
   private IntDictionaryEncoder buildDictionaryEncoder(int[] values, boolean sortKeys,
       boolean useVInts) {
 
-    IntDictionaryEncoder dictEncoder = new IntDictionaryEncoder(sortKeys, 4, useVInts,
-        new MemoryEstimate());
+    IntDictionaryEncoder dictEncoder = new IntDictionaryEncoder(sortKeys, 4, useVInts);
     for(int value : values) {
       dictEncoder.add((long) value);
     }
@@ -51,11 +50,9 @@ public class TestIntDictionaryEncoder {
 
   @Test
   public void test1() throws Exception {
-    MemoryEstimate memoryEstimate = new MemoryEstimate();
-    IntDictionaryEncoder dictEncoder = new IntDictionaryEncoder(false, 4, true,
-        memoryEstimate);
+    IntDictionaryEncoder dictEncoder = new IntDictionaryEncoder(false, 4, true);
 
-    assertEquals(98720, memoryEstimate.getTotalMemory());
+    assertEquals(98858, dictEncoder.getByteSize());
     assertEquals(0, dictEncoder.size());
 
     int [] addKeys = new int [] {1, 1, 0, 3, 2, 1, 3, 0, -6, 100};
@@ -77,22 +74,18 @@ public class TestIntDictionaryEncoder {
     }
     checkContent(dictEncoder, expectedUniqueValues, expectedOrder);
     dictEncoder.clear();
-    assertEquals(98720, memoryEstimate.getTotalMemory());
+    assertEquals(98858, dictEncoder.getByteSize());
     assertEquals(0, dictEncoder.size());
     checkContent(dictEncoder, new int[0], new int[0]);
   }
 
   @Test
   public void test2() throws Exception {
-    MemoryEstimate[] memoryEstimates = new MemoryEstimate[] { new MemoryEstimate(),
-        new MemoryEstimate()};
-    IntDictionaryEncoder[] encoders = new IntDictionaryEncoder[] { new IntDictionaryEncoder(4, true,
-        memoryEstimates[0]), new IntDictionaryEncoder(true, 4 , true, memoryEstimates[1]) };
+    IntDictionaryEncoder[] encoders = new IntDictionaryEncoder[] { new IntDictionaryEncoder(4, true),
+      new IntDictionaryEncoder(true, 4 , true) };
 
-    for (int index = 0; index < encoders.length; index++) {
-      MemoryEstimate memoryEstimate = memoryEstimates[index];
-      IntDictionaryEncoder dictEncoder = encoders[index];
-      assertEquals(98720, memoryEstimate.getTotalMemory());
+    for (IntDictionaryEncoder dictEncoder : encoders) {
+      assertEquals(98858, dictEncoder.getByteSize());
       assertEquals(0, dictEncoder.size());
 
       int [] addKeys = new int [] {1, 1, 0, 3, 2, 1, 3, 0, -6, 100};
@@ -109,7 +102,7 @@ public class TestIntDictionaryEncoder {
 
       checkContent(dictEncoder, expectedOrderedUniqueValues, expectedOrder);
       dictEncoder.clear();
-      assertEquals(98720, memoryEstimate.getTotalMemory());
+      assertEquals(98858, dictEncoder.getByteSize());
       assertEquals(0, dictEncoder.size());
       checkContent(dictEncoder, new int[0], new int[0]);
     }

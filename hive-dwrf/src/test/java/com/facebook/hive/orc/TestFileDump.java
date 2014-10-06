@@ -31,7 +31,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-import com.facebook.hive.orc.compression.CompressionKind;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
@@ -167,6 +166,8 @@ public class TestFileDump {
     List<Integer> intVals = new ArrayList<Integer>(words.length);
     List<Long> longVals = new ArrayList<Long>(words.length);
 
+    int prevInt = 0;
+    long prevLong = 0;
     for (int i=0; i < numRows; i++) {
       intVals.add(i);
       longVals.add((long)i + (long)Integer.MAX_VALUE);
@@ -202,6 +203,7 @@ public class TestFileDump {
       inspector = ObjectInspectorFactory.getReflectionObjectInspector
           (MyRecord.class, ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
+    Configuration conf = new Configuration();
     OrcConf.setFloatVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_KEY_STRING_SIZE_THRESHOLD, 1);
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD, 11);
     // Make sure having too few distinct values won't turn off dictionary encoding
@@ -224,6 +226,7 @@ public class TestFileDump {
   // of the dictionary stream for the column will be 0 in the ORC file dump.
   @Test
   public void testDictionaryThreshold() throws Exception {
+    Configuration conf = new Configuration();
     OrcConf.setFloatVar(conf,
         OrcConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD, 0.49f);
     OrcConf.setFloatVar(conf,
@@ -233,6 +236,7 @@ public class TestFileDump {
 
   @Test
   public void testUnsortedDictionary() throws Exception {
+    Configuration conf = new Configuration();
     OrcConf.setFloatVar(conf,
         OrcConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD, 0.49f);
     OrcConf.setFloatVar(conf,
@@ -245,6 +249,7 @@ public class TestFileDump {
 
   @Test
   public void testUnsortedDictionary2() throws Exception {
+    Configuration conf = new Configuration();
     OrcConf.setFloatVar(conf,
         OrcConf.ConfVars.HIVE_ORC_DICTIONARY_STRING_KEY_SIZE_THRESHOLD, 0.51f);
     OrcConf.setFloatVar(conf,

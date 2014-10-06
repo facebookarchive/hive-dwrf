@@ -41,7 +41,6 @@ import org.apache.hadoop.io.Writable;
  * It transparently passes the object to/from the ORC file reader/writer.
  */
 public class OrcSerde implements SerDe {
-  private static final ArrayList<String> EMPTY_STRING_ARRAYLIST = new ArrayList<String>(0);
   private final OrcSerdeRow row = new OrcSerdeRow();
   private ObjectInspector inspector = null;
 
@@ -76,12 +75,9 @@ public class OrcSerde implements SerDe {
     String columnTypeProperty = table.getProperty("columns.types");
 
     // Parse the configuration parameters
-    ArrayList<String> columnNames = EMPTY_STRING_ARRAYLIST;
+    ArrayList<String> columnNames = new ArrayList<String>();
     if (columnNameProperty != null && columnNameProperty.length() > 0) {
-      String[] splits = columnNameProperty.split(",");
-      columnNames = new ArrayList<String>(splits.length);
-
-      for(String name: splits) {
+      for(String name: columnNameProperty.split(",")) {
         columnNames.add(name);
       }
     }
