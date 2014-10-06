@@ -34,7 +34,7 @@ public class RunLengthIntegerReader {
   private final int numBytes;
   private final boolean useVInts;
   private final long[] literals =
-    new long[RunLengthIntegerWriter.MAX_LITERAL_SIZE];
+    new long[RunLengthConstants.MAX_LITERAL_SIZE];
   private int numLiterals = 0;
   private int delta = 0;
   private int used = 0;
@@ -54,7 +54,7 @@ public class RunLengthIntegerReader {
     if (control == -1) {
       throw new EOFException("Read past end of RLE integer from " + input);
     } else if (control < 0x80) {
-      numLiterals = control + RunLengthIntegerWriter.MIN_REPEAT_SIZE;
+      numLiterals = control + RunLengthConstants.MIN_REPEAT_SIZE;
       used = 0;
       repeat = true;
       delta = input.read();
