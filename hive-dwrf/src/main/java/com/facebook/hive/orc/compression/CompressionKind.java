@@ -18,7 +18,7 @@
  * limitations under the License.
  */
 
-package com.facebook.hive.orc;
+package com.facebook.hive.orc.compression;
 
 /**
  * An enumeration that lists the generic compression algorithms that

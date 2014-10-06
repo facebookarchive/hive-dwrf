@@ -26,6 +26,9 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import com.facebook.hive.orc.compression.CompressionCodec;
+import com.facebook.hive.orc.compression.CompressionKind;
+import com.facebook.hive.orc.compression.ZlibCodec;
 import junit.framework.Assert;
 
 import org.apache.hadoop.fs.FSDataInputStream;
