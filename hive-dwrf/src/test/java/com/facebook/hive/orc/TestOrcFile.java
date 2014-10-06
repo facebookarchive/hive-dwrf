@@ -765,7 +765,7 @@ public class TestOrcFile {
     }
     ReaderWriterProfiler.setProfilerOptions(conf);
     Writer writer = OrcFile.createWriter(fs, testFilePath, conf, inspector,
-        1000, CompressionKind.NONE, 100, 10000);
+        15 * 1024, CompressionKind.NONE, 100, 10000);
     OrcStruct row = new OrcStruct(types.get(0).getFieldNamesList());
     OrcUnion union = new OrcUnion();
     row.setFieldValue(1, union);
@@ -2204,9 +2204,15 @@ public class TestOrcFile {
 
     @Override
     void addedRow() throws IOException {
-      if (++rows % 100 == 0) {
-        callback.checkMemory(rate);
-      }
+
+    }
+
+    @Override
+    boolean shouldFlush(MemoryEstimate memoryEstimate, Path path, long stripeSize,
+        long maxDictSize) {
+      long limit = Math.round(stripeSize * rate);
+      return memoryEstimate.getTotalMemory() > limit ||
+          (maxDictSize > 0 && memoryEstimate.getDictionaryMemory() > maxDictSize);
     }
   }
 
@@ -2287,24 +2293,23 @@ public class TestOrcFile {
           (StringStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
-    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD, 1);
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL, 2);
     OrcConf.setBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_BUILD_STRIDE_DICTIONARY, true);
     OrcConf.setBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS, true);
-    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
-        1000000, CompressionKind.NONE, 100, 1000, memory);
+    WriterImplWithForceFlush writer = new WriterImplWithForceFlush(fs, testFilePath, conf,
+        inspector, 1000000, CompressionKind.NONE, 100, 1000, new MemoryManager(conf));
     // Write a stripe which is not dictionary encoded
     for (int i = 0; i < 2000; i++) {
       writer.addRow(new StringStruct(Integer.toString(i)));
     }
-    memory.forceFlushStripe();
+    writer.forceFlushStripe();
     // Write another stripe (doesn't matter what)
     for (int i = 0; i < 2000; i++) {
       writer.addRow(new StringStruct(Integer.toString(i)));
     }
-    memory.forceFlushStripe();
+    writer.forceFlushStripe();
     // Write a stripe which will be dictionary encoded
     // Note: it is important that this string is lexicographically after the string in the next
     // index stride.  This way, if sorting by index strides is not working, this value will appear
@@ -2317,7 +2322,7 @@ public class TestOrcFile {
     for (int i = 0; i < 999; i++) {
       writer.addRow(new StringStruct("123"));
     }
-    memory.forceFlushStripe();
+    writer.forceFlushStripe();
     writer.close();
     Reader reader = OrcFile.createReader(fs, testFilePath, conf);
     RecordReader rows = reader.rows(null);
@@ -2410,22 +2415,21 @@ public class TestOrcFile {
           (StringStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
-    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_ENTROPY_STRING_THRESHOLD, 1);
-    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
-        1000000, CompressionKind.NONE, 100, 1000, memory);
+    WriterImplWithForceFlush writer = new WriterImplWithForceFlush(fs, testFilePath, conf,
+        inspector, 1000000, CompressionKind.NONE, 100, 1000, new MemoryManager(conf));
     writer.addRow(new StringStruct("a"));
     writer.addRow(new StringStruct("b"));
     writer.addRow(new StringStruct("c"));
     for (int i = 0; i < 997; i++) {
       writer.addRow(new StringStruct("123"));
     }
-    memory.forceFlushStripe();
+    writer.forceFlushStripe();
     for (int i = 0; i < 1000; i++) {
       writer.addRow(new StringStruct("123"));
     }
-    memory.forceFlushStripe();
+    writer.forceFlushStripe();
     writer.addRow(new StringStruct("a"));
     writer.addRow(new StringStruct("b"));
     writer.addRow(new StringStruct("c"));
@@ -2476,21 +2480,20 @@ public class TestOrcFile {
           (IntStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
-    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
-        1000000, CompressionKind.NONE, 100, 1000, memory);
+    WriterImplWithForceFlush writer = new WriterImplWithForceFlush(fs, testFilePath, conf,
+        inspector, 1000000, CompressionKind.NONE, 100, 1000, new MemoryManager(conf));
     writer.addRow(new IntStruct(1));
     writer.addRow(new IntStruct(2));
     writer.addRow(new IntStruct(3));
     for (int i = 0; i < 997; i++) {
       writer.addRow(new IntStruct(123));
     }
-    memory.forceFlushStripe();
+    writer.forceFlushStripe();
     for (int i = 0; i < 1000; i++) {
       writer.addRow(new IntStruct(123));
     }
-    memory.forceFlushStripe();
+    writer.forceFlushStripe();
     writer.addRow(new IntStruct(1));
     writer.addRow(new IntStruct(2));
     writer.addRow(new IntStruct(3));
@@ -2978,8 +2981,8 @@ public class TestOrcFile {
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL, 1);
     MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
-        1000000, CompressionKind.NONE, 100, 10000, memory);
+    WriterImplWithForceFlush writer = new WriterImplWithForceFlush(fs, testFilePath, conf,
+        inspector, 1000000, CompressionKind.NONE, 100, 10000, memory);
 
     // Write 500 rows, they wil be directly encoded
     for (int i = 0; i < 1000; i ++) {
@@ -2987,7 +2990,7 @@ public class TestOrcFile {
     }
 
     // Flush the first stripe
-    memory.forceFlushStripe();
+    writer.forceFlushStripe();
 
     // Write 500 more rows
     for (int i = 0; i < 500; i ++) {
@@ -3033,8 +3036,8 @@ public class TestOrcFile {
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL, 1);
     MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
-        1000000, CompressionKind.NONE, 100, 10000, memory);
+    WriterImplWithForceFlush writer = new WriterImplWithForceFlush(fs, testFilePath, conf,
+        inspector, 1000000, CompressionKind.NONE, 100, 10000, memory);
 
     // Write 500 rows
     for (int i = 0; i < 1000; i ++) {
@@ -3042,7 +3045,7 @@ public class TestOrcFile {
     }
 
     // Flush the first stripe
-    memory.forceFlushStripe();
+    writer.forceFlushStripe();
 
     // Write 500 more rows
     for (int i = 0; i < 500; i ++) {
@@ -3082,10 +3085,9 @@ public class TestOrcFile {
           (IntStruct.class,
               ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
     }
-    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
-        1000000, CompressionKind.NONE, 100, 10000, memory);
+    WriterImplWithForceFlush writer = new WriterImplWithForceFlush(fs, testFilePath, conf,
+        inspector, 1000000, CompressionKind.NONE, 100, 10000, new MemoryManager(conf));
 
     // Write 100 rows
     for (int i = 0; i < 100; i++) {
@@ -3093,7 +3095,7 @@ public class TestOrcFile {
     }
 
     // Flush the first stripe
-    memory.forceFlushStripe();
+    writer.forceFlushStripe();
 
     // Write 100 more rows
     for (int i = 0; i < 100; i++) {
@@ -3133,10 +3135,9 @@ public class TestOrcFile {
     }
     // Reevaluate if we should use dictionary encoding on every stripe
     OrcConf.setIntVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_ENCODING_INTERVAL, 1);
-    MemoryManagerWithForce memory = new MemoryManagerWithForce(conf);
     ReaderWriterProfiler.setProfilerOptions(conf);
-    Writer writer = new WriterImpl(fs, testFilePath, conf, inspector,
-        1000000, CompressionKind.NONE, 100, 10000, memory);
+    WriterImplWithForceFlush writer = new WriterImplWithForceFlush(fs, testFilePath, conf,
+        inspector, 1000000, CompressionKind.NONE, 100, 10000, new MemoryManager(conf));
 
     // Write 100 rows
     for (int i = 0; i < 100; i ++) {
@@ -3144,7 +3145,7 @@ public class TestOrcFile {
     }
 
     // Flush the first stripe
-    memory.forceFlushStripe();
+    writer.forceFlushStripe();
 
     // Write 100 more rows
     for (int i = 0; i < 100; i ++) {
