@@ -178,12 +178,6 @@ public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcLazyRow>
     FileSystem fs = path.getFileSystem(conf);
     reporter.setStatus(fileSplit.toString());
 
-    /**
-     * When a non ORC file is read by ORC reader, we get IndexOutOfBoundsException exception while
-     * creating a reader. Caught that exception and checked the file header to see if the input file
-     * was ORC or not. If its not ORC, throw a NotAnORCFileException with the file attempted to be
-     * reading (thus helping to figure out which table-partition was being read).
-     */
     try {
       return new OrcRecordReader(
           OrcFile.createReader(fs, path, conf),
@@ -191,8 +185,16 @@ public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcLazyRow>
           fileSplit.getStart(),
           fileSplit.getLength());
     } catch (IndexOutOfBoundsException e) {
+      /**
+       * When a non ORC file is read by ORC reader, we get IndexOutOfBoundsException exception while
+       * creating a reader. Caught that exception and checked the file header to see if the input
+       * file was ORC or not. If its not ORC, throw a NotAnORCFileException with the file
+       * attempted to be reading (thus helping to figure out which table-partition was being read).
+       */
       checkIfORC(fs, path);
-      throw e;
+      throw new IOException("Failed to create record reader for file " + path , e);
+    } catch (IOException e) {
+      throw new IOException("Failed to create record reader for file " + path , e);
     }
   }
 
