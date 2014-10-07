@@ -20,7 +20,7 @@
   <parent>
     <groupId>com.facebook.hive</groupId>
     <artifactId>hive-dwrf-root</artifactId>
-    <version>0.11-SNAPSHOT</version>
+    <version>0.15.2</version>
   </parent>
 
   <artifactId>hive-dwrf-shims</artifactId>
@@ -52,4 +52,8 @@
       <artifactId>commons-logging</artifactId>
     </dependency>
   </dependencies>
+
+  <scm>
+    <tag>0.15.2</tag>
+  </scm>
 </project>
