@@ -20,7 +20,7 @@
   <parent>
     <groupId>com.facebook.hive</groupId>
     <artifactId>hive-dwrf-root</artifactId>
-    <version>0.15.2</version>
+    <version>0.15.3-SNAPSHOT</version>
   </parent>
 
   <artifactId>hive-dwrf</artifactId>
@@ -120,8 +120,4 @@
       </plugin> 
     </plugins>
   </build>
-
-  <scm>
-    <tag>0.15.2</tag>
-  </scm>
 </project>
