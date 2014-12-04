@@ -98,7 +98,7 @@ public class TestFileDump {
 
     // replace stdout and run command
     System.setOut(new PrintStream(myOut));
-    FileDump.main(new String[]{testFilePath.toString()});
+    FileDump.main(new String[]{"-hiveconf", "conf1=val1", testFilePath.toString()});
     System.out.flush();
     System.setOut(origOut);
 
@@ -242,7 +242,6 @@ public class TestFileDump {
 
   }
 
-
   @Test
   public void testUnsortedDictionary2() throws Exception {
     OrcConf.setFloatVar(conf,
@@ -252,5 +251,4 @@ public class TestFileDump {
     OrcConf.setBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_DICTIONARY_SORT_KEYS, false);
     testDictionary(conf, "orc-file-dump-dictionary-threshold-unsorted2.out");
   }
-
 }

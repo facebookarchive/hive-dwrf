@@ -21,65 +21,107 @@ package com.facebook.hive.orc;
 
 import com.facebook.hive.orc.compression.CompressionKind;
 import com.facebook.hive.orc.statistics.ColumnStatistics;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
+
+import java.io.IOException;
 
 /**
  * A tool for printing out the file structure of ORC files.
  */
 public final class FileDump {
+  private static final String STREAM_SECTION_INFO_FORMAT =
+      "    Stream: column %d section %s start: %d length %d";
 
   // not used
   private FileDump() {}
 
+  private static void printCompressionInformation(Reader reader) {
+    System.out.println("Compression: " + reader.getCompression());
+    if (reader.getCompression() != CompressionKind.NONE) {
+      System.out.println("Compression size: " + reader.getCompressionSize());
+    }
+  }
+
+  private static void printColumnStatistics(Reader reader) {
+    final ColumnStatistics[] stats = reader.getStatistics();
+    System.out.println("\nStatistics:");
+
+    for (int i = 0; i < stats.length; ++i) {
+      System.out.println("  Column " + i + ": " + stats[i].toString());
+    }
+  }
+
+  private static void printColumnFooterEntry(OrcProto.StripeFooter footer, int col) {
+    final StringBuilder buf = new StringBuilder();
+    buf.append("    Encoding column ");
+    buf.append(col);
+    buf.append(": ");
+
+    final OrcProto.ColumnEncoding encoding = footer.getColumns(col);
+    buf.append(encoding.getKind());
+
+    if (encoding.getKind() == OrcProto.ColumnEncoding.Kind.DICTIONARY) {
+      buf.append("[");
+      buf.append(encoding.getDictionarySize());
+      buf.append("]");
+    }
+    System.out.println(buf);
+  }
+
+  private static void printStripeInformation(Reader reader, RecordReaderImpl rows)
+      throws IOException {
+    System.out.println("\nStripes:");
+
+    for (final StripeInformation stripe: reader.getStripes()) {
+      final long stripeStart = stripe.getOffset();
+      System.out.println("  Stripe: " + stripe.toString());
+
+      final OrcProto.StripeFooter footer = rows.readStripeFooter(stripe);
+      long sectionStart = stripeStart;
+      for (final OrcProto.Stream section: footer.getStreamsList()) {
+        System.out.println(String.format(STREAM_SECTION_INFO_FORMAT,
+                                         section.getColumn(),
+                                         section.getKind(),
+                                         sectionStart,
+                                         section.getLength()));
+        sectionStart += section.getLength();
+      }
+
+      for (int col = 0; col < footer.getColumnsCount(); ++col) {
+        printColumnFooterEntry(footer, col);
+      }
+    }
+  }
+
+  private static void processFile(String filename, Configuration conf) throws IOException {
+    final Path path = new Path(filename);
+    ReaderWriterProfiler.setProfilerOptions(conf);
+    System.out.println("Structure for " + filename);
+
+    final Reader reader = OrcFile.createReader(path.getFileSystem(conf), path, conf);
+    final RecordReaderImpl rows = (RecordReaderImpl) reader.rows(null);
+    System.out.println("Rows: " + reader.getNumberOfRows());
+
+    printCompressionInformation(reader);
+    System.out.println("Raw data size: " + reader.getRawDataSize());
+    System.out.println("Type: " + reader.getObjectInspector().getTypeName());
+
+    printColumnStatistics(reader);
+    printStripeInformation(reader, rows);
+  }
+
   public static void main(String[] args) throws Exception {
-    Configuration conf = new Configuration();
-    for(String filename: args) {
-      System.out.println("Structure for " + filename);
-      Path path = new Path(filename);
-      ReaderWriterProfiler.setProfilerOptions(conf);
-      Reader reader = OrcFile.createReader(path.getFileSystem(conf), path, conf);
-      RecordReaderImpl rows = (RecordReaderImpl) reader.rows(null);
-      System.out.println("Rows: " + reader.getNumberOfRows());
-      System.out.println("Compression: " + reader.getCompression());
-      if (reader.getCompression() != CompressionKind.NONE) {
-        System.out.println("Compression size: " + reader.getCompressionSize());
+    final Configuration conf = new Configuration();
+    for(int i = 0; i < args.length; i++) {
+      if (args[i].startsWith("-hiveconf")) {
+        // Skip any -hiveconf args and its values
+        i++;
+        continue;
       }
-      System.out.println("Raw data size: " + reader.getRawDataSize());
-      System.out.println("Type: " + reader.getObjectInspector().getTypeName());
-      ColumnStatistics[] stats = reader.getStatistics();
-      System.out.println("\nStatistics:");
-      for(int i=0; i < stats.length; ++i) {
-        System.out.println("  Column " + i + ": " + stats[i].toString());
-      }
-      System.out.println("\nStripes:");
-      for(StripeInformation stripe: reader.getStripes()) {
-        long stripeStart = stripe.getOffset();
-        System.out.println("  Stripe: " + stripe.toString());
-        OrcProto.StripeFooter footer = rows.readStripeFooter(stripe);
-        long sectionStart = stripeStart;
-        for(OrcProto.Stream section: footer.getStreamsList()) {
-          System.out.println("    Stream: column " + section.getColumn() +
-            " section " + section.getKind() + " start: " + sectionStart +
-            " length " + section.getLength());
-          sectionStart += section.getLength();
-        }
-        for(int i=0; i < footer.getColumnsCount(); ++i) {
-          OrcProto.ColumnEncoding encoding = footer.getColumns(i);
-          StringBuilder buf = new StringBuilder();
-          buf.append("    Encoding column ");
-          buf.append(i);
-          buf.append(": ");
-          buf.append(encoding.getKind());
-          if (encoding.getKind() == OrcProto.ColumnEncoding.Kind.DICTIONARY) {
-            buf.append("[");
-            buf.append(encoding.getDictionarySize());
-            buf.append("]");
-          }
-          System.out.println(buf);
-        }
-      }
+      processFile(args[i], conf);
     }
   }
 }
