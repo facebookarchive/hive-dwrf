@@ -374,14 +374,15 @@ public class ColumnStatisticsImpl implements ColumnStatistics {
     @Override
     public void merge(ColumnStatisticsImpl other) {
       super.merge(other);
-      StringStatisticsImpl str = (StringStatisticsImpl) other;
+      final StringStatisticsImpl str = (StringStatisticsImpl) other;
       if (minimum == null) {
         minimum = str.minimum;
         maximum = str.maximum;
       } else if (str.minimum != null) {
         if (minimum.compareTo(str.minimum) > 0) {
           minimum = str.minimum;
-        } else if (maximum.compareTo(str.maximum) < 0) {
+        }
+        if (maximum.compareTo(str.maximum) < 0) {
           maximum = str.maximum;
         }
       }
