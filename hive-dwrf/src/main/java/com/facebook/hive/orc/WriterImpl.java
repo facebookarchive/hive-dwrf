@@ -2411,11 +2411,17 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
     memoryManager.removeWriter(path);
     // actually close the file
     synchronized (this) {
+      LOG.info("Flushing the last stripe of file " + path);
       flushStripe();
+      LOG.info("Writing out the footer for file " + path);
       int footerLength = writeFooter(rawWriter.getPos(), columnStats);
+      LOG.info("Footer length was " + footerLength + ". Writing it at the end of the file " + path);
       rawWriter.writeByte(writePostScript(footerLength));
+      LOG.info("Flushing file " + path);
       rawWriter.flush();
+      LOG.info("Closing file " + path);
       rawWriter.close();
+      LOG.info("Closed file " + path);
     }
   }
 }
