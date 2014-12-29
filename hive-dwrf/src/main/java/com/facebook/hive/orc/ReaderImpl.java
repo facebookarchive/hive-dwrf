@@ -31,6 +31,8 @@ import com.facebook.hive.orc.compression.CompressionCodec;
 import com.facebook.hive.orc.compression.CompressionKind;
 import com.facebook.hive.orc.statistics.ColumnStatistics;
 import com.facebook.hive.orc.statistics.ColumnStatisticsImpl;
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -39,9 +41,10 @@ import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 
 import com.facebook.hive.orc.lazy.OrcLazyRowObjectInspector;
 import com.google.protobuf.CodedInputStream;
+import org.apache.hadoop.io.IOUtils;
 
 public final class ReaderImpl implements Reader {
-
+  private static final Log LOG = LogFactory.getLog(ReaderImpl.class);
   private static final int DIRECTORY_SIZE_GUESS = 16 * 1024;
 
   private final FileSystem fileSystem;
@@ -199,23 +202,26 @@ public final class ReaderImpl implements Reader {
   }
 
   public ReaderImpl(FileSystem fs, Path path, Configuration conf) throws IOException {
-    this.fileSystem = fs;
-    this.path = path;
-    this.conf = conf;
-    FSDataInputStream file = fs.open(path);
-    long size = fs.getFileStatus(path).getLen();
-    int readSize = (int) Math.min(size, DIRECTORY_SIZE_GUESS);
-    ByteBuffer buffer = ByteBuffer.allocate(readSize);
-    InStream.read(file, size - readSize, buffer.array(), buffer.arrayOffset() + buffer.position(),
-        buffer.remaining());
-    int psLen = buffer.get(readSize - 1);
-    int psOffset = readSize - 1 - psLen;
-    CodedInputStream in = CodedInputStream.newInstance(buffer.array(),
-      buffer.arrayOffset() + psOffset, psLen);
-    OrcProto.PostScript ps = OrcProto.PostScript.parseFrom(in);
-    int footerSize = (int) ps.getFooterLength();
-    bufferSize = (int) ps.getCompressionBlockSize();
-    switch (ps.getCompression()) {
+    try {
+      this.fileSystem = fs;
+      this.path = path;
+      this.conf = conf;
+      FSDataInputStream file = fs.open(path);
+      long size = fs.getFileStatus(path).getLen();
+      int readSize = (int) Math.min(size, DIRECTORY_SIZE_GUESS);
+      ByteBuffer buffer = ByteBuffer.allocate(readSize);
+      InStream.read(
+          file, size - readSize, buffer.array(), buffer.arrayOffset() + buffer.position(),
+          buffer.remaining());
+      int psLen = buffer.get(readSize - 1);
+      int psOffset = readSize - 1 - psLen;
+      CodedInputStream in = CodedInputStream.newInstance(
+          buffer.array(),
+          buffer.arrayOffset() + psOffset, psLen);
+      OrcProto.PostScript ps = OrcProto.PostScript.parseFrom(in);
+      int footerSize = (int) ps.getFooterLength();
+      bufferSize = (int) ps.getCompressionBlockSize();
+      switch (ps.getCompression()) {
       case NONE:
         compressionKind = CompressionKind.NONE;
         break;
@@ -230,14 +236,52 @@ public final class ReaderImpl implements Reader {
         break;
       default:
         throw new IllegalArgumentException("Unknown compression");
-    }
-    codec = WriterImpl.createCodec(compressionKind);
+      }
+      codec = WriterImpl.createCodec(compressionKind);
 
-    InputStream instream = InStream.create("footer", file, size - 1 - psLen - footerSize, footerSize,
-        codec, bufferSize);
-    footer = OrcProto.Footer.parseFrom(instream);
-    inspector = new OrcLazyRowObjectInspector(0, footer.getTypesList());
+      InputStream instream = InStream.create(
+          "footer", file, size - 1 - psLen - footerSize, footerSize,
+          codec, bufferSize);
+      footer = OrcProto.Footer.parseFrom(instream);
+      inspector = new OrcLazyRowObjectInspector(0, footer.getTypesList());
+      file.close();
+    } catch (IndexOutOfBoundsException e) {
+      /**
+       * When a non ORC file is read by ORC reader, we get IndexOutOfBoundsException exception while
+       * creating a reader. Caught that exception and checked the file header to see if the input
+       * file was ORC or not. If its not ORC, throw a NotAnORCFileException with the file
+       * attempted to be reading (thus helping to figure out which table-partition was being read).
+       */
+      checkIfORC(fs, path);
+      throw new IOException("Failed to create record reader for file " + path , e);
+    } catch (IOException e) {
+      throw new IOException("Failed to create record reader for file " + path , e);
+    }
+  }
+
+  /**
+   * Reads the file header (first 40 bytes) and checks if the first three characters are 'ORC'.
+   */
+  public static void checkIfORC(FileSystem fs, Path path) throws IOException {
+    // hardcoded to 40 because "SEQ-org.apache.hadoop.hive.ql.io.RCFile", the header, is of 40 chars
+    final int buffLen = 40;
+    final byte header[] = new byte[buffLen];
+    final FSDataInputStream file = fs.open(path);
+    final long fileLength = fs.getFileStatus(path).getLen();
+    int sizeToBeRead = buffLen;
+    if (buffLen > fileLength) {
+      sizeToBeRead = (int)fileLength;
+    }
+
+    IOUtils.readFully(file, header, 0, sizeToBeRead);
     file.close();
+
+    final String headerString = new String(header);
+    if (headerString.startsWith("ORC")) {
+      LOG.error("Error while parsing the footer of the file : " + path);
+    } else {
+      throw new NotAnORCFileException("Input file = " + path + " , header = " + headerString);
+    }
   }
 
   @Override
