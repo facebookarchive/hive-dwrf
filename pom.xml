@@ -49,9 +49,8 @@
     </scm>
 
     <properties>
-        <project.build.targetJdk>1.6</project.build.targetJdk>
+        <project.build.targetJdk>1.7</project.build.targetJdk>
         <fb.check.skip-extended>true</fb.check.skip-extended>
-        <jdk6.bootclasspath>/usr/local/jdk-6u29-64/jre/lib/rt.jar</jdk6.bootclasspath>
         <protoc.executable>protoc</protoc.executable>
     </properties>
 
@@ -144,7 +143,6 @@
                     <artifactId>maven-compiler-plugin</artifactId>
                     <configuration>
                         <compilerArguments combine.self="override">
-                            <bootclasspath>${jdk6.bootclasspath}</bootclasspath>
                         </compilerArguments>
                     </configuration>
                 </plugin>
@@ -176,7 +174,6 @@
                 </os>
             </activation>
             <properties>
-                <jdk6.bootclasspath>/System/Library/Java/JavaVirtualMachines/1.6.0.jdk/Contents/Classes/classes.jar</jdk6.bootclasspath>
                 <protoc.executable>/usr/local/Cellar/protobuf241/2.4.1/bin/protoc</protoc.executable>
             </properties>
         </profile>

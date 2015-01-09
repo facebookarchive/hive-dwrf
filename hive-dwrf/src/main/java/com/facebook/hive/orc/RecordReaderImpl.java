@@ -19,20 +19,7 @@
  */
 package com.facebook.hive.orc;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-
 import com.facebook.hive.orc.compression.CompressionCodec;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FSDataInputStream;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
-
 import com.facebook.hive.orc.lazy.LazyBinaryTreeReader;
 import com.facebook.hive.orc.lazy.LazyBooleanTreeReader;
 import com.facebook.hive.orc.lazy.LazyByteTreeReader;
@@ -64,6 +51,18 @@ import com.facebook.hive.orc.lazy.OrcLazyString;
 import com.facebook.hive.orc.lazy.OrcLazyStruct;
 import com.facebook.hive.orc.lazy.OrcLazyTimestamp;
 import com.facebook.hive.orc.lazy.OrcLazyUnion;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 class RecordReaderImpl implements RecordReader {
   private final FSDataInputStream file;
@@ -494,16 +493,16 @@ class RecordReaderImpl implements RecordReader {
   public void seekToRow(long rowNumber) throws IOException {
     // Update the stripe
     int rightStripe = findStripe(rowNumber);
-    if (rightStripe != currentStripe) {
-      currentStripe = rightStripe;
+    if (rightStripe != this.currentStripe) {
+      this.currentStripe = rightStripe;
       readStripe();
     }
 
     // Update the row number within the stripe
-    rowInStripe = rowNumber - rowBaseInStripe;
+    this.rowInStripe = rowNumber - this.rowBaseInStripe - this.firstRow;
 
     // Update the reader
-    reader.seekToRow(rowNumber);
+    this.reader.seekToRow(rowNumber);
   }
 
   @Override
