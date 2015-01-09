@@ -20,13 +20,13 @@
 
 package com.facebook.hive.orc;
 
-import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.util.List;
-
 import com.facebook.hive.orc.compression.CompressionKind;
 import com.facebook.hive.orc.statistics.ColumnStatistics;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+
+import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
 
 /**
  * The interface for reading ORC files.
@@ -81,7 +81,7 @@ public interface Reader {
 
   /**
    * Get the list of stripes.
-   * @return the information about the stripes in order
+   * @return the information about the stripes sorted in order of how they occur in the file physically.
    */
   Iterable<StripeInformation> getStripes();
 
