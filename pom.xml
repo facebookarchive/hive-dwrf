@@ -25,7 +25,7 @@
 
     <groupId>com.facebook.hive</groupId>
     <artifactId>hive-dwrf-root</artifactId>
-    <version>0.18.3-SNAPSHOT</version>
+    <version>0.18.3</version>
     <packaging>pom</packaging>
 
     <name>hive-dwrf-root</name>
@@ -45,7 +45,7 @@
     <scm>
         <connection>scm:git:git://github.com/facebook/hive-dwrf.git</connection>
         <url>https://github.com/facebook/hive-dwrf</url>
-        <tag>HEAD</tag>
+        <tag>0.18.3</tag>
     </scm>
 
     <properties>
