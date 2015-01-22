@@ -20,22 +20,26 @@
 
 package com.facebook.hive.orc.lazy;
 
+import com.facebook.hive.orc.InStream;
+import com.facebook.hive.orc.OrcProto;
+import com.facebook.hive.orc.OrcProto.RowIndex;
+import com.facebook.hive.orc.StreamName;
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
+import org.apache.hadoop.io.Writable;
+
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
-import org.apache.hadoop.io.Writable;
-
-import com.facebook.hive.orc.InStream;
-import com.facebook.hive.orc.OrcProto;
-import com.facebook.hive.orc.OrcProto.RowIndex;
-import com.facebook.hive.orc.StreamName;
-
 
 public abstract class OrcLazyObject implements Writable {
+  /*
+   * Since this starts from 0 this is not the absolute row number in the file.
+   * This number here starts from 0 with respect to the ReaderImpl that is reading the rows. If the reader impl starts
+   * reading from row 100 in the file then 0 here will correspond to row 100 in the file.
+   */
   private long currentRow = 0;
   private final LazyTreeReader treeReader;
   protected Object previous;

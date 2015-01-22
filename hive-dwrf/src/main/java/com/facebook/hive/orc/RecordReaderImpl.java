@@ -502,7 +502,7 @@ class RecordReaderImpl implements RecordReader {
     this.rowInStripe = rowNumber - this.rowBaseInStripe - this.firstRow;
 
     // Update the reader
-    this.reader.seekToRow(rowNumber);
+    this.reader.seekToRow(rowNumber - this.firstRow);
   }
 
   @Override

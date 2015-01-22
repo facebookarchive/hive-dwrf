@@ -1,6 +1,7 @@
 package com.facebook.hive.orc;
 
 import com.facebook.hive.orc.lazy.OrcLazyRow;
+import com.facebook.presto.hadoop.shaded.com.google.common.collect.ImmutableList;
 import com.google.common.collect.Lists;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
@@ -8,6 +9,9 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
+import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
+import org.apache.hadoop.hive.serde2.typeinfo.TypeInfoUtils;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapred.JobConf;
 import org.apache.hadoop.mapred.RecordWriter;
@@ -18,7 +22,9 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Properties;
+import java.util.Random;
 
 import static junit.framework.Assert.assertEquals;
 import static junit.framework.Assert.assertTrue;
@@ -52,12 +58,15 @@ public class TestRecordReaderImpl {
         jobConf, filePath, null, true, new Properties(), null));
 
     final OrcSerde orcSerde = new OrcSerde();
-    ObjectInspector objectInspector = ObjectInspectorFactory.getReflectionObjectInspector(
-        Long.class,
-        ObjectInspectorFactory.ObjectInspectorOptions.JAVA);
+    ObjectInspector objectInspector = getObjectInspectorFor(
+        ImmutableList.of("col1"),
+        ImmutableList.of("bigint"));
 
+    final Random rand = new Random();
     for (int i = 0; i < 1000; i++) {
-      Object obj = orcSerde.serialize(75L, objectInspector);
+      final List<Object> allColumns = new ArrayList<>();
+      allColumns.add(rand.nextLong());
+      Object obj = orcSerde.serialize(allColumns, objectInspector);
       hiveRecordWriter.write(NullWritable.get(), obj);
     }
     hiveRecordWriter.close(null);
@@ -70,16 +79,35 @@ public class TestRecordReaderImpl {
     assertTrue("Number of stripes produced should be >= 2", stripes.size() >= 2);
 
     // Read the file back and read with ReaderImpl over only the 2nd stripe.
-    final boolean[] toRead = {true};
+    final boolean[] toRead = {true, true};
     final RecordReader recordReader = new ReaderImpl(fileSystem, filePath, configuration).rows(
         stripes.get(1).getOffset(), stripes.get(1).getDataLength(), toRead);
     OrcLazyRow row = null;
+    final List<Long> longValuesForStripe = new ArrayList<>();
     while (recordReader.hasNext()) {
       row = (OrcLazyRow) recordReader.next(row);
+      longValuesForStripe.add(row.getFieldValue(0).materializeLong());
     }
 
     // Seek to the beginning of the 2nd stripe and ensure that seeking works fine.
     recordReader.seekToRow(stripes.get(0).getNumberOfRows());
     assertEquals(recordReader.getRowNumber(), stripes.get(0).getNumberOfRows());
+    row = (OrcLazyRow) recordReader.next(row);
+    assertEquals((long) longValuesForStripe.get(0), row.getFieldValue(0).materializeLong());
+  }
+
+  public static StructObjectInspector getObjectInspectorFor(final ImmutableList<String> names,
+                                                            final ImmutableList<String> columnTypeNames) {
+    List<ObjectInspector> inspectors = new ArrayList<>();
+    for (int i = 0; i < columnTypeNames.size(); i++) {
+      inspectors.add(createJavaObjectInspectorFromFieldSchema(columnTypeNames.get(i)));
+    }
+    return ObjectInspectorFactory.getStandardStructObjectInspector(
+        names,
+        inspectors);
+  }
+  public static ObjectInspector createJavaObjectInspectorFromFieldSchema(String columnTypeString) {
+    TypeInfo typeInfo = TypeInfoUtils.getTypeInfoFromTypeString(columnTypeString);
+    return TypeInfoUtils.getStandardJavaObjectInspectorFromTypeInfo(typeInfo);
   }
 }
