@@ -28,7 +28,6 @@ import java.nio.ByteBuffer;
 import java.util.List;
 
 import com.facebook.hive.orc.compression.CompressionCodec;
-import org.apache.hadoop.fs.FSDataInputStream;
 
 import com.facebook.hive.orc.OrcProto.RowIndexEntry;
 
@@ -136,7 +135,7 @@ public abstract class InStream extends InputStream {
   private static class CompressedStream extends InStream {
     private final String name;
     private byte[] array;
-    private final int bufferSize;
+    private final int compressionBlockSize;
     private ByteBuffer uncompressed = null;
     private final CompressionCodec codec;
     private final FSDataInputStream file;
@@ -169,14 +168,14 @@ public abstract class InStream extends InputStream {
     private final int readStrides;
 
     public CompressedStream(String name, FSDataInputStream file, long streamOffset,
-        int streamLength, CompressionCodec codec, int bufferSize, boolean useVInts,
+        int streamLength, CompressionCodec codec, int compressionBlockSize, boolean useVInts,
         int readStrides) {
       super(useVInts);
 
       this.array = null;
       this.name = name;
       this.codec = codec;
-      this.bufferSize = bufferSize;
+      this.compressionBlockSize = compressionBlockSize;
       this.readStrides = readStrides;
       this.file = file;
       // Initialize assuming the stream is one giant stride, if there are multiple strides, these
@@ -191,14 +190,14 @@ public abstract class InStream extends InputStream {
       this.numChunks = limit == 0 ? 0 : 1;
     }
 
-    public CompressedStream(String name, ByteBuffer input, CompressionCodec codec, int bufferSize,
+    public CompressedStream(String name, ByteBuffer input, CompressionCodec codec, int compressionBlockSize,
         boolean useVInts) {
       super(useVInts);
 
       this.array = input.array();
       this.name = name;
       this.codec = codec;
-      this.bufferSize = bufferSize;
+      this.compressionBlockSize = compressionBlockSize;
       this.base = input.arrayOffset() + input.position();
       this.compressedOffset = (int) base;
       this.limit = input.arrayOffset() + input.limit();
@@ -309,30 +308,33 @@ public abstract class InStream extends InputStream {
       }
 
       previousOffset = compressedOffset;
-      int chunkLength = ((0xff & array[compressedOffset + 2]) << 15) |
+      int compressedSizeOfBlock = ((0xff & array[compressedOffset + 2]) << 15) |
         ((0xff & array[compressedOffset + 1]) << 7) | ((0xff & array[compressedOffset]) >> 1);
-      if (chunkLength > bufferSize) {
-        throw new IllegalArgumentException("Buffer size too small. size = " +
-            bufferSize + " needed = " + chunkLength);
+      if (compressedSizeOfBlock > compressionBlockSize) {
+        throw new IllegalArgumentException("Compressed block size in the data is larger than the compression block " +
+                                             "size in the postscript. This usually means that the compression block " +
+                                             "size parameter in the postscript is incorrect." +
+                                             "compressedSizeOfBlock="+compressedSizeOfBlock + ", " +
+                                             "bufferSize=" + compressionBlockSize);
       }
       boolean isOriginal = (array[compressedOffset] & 0x01) == 1;
       compressedOffset += OutStream.HEADER_SIZE;
       if (isOriginal) {
         isUncompressedOriginal = true;
-        uncompressed = ByteBuffer.wrap(array, compressedOffset, chunkLength);
+        uncompressed = ByteBuffer.wrap(array, compressedOffset, compressedSizeOfBlock);
       } else {
         if (isUncompressedOriginal) {
-          uncompressed = ByteBuffer.allocate(bufferSize);
+          uncompressed = ByteBuffer.allocate(compressionBlockSize);
           isUncompressedOriginal = false;
         } else if (uncompressed == null) {
-          uncompressed = ByteBuffer.allocate(bufferSize);
+          uncompressed = ByteBuffer.allocate(compressionBlockSize);
         } else {
           uncompressed.clear();
         }
-        codec.decompress(ByteBuffer.wrap(array, compressedOffset, chunkLength),
+        codec.decompress(ByteBuffer.wrap(array, compressedOffset, compressedSizeOfBlock),
           uncompressed);
       }
-      compressedOffset += chunkLength;
+      compressedOffset += compressedSizeOfBlock;
     }
 
     @Override

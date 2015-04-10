@@ -243,7 +243,7 @@ class RecordReaderImpl implements RecordReader {
         stripe.getDataLength();
     int tailLength = (int) stripe.getFooterLength();
 
-    return OrcProto.StripeFooter.parseFrom(InStream.create("footer", file, offset,
+    return OrcProto.StripeFooter.parseFrom(InStream.create("stripe-footer", file, offset,
         tailLength, codec, bufferSize));
   }
 
