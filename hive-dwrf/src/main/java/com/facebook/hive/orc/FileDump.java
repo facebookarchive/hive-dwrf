@@ -21,7 +21,6 @@ package com.facebook.hive.orc;
 
 import com.facebook.hive.orc.compression.CompressionKind;
 import com.facebook.hive.orc.statistics.ColumnStatistics;
-
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
@@ -96,6 +95,14 @@ public final class FileDump {
     }
   }
 
+  private static void printMetadataInformation(Reader reader) {
+    System.out.println("\nUserMetadata:");
+    for (final String key : reader.getMetadataKeys()) {
+      final String value = new String(reader.getMetadataValue(key).array(), java.nio.charset.StandardCharsets.UTF_8);
+      System.out.println("\n\t" + key + " = " + value);
+    }
+  }
+
   private static void processFile(String filename, Configuration conf) throws IOException {
     final Path path = new Path(filename);
     ReaderWriterProfiler.setProfilerOptions(conf);
@@ -104,7 +111,7 @@ public final class FileDump {
     final Reader reader = OrcFile.createReader(path.getFileSystem(conf), path, conf);
     final RecordReaderImpl rows = (RecordReaderImpl) reader.rows(null);
     System.out.println("Rows: " + reader.getNumberOfRows());
-
+    printMetadataInformation(reader);
     printCompressionInformation(reader);
     System.out.println("Raw data size: " + reader.getRawDataSize());
     System.out.println("Type: " + reader.getObjectInspector().getTypeName());
