@@ -21,11 +21,15 @@ package com.facebook.hive.orc;
 
 import com.facebook.hive.orc.compression.CompressionKind;
 import com.facebook.hive.orc.statistics.ColumnStatistics;
+import com.facebook.presto.hadoop.shaded.com.google.protobuf.ByteString;
+import com.google.common.collect.Lists;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.util.List;
 
 /**
  * A tool for printing out the file structure of ORC files.
@@ -96,10 +100,14 @@ public final class FileDump {
   }
 
   private static void printMetadataInformation(Reader reader) {
-    System.out.println("\nUserMetadata:");
-    for (final String key : reader.getMetadataKeys()) {
-      final String value = new String(reader.getMetadataValue(key).array(), java.nio.charset.StandardCharsets.UTF_8);
-      System.out.println("\n\t" + key + " = " + value);
+    final List<String> metadataKeys = Lists.newArrayList(reader.getMetadataKeys());
+    if (!metadataKeys.isEmpty()) {
+      System.out.println("\nUserMetadata:");
+      for (final String key : metadataKeys) {
+        final ByteBuffer storedValue = reader.getMetadataValue(key);
+        final String value = ByteString.copyFrom(storedValue).toStringUtf8();
+        System.out.println("\n\t" + key + " = " + value);
+      }
     }
   }
 

@@ -17,10 +17,19 @@
  */
 
 package com.facebook.hive.orc;
-import static junit.framework.Assert.assertEquals;
-import static junit.framework.Assert.assertNull;
+import com.facebook.hive.orc.compression.CompressionKind;
+import com.google.common.io.Resources;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
+import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
+import org.junit.Before;
+import org.junit.Test;
 
 import java.io.BufferedReader;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileReader;
@@ -31,17 +40,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Random;
 
-import com.facebook.hive.orc.compression.CompressionKind;
-import org.apache.hadoop.conf.Configuration;
-import org.apache.hadoop.fs.FileSystem;
-import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
-import org.junit.Before;
-import org.junit.Test;
-
-import com.google.common.io.Resources;
+import static junit.framework.Assert.assertEquals;
+import static junit.framework.Assert.assertNull;
 
 public class TestFileDump {
 
@@ -72,12 +72,12 @@ public class TestFileDump {
     }
   }
 
-  private static void checkOutput(String expected,
-                                  String actual) throws Exception {
+  private static void checkOutput(String expectedFile,
+                                  String actualFile) throws Exception {
     BufferedReader eStream =
-        new BufferedReader(new FileReader(expected));
+        new BufferedReader(new FileReader(expectedFile));
     BufferedReader aStream =
-        new BufferedReader(new FileReader(actual));
+        new BufferedReader(new FileReader(actualFile));
     String line = eStream.readLine();
     while (line != null) {
       assertEquals(line, aStream.readLine());
@@ -87,21 +87,26 @@ public class TestFileDump {
     assertNull(aStream.readLine());
   }
 
+  private static byte[] getFileDumpOutput(final String testFile) throws Exception {
+    // replace stdout and run command
+    PrintStream origOut = System.out;
+    final ByteArrayOutputStream bos = new ByteArrayOutputStream();
+    final PrintStream ps = new PrintStream(bos);
+    System.setOut(ps);
+    FileDump.main(new String[]{"-hiveconf", "conf1=val1", testFile});
+    System.out.flush();
+    System.setOut(origOut);
+    return bos.toByteArray();
+  }
+
   /**
    * Calls FileDump on testFilePath and verifies the results match the contents of fileName.
    */
   private void checkOutput(String fileName) throws Exception{
-    PrintStream origOut = System.out;
     URL expectedFileUrl = Resources.getResource(fileName);
     String outputFilename = workDir + File.separator + fileName;
     FileOutputStream myOut = new FileOutputStream(outputFilename);
-
-    // replace stdout and run command
-    System.setOut(new PrintStream(myOut));
-    FileDump.main(new String[]{"-hiveconf", "conf1=val1", testFilePath.toString()});
-    System.out.flush();
-    System.setOut(origOut);
-
+    myOut.write(getFileDumpOutput(testFilePath.toString()));
     checkOutput(expectedFileUrl.getPath(), outputFilename);
   }
 
