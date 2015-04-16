@@ -138,11 +138,11 @@ public class TestMemoryManager {
     }
 
     public double getAllocationMultiplierForPath(Path path) {
-      return writerList.get(path).allocationMultiplier;
+      return writerList.get(path).getAllocationMultiplier();
     }
 
     public void incrementFlushCount(Path path, int increment) {
-      writerList.get(path).flushedCount += increment;
+      writerList.get(path).incrementFlushedCount(increment);
     }
   }
 

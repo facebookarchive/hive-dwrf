@@ -50,10 +50,9 @@ class MemoryManager {
    * How often should we check the memory sizes? Measured in rows added
    * to all of the writers.
    */
-  private static final int ROWS_BETWEEN_CHECKS = 5000;
+  private static final int ROWS_BETWEEN_CHECKS = 5_000;
   private final long totalMemoryPool;
-  protected final Map<Path, WriterInfo> writerList =
-      new ConcurrentHashMap<Path, WriterInfo>();
+  protected final Map<Path, WriterInfo> writerList = new ConcurrentHashMap<>();
   private long totalAllocation = 0;
   private double currentScale = 1;
   private int rowsAddedSinceCheck = 0;
@@ -63,17 +62,57 @@ class MemoryManager {
   private final long minAllocation;
 
   protected static class WriterInfo {
-    long allocation;
-    Callback callback;
+    private long allocation;
+
+    private Callback callback;
+
     // Count to indicate the number of times this writer was flushed since the last time memory
     // was checked
-    int flushedCount = 0;
+    private int flushedCount = 0;
+
     // This value is multiplied by the allocation to get an allocation adjusted based on how often
     // this writer gets flushed
-    double allocationMultiplier = 1;
-    WriterInfo(long allocation, Callback callback) {
+    private double allocationMultiplier = 1;
+
+    WriterInfo(final long allocation, final Callback callback) {
       this.allocation = allocation;
       this.callback = callback;
+    }
+
+    public long getAllocation() {
+      return allocation;
+    }
+
+    public void setAllocation(long allocation) {
+      this.allocation = allocation;
+    }
+
+    public Callback getCallback() {
+      return callback;
+    }
+
+    public void setCallback(Callback callback) {
+      this.callback = callback;
+    }
+
+    public void incrementFlushedCount() {
+      this.incrementFlushedCount(1);
+    }
+
+    public void incrementFlushedCount(final long increment) {
+      this.flushedCount += increment;
+    }
+
+    public void resetFlushedCount() {
+      this.flushedCount = 0;
+    }
+
+    public double getAllocationMultiplier() {
+      return allocationMultiplier;
+    }
+
+    public void setAllocationMultiplier(double allocationMultiplier) {
+      this.allocationMultiplier = allocationMultiplier;
     }
   }
 
@@ -81,7 +120,6 @@ class MemoryManager {
     /**
      * If the initial amount of memory needed by a writer is greater than the amount allocated,
      * call this to try to get the writers to use less memory to avoid an OOM
-     * @return
      * @throws IOException
      */
     void enterLowMemoryMode() throws IOException;
@@ -89,8 +127,7 @@ class MemoryManager {
 
   /**
    * Create the memory manager.
-   * @param conf use the configuration to find the maximum size of the memory
-   *             pool.
+   * @param conf use the configuration to find the maximum size of the memory pool
    */
   MemoryManager(Configuration conf) {
     double maxLoad = OrcConf.getFloatVar(conf, OrcConf.ConfVars.HIVE_ORC_FILE_MEMORY_POOL);
@@ -108,8 +145,10 @@ class MemoryManager {
    * @param requestedAllocation the requested buffer size
    * @param initialAllocation the current size of the buffer
    */
-  synchronized void addWriter(Path path, long requestedAllocation,
-                              Callback callback, long initialAllocation) throws IOException {
+  synchronized void addWriter(final Path path,
+                              final long requestedAllocation,
+                              final Callback callback,
+                              final long initialAllocation) throws IOException {
     WriterInfo oldVal = writerList.get(path);
     // this should always be null, but we handle the case where the memory
     // manager wasn't told that a writer wasn't still in use and the task
@@ -122,8 +161,8 @@ class MemoryManager {
     } else {
       // handle a new writer that is writing to the same path
       totalAllocation += requestedAllocation - oldVal.allocation;
-      oldVal.allocation = requestedAllocation;
-      oldVal.callback = callback;
+      oldVal.setAllocation(requestedAllocation);
+      oldVal.setCallback(callback);
     }
     updateScale(true);
 
@@ -194,7 +233,7 @@ class MemoryManager {
     long limit = Math.round(stripeSize * currentScale * writer.allocationMultiplier);
     if (memoryEstimate.getTotalMemory() > limit
         || (maxDictSize > 0 && memoryEstimate.getDictionaryMemory() > maxDictSize)) {
-      writer.flushedCount++;
+      writer.incrementFlushedCount();
       return true;
     }
 
@@ -202,9 +241,9 @@ class MemoryManager {
   }
 
   // A list of writers to share allocations taken from writers which don't need them
-  private final List<WriterInfo> writersForAllocation = new ArrayList<WriterInfo>();
+  private final List<WriterInfo> writersForAllocation = new ArrayList<>();
   // A list of writers to take allocations from and give to more needy writers
-  private final List<WriterInfo> writersForDeallocation = new ArrayList<WriterInfo>();
+  private final List<WriterInfo> writersForDeallocation = new ArrayList<>();
 
   /**
    * Notify all of the writers that they should check their memory usage.
@@ -222,7 +261,7 @@ class MemoryManager {
         } else if (writer.flushedCount >= 2){
           writersForAllocation.add(writer);
         }
-        writer.flushedCount = 0;
+        writer.resetFlushedCount();
       }
     }
 
@@ -247,7 +286,7 @@ class MemoryManager {
 
         // Only take the allocation if the writer will still have at least the minimum allocation
         if (reallocation >= minAllocation) {
-          writer.allocationMultiplier /= 2;
+          writer.setAllocationMultiplier(writer.getAllocationMultiplier() / 2);
           memoryToReallocate += reallocation;
         }
       }
@@ -258,9 +297,10 @@ class MemoryManager {
         // This is just some algebra
         // (allocation * currentScale * multiplier) + reallocation = (allocation * currentScale * X)
         // where X is the new multiplier
-        writer.allocationMultiplier =
-          ((writer.allocation * currentScale * writer.allocationMultiplier)
-              + memoryToReallocatePerWriter) / (writer.allocation * currentScale);
+        writer.setAllocationMultiplier(
+          ((writer.getAllocation() * currentScale * writer.getAllocationMultiplier())
+              + memoryToReallocatePerWriter) / (writer.getAllocation() * currentScale)
+        );
       }
     }
   }

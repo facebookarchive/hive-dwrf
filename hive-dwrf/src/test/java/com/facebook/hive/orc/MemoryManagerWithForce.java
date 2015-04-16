@@ -19,7 +19,7 @@ public class MemoryManagerWithForce extends MemoryManager {
 
   public void forceEnterLowMemoryMode() throws IOException {
     for (WriterInfo writer : writerList.values()) {
-      writer.callback.enterLowMemoryMode();
+      writer.getCallback().enterLowMemoryMode();
     }
   }
 }
