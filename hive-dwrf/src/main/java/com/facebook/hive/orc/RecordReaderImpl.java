@@ -65,39 +65,65 @@ import java.util.List;
 import java.util.Map;
 
 class RecordReaderImpl implements RecordReader {
+
+  /** File being read by this reader */
   private final FSDataInputStream file;
+
+  /** Row number of the first row being read by this reader */
   private final long firstRow;
-  private final List<StripeInformation> stripes =
-    new ArrayList<StripeInformation>();
+
+  /** Information of all the stripes that can be read by this reader */
+  private final List<StripeInformation> stripes = new ArrayList<>();
   private OrcProto.StripeFooter stripeFooter;
+
+  /** Count of all the rows accessible from this reader */
   private final long totalRowCount;
   private final CompressionCodec codec;
   private final int bufferSize;
+
+  /**
+   * For each column, indicates if the reader should read the stream or not
+   * If this is set to `null`, all columns are read. */
   private final boolean[] included;
   private final long rowIndexStride;
   private long rowInStripe = 0;
   private int currentStripe = 0;
   private long rowBaseInStripe = 0;
   private long rowCountInStripe = 0;
-  private final Map<StreamName, InStream> streams =
-      new HashMap<StreamName, InStream>();
+  private final Map<StreamName, InStream> streams = new HashMap<>();
   private OrcLazyRow reader;
   private final OrcProto.RowIndex[] indexes;
   private final int readStrides;
   private final boolean readEagerlyFromHdfs;
   private final long readEagerlyFromHdfsBytes;
 
+  /**
+   * Constructor
+   *
+   * @param stripes Stripe information for all the stripes in the file being read
+   * @param fileSystem File system object
+   * @param path Path to the file being read
+   * @param offset start byte offset in the file for the reader
+   * @param length a number of bytes to be read from the start offset
+   * @param types information about all the columns
+   * @param codec compression codec being used
+   * @param bufferSize
+   * @param included columns to be included by the reader
+   * @param strideRate
+   * @param conf configuration object
+   * @throws IOException
+   */
   RecordReaderImpl(Iterable<StripeInformation> stripes,
                    FileSystem fileSystem,
                    Path path,
-                   long offset, long length,
+                   long offset,
+                   long length,
                    List<OrcProto.Type> types,
                    CompressionCodec codec,
                    int bufferSize,
                    boolean[] included,
                    long strideRate,
-                   Configuration conf
-                  ) throws IOException {
+                   Configuration conf) throws IOException {
     this.file = fileSystem.open(path);
     this.codec = codec;
     this.bufferSize = bufferSize;
@@ -106,9 +132,17 @@ class RecordReaderImpl implements RecordReader {
     this.readEagerlyFromHdfs = OrcConf.getBoolVar(conf, OrcConf.ConfVars.HIVE_ORC_EAGER_HDFS_READ);
     this.readEagerlyFromHdfsBytes =
       OrcConf.getLongVar(conf, OrcConf.ConfVars.HIVE_ORC_EAGER_HDFS_READ_BYTES);
-    long rows = 0;
+
+    // For all stripes with start offset before the {@param offset}, data will
+    // not be read from these stripes. skippedRows is sum of number of rows in
+    // these stripes. This also indicates the row number of the first row
+    // pointed by this reader
     long skippedRows = 0;
-    for(StripeInformation stripe: stripes) {
+
+    // Number of rows which can be read using this reader
+    long rows = 0;
+
+    for (final StripeInformation stripe : stripes) {
       long stripeStart = stripe.getOffset();
       if (offset > stripeStart) {
         skippedRows += stripe.getNumberOfRows();
@@ -141,10 +175,9 @@ class RecordReaderImpl implements RecordReader {
   }
 
   LazyTreeReader createLazyTreeReader(int columnId,
-                                             List<OrcProto.Type> types,
-                                             boolean[] included
-                                            ) throws IOException {
-    OrcProto.Type type = types.get(columnId);
+                                      List<OrcProto.Type> types,
+                                      boolean[] included) throws IOException {
+    final OrcProto.Type type = types.get(columnId);
     switch (type.getKind()) {
       case BOOLEAN:
         return new LazyBooleanTreeReader(columnId, rowIndexStride);
@@ -167,8 +200,8 @@ class RecordReaderImpl implements RecordReader {
       case TIMESTAMP:
         return new LazyTimestampTreeReader(columnId, rowIndexStride);
       case STRUCT:
-        int structFieldCount = type.getFieldNamesCount();
-        LazyTreeReader[] structFields = new LazyTreeReader[structFieldCount];
+        final int structFieldCount = type.getFieldNamesCount();
+        final LazyTreeReader[] structFields = new LazyTreeReader[structFieldCount];
         for (int i = 0; i < structFieldCount; i++) {
           int subtype = type.getSubtypes(i);
           if (included == null || included[subtype]) {
@@ -176,32 +209,33 @@ class RecordReaderImpl implements RecordReader {
           }
         }
         return new LazyStructTreeReader(columnId, rowIndexStride, structFields, type.getFieldNamesList());
+
       case LIST:
-        LazyTreeReader elementReader = createLazyTreeReader(type.getSubtypes(0), types, included);
+        final LazyTreeReader elementReader = createLazyTreeReader(type.getSubtypes(0), types, included);
         return new LazyListTreeReader(columnId, rowIndexStride, elementReader);
+
       case MAP:
-        LazyTreeReader keyReader = createLazyTreeReader(type.getSubtypes(0), types, included);
-        LazyTreeReader valueReader = createLazyTreeReader(type.getSubtypes(1), types, included);
+        final LazyTreeReader keyReader = createLazyTreeReader(type.getSubtypes(0), types, included);
+        final LazyTreeReader valueReader = createLazyTreeReader(type.getSubtypes(1), types, included);
         return new LazyMapTreeReader(columnId, rowIndexStride, keyReader, valueReader);
+
       case UNION:
-        int unionFieldCount = type.getSubtypesCount();
-        LazyTreeReader[] unionFields = new LazyTreeReader[unionFieldCount];
-        for(int i=0; i < unionFieldCount; ++i) {
+        final int unionFieldCount = type.getSubtypesCount();
+        final LazyTreeReader[] unionFields = new LazyTreeReader[unionFieldCount];
+        for(int i = 0; i < unionFieldCount; ++i) {
           unionFields[i] = createLazyTreeReader(type.getSubtypes(i), types, included);
         }
         return new LazyUnionTreeReader(columnId, rowIndexStride, unionFields);
+
       default:
-        throw new IllegalArgumentException("Unsupported type " +
-          type.getKind());
+        throw new IllegalArgumentException("Unsupported type " + type.getKind());
     }
   }
 
-
   OrcLazyObject createLazyObject(int columnId,
-                                             List<OrcProto.Type> types,
-                                             boolean[] included
-                                            ) throws IOException {
-    OrcProto.Type type = types.get(columnId);
+                                 List<OrcProto.Type> types,
+                                 boolean[] included) throws IOException {
+    final OrcProto.Type type = types.get(columnId);
     switch (type.getKind()) {
       case BOOLEAN:
         return new OrcLazyBoolean((LazyBooleanTreeReader)createLazyTreeReader(columnId, types, included));
@@ -232,15 +266,12 @@ class RecordReaderImpl implements RecordReader {
       case UNION:
         return new OrcLazyUnion((LazyUnionTreeReader)createLazyTreeReader(columnId, types, included));
       default:
-        throw new IllegalArgumentException("Unsupported type " +
-          type.getKind());
+        throw new IllegalArgumentException("Unsupported type " + type.getKind());
     }
   }
 
-  OrcProto.StripeFooter readStripeFooter(StripeInformation stripe
-                                         ) throws IOException {
-    long offset = stripe.getOffset() + stripe.getIndexLength() +
-        stripe.getDataLength();
+  OrcProto.StripeFooter readStripeFooter(StripeInformation stripe) throws IOException {
+    long offset = stripe.getOffset() + stripe.getIndexLength() + stripe.getDataLength();
     int tailLength = (int) stripe.getFooterLength();
 
     return OrcProto.StripeFooter.parseFrom(InStream.create("stripe-footer", file, offset,
@@ -248,17 +279,18 @@ class RecordReaderImpl implements RecordReader {
   }
 
   private void readEntireStripeEagerly(StripeInformation stripe, long offset) throws IOException {
-    byte[] buffer = new byte[(int) (stripe.getDataLength())];
+    final byte[] buffer = new byte[(int) (stripe.getDataLength())];
     file.seek(offset + stripe.getIndexLength());
     file.readFully(buffer, 0, buffer.length);
+
     int sectionOffset = 0;
     for(OrcProto.Stream section: stripeFooter.getStreamsList()) {
-      if (StreamName.getArea(section.getKind()) == StreamName.Area.DATA ||
-          StreamName.getArea(section.getKind()) == StreamName.Area.DICTIONARY) {
-        int sectionLength = (int) section.getLength();
-        StreamName name = new StreamName(section.getColumn(),
-            section.getKind());
-        ByteBuffer sectionBuffer = ByteBuffer.wrap(buffer, sectionOffset, sectionLength);
+      final StreamName.Area area = StreamName.getArea(section.getKind());
+
+      if (area == StreamName.Area.DATA || area == StreamName.Area.DICTIONARY) {
+        final int sectionLength = (int) section.getLength();
+        final StreamName name = new StreamName(section.getColumn(), section.getKind());
+        final ByteBuffer sectionBuffer = ByteBuffer.wrap(buffer, sectionOffset, sectionLength);
         streams.put(name, InStream.create(name.toString(), sectionBuffer, codec, bufferSize,
             section.getUseVInts()));
         sectionOffset += sectionLength;
@@ -271,9 +303,8 @@ class RecordReaderImpl implements RecordReader {
     for(OrcProto.Stream section: stripeFooter.getStreamsList()) {
       if (StreamName.getArea(section.getKind()) == StreamName.Area.DATA ||
           StreamName.getArea(section.getKind()) == StreamName.Area.DICTIONARY) {
-        int sectionLength = (int) section.getLength();
-        StreamName name = new StreamName(section.getColumn(),
-            section.getKind());
+        final int sectionLength = (int) section.getLength();
+        final StreamName name = new StreamName(section.getColumn(), section.getKind());
         streams.put(name, InStream.create(name.toString(), file,
             offset + stripe.getIndexLength() + sectionOffset, sectionLength, codec, bufferSize,
             section.getUseVInts(), readStrides));
@@ -341,6 +372,10 @@ class RecordReaderImpl implements RecordReader {
     }
   }
 
+  /**
+   * Calculates the total number of bytes to be read for the data streams.
+   * If this sum is <= {@code readEagerlyFromHdfsBytes}, return true else return false
+   */
   protected boolean shouldReadEagerly(StripeInformation stripe, int currentSection) {
     if (readEagerlyFromHdfsBytes <= 0) {
       return readEagerlyFromHdfs;
@@ -348,8 +383,10 @@ class RecordReaderImpl implements RecordReader {
 
     long inputBytes = 0;
     if (included == null) {
+      // This means there is no projection and all the columns would be read
       inputBytes = stripe.getDataLength();
     } else {
+      // Get a sum of lengths of all the streams desired to be read
       List<OrcProto.Stream> streamList = stripeFooter.getStreamsList();
       for (int i = currentSection; i < streamList.size(); i++) {
         if (included[streamList.get(i).getColumn()]) {
@@ -362,9 +399,9 @@ class RecordReaderImpl implements RecordReader {
   }
 
   private void readStripe() throws IOException {
-    StripeInformation stripe = stripes.get(currentStripe);
+    final StripeInformation stripe = stripes.get(currentStripe);
     stripeFooter = readStripeFooter(stripe);
-    long offset = stripe.getOffset();
+    final long offset = stripe.getOffset();
     streams.clear();
 
     // if we aren't projecting columns, just read the whole stripe
@@ -446,8 +483,7 @@ class RecordReaderImpl implements RecordReader {
   }
 
   /**
-   * Return the fraction of rows that have been read from the selected.
-   * section of the file
+   * Return the fraction of rows that have been read from the selected section of the file
    * @return fraction between 0.0 and 1.0 of rows consumed
    */
   @Override
@@ -457,21 +493,22 @@ class RecordReaderImpl implements RecordReader {
 
   private int findStripe(long rowNumber) {
     if (rowNumber < 0) {
-      throw new IllegalArgumentException("Seek to a negative row number " +
-          rowNumber);
+      throw new IllegalArgumentException("Seek to a negative row number " + rowNumber);
     } else if (rowNumber < firstRow) {
-      throw new IllegalArgumentException("Seek before reader range " +
-          rowNumber);
+      throw new IllegalArgumentException("Seek before reader range. rowNumber = " + rowNumber +
+                                             " firstRow = " + firstRow);
     }
+
     rowNumber -= firstRow;
-    for(int i=0; i < stripes.size(); i++) {
-      StripeInformation stripe = stripes.get(i);
+    for (int i = 0; i < stripes.size(); i++) {
+      final StripeInformation stripe = stripes.get(i);
       if (stripe.getNumberOfRows() > rowNumber) {
         return i;
       }
       rowNumber -= stripe.getNumberOfRows();
     }
-    throw new IllegalArgumentException("Seek after the end of reader range");
+    throw new IllegalArgumentException("Seek after the end of reader range. rowNumber = " +
+                                           rowNumber);
   }
 
   private void readRowIndex() throws IOException {
