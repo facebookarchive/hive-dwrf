@@ -138,7 +138,7 @@ class MemoryManager {
     }
   }
 
-  public boolean isLowMemoryMode() {
+  public synchronized boolean isLowMemoryMode() {
     return lowMemoryMode;
   }
 
@@ -184,7 +184,7 @@ class MemoryManager {
     }
   }
 
-  boolean shouldFlush(MemoryEstimate memoryEstimate, Path path, long stripeSize, long maxDictSize)
+  synchronized boolean shouldFlush(MemoryEstimate memoryEstimate, Path path, long stripeSize, long maxDictSize)
       throws IOException {
 
     WriterInfo writer = writerList.get(path);
@@ -210,7 +210,7 @@ class MemoryManager {
    * Notify all of the writers that they should check their memory usage.
    * @throws IOException
    */
-  private void notifyWriters() throws IOException {
+  private synchronized void notifyWriters() throws IOException {
     LOG.debug("Notifying writers after " + rowsAddedSinceCheck);
     for(WriterInfo writer: writerList.values()) {
       if (lowMemoryMode) {
