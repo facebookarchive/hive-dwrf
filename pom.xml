@@ -25,7 +25,7 @@
 
     <groupId>com.facebook.hive</groupId>
     <artifactId>hive-dwrf-root</artifactId>
-    <version>0.18.8-SNAPSHOT</version>
+    <version>0.18.9-SNAPSHOT</version>
     <packaging>pom</packaging>
 
     <name>hive-dwrf-root</name>
