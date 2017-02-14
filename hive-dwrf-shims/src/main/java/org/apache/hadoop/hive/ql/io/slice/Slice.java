@@ -36,15 +36,13 @@ import sun.misc.Unsafe;
 import sun.nio.ch.DirectBuffer;
 
 import com.google.common.base.Objects;
-import com.google.common.io.InputSupplier;
-import com.google.common.io.OutputSupplier;
 import com.google.common.primitives.Ints;
 import com.google.common.primitives.Longs;
 import com.google.common.primitives.UnsignedBytes;
 import com.google.common.primitives.UnsignedLongs;
 
 public final class Slice
-        implements Comparable<Slice>, InputSupplier<SliceInput>, OutputSupplier<SliceOutput>
+        implements Comparable<Slice>
 {
     private static final Unsafe unsafe;
 
@@ -859,7 +857,6 @@ public final class Slice
      * Creates a slice input backed by this slice.  Any changes to this slice
      * will be immediately visible to the slice input.
      */
-    @Override
     public BasicSliceInput getInput()
     {
         return new BasicSliceInput(this);
@@ -869,7 +866,6 @@ public final class Slice
      * Creates a slice output backed by this slice.  Any data written to the
      * slice output will be immediately visible in this slice.
      */
-    @Override
     public SliceOutput getOutput()
     {
         return new BasicSliceOutput(this);
