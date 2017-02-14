@@ -27,8 +27,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import io.airlift.log.Logger;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
 
@@ -44,7 +43,7 @@ import org.apache.hadoop.fs.Path;
  */
 class MemoryManager {
 
-  private static final Log LOG = LogFactory.getLog(MemoryManager.class);
+  private static final Logger LOG = Logger.get(MemoryManager.class);
 
   /**
    * How often should we check the memory sizes? Measured in rows added
@@ -199,7 +198,7 @@ class MemoryManager {
    * @throws IOException
    */
   private void notifyWriters() throws IOException {
-    LOG.debug("Notifying writers after " + rowsAddedSinceCheck);
+    LOG.debug("Notifying writers after %s", rowsAddedSinceCheck);
     for(WriterInfo writer: writerList.values()) {
       boolean flushed = writer.callback.checkMemory(currentScale * writer.allocationMultiplier);
 
@@ -214,8 +213,8 @@ class MemoryManager {
         }
         writer.flushedLastCheck = flushed;
       }
-      if (LOG.isDebugEnabled() && flushed) {
-        LOG.debug("flushed " + writer.toString());
+      if (flushed) {
+        LOG.debug("flushed %s", writer);
       }
     }
 

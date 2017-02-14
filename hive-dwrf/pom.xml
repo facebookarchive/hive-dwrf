@@ -53,8 +53,8 @@
     </dependency>
 
     <dependency>
-      <groupId>commons-logging</groupId>
-      <artifactId>commons-logging</artifactId>
+      <groupId>io.airlift</groupId>
+      <artifactId>log</artifactId>
     </dependency>
 
     <dependency>

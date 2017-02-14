@@ -22,8 +22,7 @@ import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadInfo;
 import java.lang.management.ThreadMXBean;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import io.airlift.log.Logger;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.Reporter;
 
@@ -78,9 +77,8 @@ public class ReaderWriterProfiler {
   protected static int [] typeEnded = new int[2];
   protected static int [] typeStarted = new int[2];
   protected static long [] profileTypeTimes = new long[2];
-  public static final Log LOG = LogFactory
-      .getLog(ReaderWriterProfiler.class.getName());
 
+  private static final Logger LOG = Logger.get(ReaderWriterProfiler.class);
 
   private ReaderWriterProfiler() {}
 
@@ -136,7 +134,7 @@ public class ReaderWriterProfiler {
 
   public static void log(Reporter logReporter) {
     for (Counter c : Counter.values()) {
-      LOG.info(c + " start (" + started[c.value] + "), end (" + ended[c.value] + "): " +  profileTimes[c.value]);
+      LOG.info("%s start (%s), end (%s): %s", c, started[c.value], ended[c.value], profileTimes[c.value]);
       if (logReporter != null) {
         logReporter.incrCounter(c, profileTimes[c.value]);
       }
@@ -145,8 +143,7 @@ public class ReaderWriterProfiler {
     long read = profileTypeTimes[Counter.Type.READ.ordinal()];
     long write = profileTypeTimes[Counter.Type.WRITE.ordinal()];
     if (logReporter != null) {
-      LOG.info("read time: " + read);
-      LOG.info("write time: " + write);
+      LOG.info("read time: %s, write time: %s", read, write);
       logReporter.incrCounter(ReadWriteCounter.READ_TIME, read);
       logReporter.incrCounter(ReadWriteCounter.WRITE_TIME, write);
     }
