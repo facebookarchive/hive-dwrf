@@ -26,7 +26,7 @@
   <artifactId>hive-dwrf</artifactId>
 
   <properties>
-    <fb.main.basedir>${project.parent.basedir}</fb.main.basedir>
+    <air.main.basedir>${project.parent.basedir}</air.main.basedir>
   </properties>
 
   <dependencies>
@@ -90,34 +90,27 @@
       <artifactId>hamcrest-core</artifactId>
       <scope>test</scope>
     </dependency>
-
   </dependencies>
 
   <build>
     <plugins>
-      <plugin> 
-        <artifactId>maven-antrun-plugin</artifactId> 
-        <executions> 
-          <execution> 
-            <id>generate-sources</id> 
-            <phase>generate-sources</phase> 
-            <configuration> 
-              <tasks> 
-                <mkdir dir="target/generated-sources/protobuf/gen-java" /> 
-                <exec executable="${protoc.executable}">
-                  <arg value="--java_out=target/generated-sources/protobuf/gen-java" />
-                  <arg value="-I=src/main/resources/protobuf/com/facebook/hive/orc" />
-                  <arg value="src/main/resources/protobuf/com/facebook/hive/orc/orc_proto.proto" /> 
-                </exec> 
-              </tasks> 
-              <sourceRoot>target/generated-sources/protobuf/gen-java</sourceRoot>
-            </configuration> 
-            <goals> 
-              <goal>run</goal> 
-            </goals> 
-          </execution> 
-        </executions> 
-      </plugin> 
+      <plugin>
+        <groupId>com.github.os72</groupId>
+        <artifactId>protoc-jar-maven-plugin</artifactId>
+        <version>3.1.0.5</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>run</goal>
+            </goals>
+            <configuration>
+              <protocVersion>2.4.1</protocVersion>
+              <cleanOutputFolder>true</cleanOutputFolder>
+              <inputDirectories>src/main/resources/protobuf</inputDirectories>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
 </project>
