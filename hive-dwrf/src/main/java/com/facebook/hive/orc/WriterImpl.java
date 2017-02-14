@@ -33,8 +33,7 @@ import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
 
-import org.apache.commons.logging.Log;
-import org.apache.commons.logging.LogFactory;
+import io.airlift.log.Logger;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
@@ -81,7 +80,7 @@ import com.google.protobuf.CodedOutputStream;
  */
 public class WriterImpl implements Writer, MemoryManager.Callback {
 
-  private static final Log LOG = LogFactory.getLog(WriterImpl.class);
+  private static final Logger LOG = Logger.get(WriterImpl.class);
 
   private static final int HDFS_BUFFER_SIZE = 256 * 1024;
   private static final int MIN_ROW_INDEX_STRIDE = 1000;
@@ -215,10 +214,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
   public synchronized boolean checkMemory(double newScale) throws IOException {
     long limit = (long) Math.round(stripeSize * newScale);
     MemoryEstimate size = estimateStripeSize();
-    if (LOG.isDebugEnabled()) {
-      LOG.debug("ORC writer " + path + " size = " + size.getTotalMemory() + " limit = " +
-                limit);
-    }
+    LOG.debug("ORC writer %s size = %s limit = %s", path, size.getTotalMemory(), limit);
     if (size.getTotalMemory() > limit ||
         (maxDictSize > 0 && size.getDictionaryMemory() > maxDictSize)) {
       flushStripe();

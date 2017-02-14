@@ -90,9 +90,9 @@
             </dependency>
 
             <dependency>
-                <groupId>commons-logging</groupId>
-                <artifactId>commons-logging</artifactId>
-                <version>1.1.1</version>
+                <groupId>io.airlift</groupId>
+                <artifactId>log</artifactId>
+                <version>0.142</version>
             </dependency>
 
             <dependency>
