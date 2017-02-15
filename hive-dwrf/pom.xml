@@ -31,8 +31,8 @@
 
   <dependencies>
     <dependency>
-      <groupId>com.facebook.hive</groupId>
-      <artifactId>hive-dwrf-shims</artifactId>
+      <groupId>io.airlift</groupId>
+      <artifactId>slice</artifactId>
     </dependency>
 
     <dependency>

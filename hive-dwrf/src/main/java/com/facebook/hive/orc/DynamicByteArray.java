@@ -24,8 +24,8 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 
-import org.apache.hadoop.hive.ql.io.slice.Slice;
-import org.apache.hadoop.hive.ql.io.slice.Slices;
+import io.airlift.slice.Slice;
+import io.airlift.slice.Slices;
 import org.apache.hadoop.io.Text;
 
 /**
@@ -106,15 +106,8 @@ public final class DynamicByteArray {
    * @param in the stream to read from
    * @throws IOException
    */
-  public void readAll(InputStream in) throws IOException {
-    int read = 0;
-    do {
-      grow(length);
-      read = data.setBytes(length, in, data.length() - length);
-      if (read > 0) {
-        length += read;
-      }
-    } while (in.available() > 0);
+  public void readAll(InStream in) throws IOException {
+    read(in, in.available());
   }
 
   /**
@@ -124,13 +117,9 @@ public final class DynamicByteArray {
    * @throws IOException
    */
   public void read(InputStream in, int lengthToRead) throws IOException {
-    int read = 0;
-    do {
-      grow(length);
-      read = data.setBytes(length, in, Math.min(lengthToRead, data.length() - length));
-      length += read;
-      lengthToRead -= read;
-    } while (lengthToRead > 0);
+    grow(length + lengthToRead);
+    data.setBytes(length, in, lengthToRead);
+    length += lengthToRead;
   }
 
   /**
@@ -145,7 +134,7 @@ public final class DynamicByteArray {
    return 0 - data.compareTo(ourOffset, ourLength, data, otherOffset, otherLength);
  }
 
-  public boolean equals(byte[] other, int otherOffset, int otherLength, int ourOffset, int ourLength) {
+  public boolean equals(Slice other, int otherOffset, int otherLength, int ourOffset, int ourLength) {
     return data.equals(ourOffset, ourLength, other, otherOffset, otherLength);
   }
 

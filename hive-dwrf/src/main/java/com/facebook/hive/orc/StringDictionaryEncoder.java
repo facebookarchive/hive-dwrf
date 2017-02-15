@@ -19,6 +19,8 @@
  */
 package com.facebook.hive.orc;
 
+import io.airlift.slice.Slice;
+import io.airlift.slice.Slices;
 import it.unimi.dsi.fastutil.ints.IntArrays;
 import it.unimi.dsi.fastutil.ints.IntComparator;
 
@@ -44,8 +46,6 @@ class StringDictionaryEncoder extends DictionaryEncoder {
   private int[] nexts = new int[DynamicIntArray.DEFAULT_SIZE];
   private int[] counts = new int[DynamicIntArray.DEFAULT_SIZE];
   private int[] indexStrides = new int[DynamicIntArray.DEFAULT_SIZE];
-
-  private Text newKey = new Text();
 
   private final TextCompressedHashSet htDictionary = new TextCompressedHashSet();
 
@@ -82,7 +82,7 @@ class StringDictionaryEncoder extends DictionaryEncoder {
       this.key = new int[length];
     }
 
-    public int add(final int k) {
+    public int add(Slice newKey, int k) {
       // Compute the bucket the value at k is in
       int pos = it.unimi.dsi.fastutil.HashCommon.murmurHash3(hashcodes[k]) & mask;
       int other = key[pos];
@@ -90,7 +90,7 @@ class StringDictionaryEncoder extends DictionaryEncoder {
       // Iterate over the chain in that bucket
       while(other != 0) {
         // Compare the hashcodes as a quick way to rule out some results
-        if (hashcodes[k] == hashcodes[other] && equalsValue(offsets[other], getEnd(other) - offsets[other])) {
+        if (hashcodes[k] == hashcodes[other] && equalsValue(newKey, offsets[other], getEnd(other) - offsets[other])) {
           // If the value is found to already exist, and it's not already at the head of the chain
           // move it there to speed up adding this value in the future.
           if (other != key[pos]) {
@@ -201,13 +201,13 @@ class StringDictionaryEncoder extends DictionaryEncoder {
   }
 
   public int add(Text value, int indexStride) {
-    newKey = value;
-    int len = newKey.getLength();
+    int len = value.getLength();
     // See the comment on TextCompressedHashSet
     // This intentionally skips index 0
     int newKeyIndex = numElements + 1;
-    hashcodes[newKeyIndex] = newKey.hashCode();
-    int existing = htDictionary.add(newKeyIndex);
+    hashcodes[newKeyIndex] = value.hashCode();
+    Slice newKeySlice = Slices.wrappedBuffer(value.getBytes(), 0, value.getLength());
+    int existing = htDictionary.add(newKeySlice, newKeyIndex);
     if (existing != 0) {
       return existing - 1;
     } else {
@@ -223,7 +223,7 @@ class StringDictionaryEncoder extends DictionaryEncoder {
         indexStrides = getDoubleSizeArray(indexStrides);
       }
       // set current key offset and length
-      offsets[newKeyIndex] = byteArray.add(newKey.getBytes(), 0, len);
+      offsets[newKeyIndex] = byteArray.add(value.getBytes(), 0, len);
       indexStrides[newKeyIndex] = indexStride;
       return valRow;
     }
@@ -243,8 +243,8 @@ class StringDictionaryEncoder extends DictionaryEncoder {
     return offsets[pos + 1];
   }
 
-  protected boolean equalsValue(int offset, int length) {
-    return byteArray.equals(newKey.getBytes(), 0, newKey.getLength(), offset, length);
+  protected boolean equalsValue(Slice key, int offset, int length) {
+    return byteArray.equals(key, 0, key.length(), offset, length);
   }
 
   private class VisitorContextImpl implements VisitorContext<Text> {

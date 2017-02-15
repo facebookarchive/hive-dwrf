@@ -59,17 +59,10 @@
 
     <modules>
         <module>hive-dwrf</module>
-        <module>hive-dwrf-shims</module>
     </modules>
 
     <dependencyManagement>
         <dependencies>
-            <dependency>
-                <groupId>com.facebook.hive</groupId>
-                <artifactId>hive-dwrf-shims</artifactId>
-                <version>${project.version}</version>
-            </dependency>
-
             <dependency>
                 <groupId>com.facebook.presto.hadoop</groupId>
                 <artifactId>hadoop-cdh4</artifactId>

@@ -19,9 +19,9 @@
  */
 package com.facebook.hive.orc;
 
-import org.apache.hadoop.hive.ql.io.slice.SizeOf;
-import org.apache.hadoop.hive.ql.io.slice.Slice;
-import org.apache.hadoop.hive.ql.io.slice.Slices;
+import io.airlift.slice.SizeOf;
+import io.airlift.slice.Slice;
+import io.airlift.slice.Slices;
 
 /**
  * Dynamic int array that uses primitive types and chunks to avoid copying
