@@ -21,7 +21,6 @@ import static junit.framework.Assert.assertEquals;
 
 import java.nio.ByteBuffer;
 
-import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.junit.Test;
 
 import com.facebook.hive.orc.OrcProto.RowIndex;
@@ -76,19 +75,16 @@ public class TestBitFieldReader {
 
   @Test
   public void testUncompressedSeek() throws Exception {
-    ReaderWriterProfiler.setProfilerOptions(null);
     runSeekTest(null);
   }
 
   @Test
   public void testCompressedSeek() throws Exception {
-    ReaderWriterProfiler.setProfilerOptions(null);
     runSeekTest(new ZlibCodec());
   }
 
   @Test
   public void testSkips() throws Exception {
-    ReaderWriterProfiler.setProfilerOptions(null);
     TestInStream.OutputCollector collect = new TestInStream.OutputCollector();
     BitFieldWriter out = new BitFieldWriter(
         new OutStream("test", 100, null, collect), 1);

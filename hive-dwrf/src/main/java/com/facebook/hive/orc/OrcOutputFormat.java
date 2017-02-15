@@ -30,7 +30,6 @@ import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
 import com.facebook.hive.orc.OrcSerde.OrcSerdeRow;
 import org.apache.hadoop.hive.ql.io.StatsProvidingRecordWriter;
-import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.hive.serde2.SerDeStats;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
@@ -126,7 +125,6 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
   public RecordWriter<NullWritable, OrcSerdeRow>
       getRecordWriter(FileSystem fileSystem, JobConf conf, String name,
                       Progressable reporter) throws IOException {
-    ReaderWriterProfiler.setProfilerOptions(conf);
     return new OrcRecordWriter(fileSystem,  new Path(name), conf,
       OrcConf.ConfVars.HIVE_ORC_STRIPE_SIZE.defaultLongVal,
       OrcConf.ConfVars.HIVE_ORC_COMPRESSION.defaultVal,
@@ -142,7 +140,6 @@ public class OrcOutputFormat extends FileOutputFormat<NullWritable, OrcSerdeRow>
                          boolean isCompressed,
                          Properties tableProperties,
                          Progressable reporter) throws IOException {
-    ReaderWriterProfiler.setProfilerOptions(conf);
     String stripeSizeStr = tableProperties.getProperty(OrcFile.STRIPE_SIZE);
     long stripeSize;
     if (stripeSizeStr != null) {

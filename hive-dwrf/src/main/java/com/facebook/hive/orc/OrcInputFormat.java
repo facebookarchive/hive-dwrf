@@ -31,7 +31,6 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.conf.HiveConf;
 import org.apache.hadoop.hive.ql.io.InputFormatChecker;
 import org.apache.hadoop.hive.serde2.ColumnProjectionUtils;
-import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.io.NullWritable;
 import org.apache.hadoop.mapred.FileInputFormat;
 import org.apache.hadoop.mapred.FileSplit;
@@ -159,7 +158,6 @@ public class OrcInputFormat  extends FileInputFormat<NullWritable, OrcLazyRow>
   public RecordReader<NullWritable, OrcLazyRow>
       getRecordReader(InputSplit inputSplit, JobConf conf,
                       Reporter reporter) throws IOException {
-    ReaderWriterProfiler.setProfilerOptions(conf);
     FileSplit fileSplit = (FileSplit) inputSplit;
     Path path = fileSplit.getPath();
     FileSystem fs = path.getFileSystem(conf);

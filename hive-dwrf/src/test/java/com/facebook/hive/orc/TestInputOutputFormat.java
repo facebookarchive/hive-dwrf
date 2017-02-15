@@ -34,7 +34,6 @@ import org.apache.hadoop.hive.ql.exec.FileSinkOperator;
 import org.apache.hadoop.hive.ql.io.HiveOutputFormat;
 import org.apache.hadoop.hive.ql.io.InputFormatChecker;
 import org.apache.hadoop.hive.serde2.SerDe;
-import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspectorFactory;
 import org.apache.hadoop.hive.serde2.objectinspector.StructField;
 import org.apache.hadoop.hive.serde2.objectinspector.StructObjectInspector;
@@ -106,7 +105,6 @@ public class TestInputOutputFormat {
     FileSinkOperator.RecordWriter writer =
         outFormat.getHiveRecordWriter(conf, testFilePath, MyRow.class, true,
             properties, Reporter.NULL);
-    ReaderWriterProfiler.setProfilerOptions(conf);
     writer.write(serde.serialize(new MyRow(1,2), inspector));
     writer.write(serde.serialize(new MyRow(2,2), inspector));
     writer.write(serde.serialize(new MyRow(3,2), inspector));

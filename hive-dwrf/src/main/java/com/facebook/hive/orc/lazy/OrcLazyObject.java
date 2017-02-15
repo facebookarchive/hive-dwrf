@@ -26,7 +26,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.io.Writable;
 
 import com.facebook.hive.orc.InStream;
@@ -74,13 +73,11 @@ public abstract class OrcLazyObject implements Writable {
 
   public Object materialize() throws IOException {
     if (!materialized) {
-      ReaderWriterProfiler.start(ReaderWriterProfiler.Counter.DECODING_TIME);
       previous = materialize(currentRow, previous);
       materialized = true;
       writableCreated = true;
       nextIsNull = previous == null;
       nextIsNullSet = true;
-      ReaderWriterProfiler.end(ReaderWriterProfiler.Counter.DECODING_TIME);
     } else if (nextIsNull) {
       // If the value has been materialized and nextIsNull then the value is null
       return null;
@@ -171,7 +168,6 @@ public abstract class OrcLazyObject implements Writable {
   // A Helper to materialize primitive data types
   public void materializeHelper(Materializer maker) throws IOException {
     if (!materialized) {
-      ReaderWriterProfiler.start(ReaderWriterProfiler.Counter.DECODING_TIME);
       try {
         maker.materialize(treeReader, currentRow);
         materialized = true;
@@ -188,7 +184,6 @@ public abstract class OrcLazyObject implements Writable {
         nextIsNullSet = true;
         throw new IOException("Cannot materialize primitive: value not present");
       }
-      ReaderWriterProfiler.end(ReaderWriterProfiler.Counter.DECODING_TIME);
     }
     else if (nextIsNull) {
       throw new IOException("Cannot materialize primitive: value not present.");
@@ -235,13 +230,11 @@ public abstract class OrcLazyObject implements Writable {
 
   public boolean nextIsNull() throws IOException {
     if (!nextIsNullSet) {
-      ReaderWriterProfiler.start(ReaderWriterProfiler.Counter.DECODING_TIME);
       nextIsNull = treeReader.nextIsNull(currentRow);
       nextIsNullSet = true;
       // If the next value is null, we've essentially just materialized the value
       materialized = nextIsNull;
       writableCreated = nextIsNull;
-      ReaderWriterProfiler.end(ReaderWriterProfiler.Counter.DECODING_TIME);
     }
     return nextIsNull;
   }

@@ -21,7 +21,6 @@ import static junit.framework.Assert.assertEquals;
 
 import java.nio.ByteBuffer;
 
-import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.junit.Test;
 
 import com.facebook.hive.orc.OrcProto.RowIndex;
@@ -34,7 +33,6 @@ public class TestRunLengthByteReader {
   public void testUncompressedSeek() throws Exception {
     TestInStream.OutputCollector collect = new TestInStream.OutputCollector();
 
-    ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthByteWriter out = new RunLengthByteWriter(new OutStream("test", 100,
         null, collect));
     RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
@@ -54,7 +52,6 @@ public class TestRunLengthByteReader {
     ByteBuffer inBuf = ByteBuffer.allocate(collect.buffer.size());
     collect.buffer.setByteBuffer(inBuf, 0, collect.buffer.size());
     inBuf.flip();
-    ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthByteReader in = new RunLengthByteReader(InStream.create("test",
         inBuf, null, 100));
     for(int i=0; i < 2048; ++i) {
@@ -82,7 +79,6 @@ public class TestRunLengthByteReader {
     CompressionCodec codec = new SnappyCodec();
     TestInStream.OutputCollector collect = new TestInStream.OutputCollector();
 
-    ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthByteWriter out = new RunLengthByteWriter(new OutStream("test", 500,
         codec, collect));
     RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
@@ -102,7 +98,6 @@ public class TestRunLengthByteReader {
     ByteBuffer inBuf = ByteBuffer.allocate(collect.buffer.size());
     collect.buffer.setByteBuffer(inBuf, 0, collect.buffer.size());
     inBuf.flip();
-    ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthByteReader in = new RunLengthByteReader(InStream.create("test",
         inBuf, codec, 500));
     for(int i=0; i < 2048; ++i) {
@@ -128,7 +123,6 @@ public class TestRunLengthByteReader {
   @Test
   public void testSkips() throws Exception {
     TestInStream.OutputCollector collect = new TestInStream.OutputCollector();
-    ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthByteWriter out = new RunLengthByteWriter(new OutStream("test", 100,
         null, collect));
     for(int i=0; i < 2048; ++i) {
@@ -142,7 +136,6 @@ public class TestRunLengthByteReader {
     ByteBuffer inBuf = ByteBuffer.allocate(collect.buffer.size());
     collect.buffer.setByteBuffer(inBuf, 0, collect.buffer.size());
     inBuf.flip();
-    ReaderWriterProfiler.setProfilerOptions(null);
     RunLengthByteReader in = new RunLengthByteReader(InStream.create("test",
         inBuf, null, 100));
     for(int i=0; i < 2048; i += 10) {

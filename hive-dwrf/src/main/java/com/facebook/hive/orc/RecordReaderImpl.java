@@ -30,7 +30,6 @@ import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
-import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 
 import com.facebook.hive.orc.lazy.LazyBinaryTreeReader;
 import com.facebook.hive.orc.lazy.LazyBooleanTreeReader;
@@ -399,9 +398,7 @@ class RecordReaderImpl implements RecordReader {
       rowBaseInStripe += stripes.get(i).getNumberOfRows();
     }
     readRowIndex();
-    ReaderWriterProfiler.start(ReaderWriterProfiler.Counter.DESERIALIZATION_TIME);
     reader.startStripe(streams, stripeFooter.getColumnsList(), indexes, rowBaseInStripe);
-    ReaderWriterProfiler.end(ReaderWriterProfiler.Counter.DESERIALIZATION_TIME);
 
     // We don't need the indices anymore, so free them
     for(int i=0; i < indexes.length; ++i) {

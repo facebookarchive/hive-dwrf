@@ -24,8 +24,6 @@ import java.nio.ByteBuffer;
 import java.util.HashMap;
 import java.util.Map;
 
-import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
-
 class OutStream extends PositionedOutputStream {
 
   interface OutputReceiver {
@@ -174,10 +172,8 @@ class OutStream extends PositionedOutputStream {
   }
 
   private void spill(boolean reuseBuffer) throws java.io.IOException {
-    ReaderWriterProfiler.start(ReaderWriterProfiler.Counter.COMPRESSION_TIME);
     // if there isn't anything in the current buffer, don't spill
     if (current == null || current.position() == (codec == null ? 0 : HEADER_SIZE)) {
-      ReaderWriterProfiler.end(ReaderWriterProfiler.Counter.COMPRESSION_TIME);
       return;
     }
     flip();
@@ -249,7 +245,6 @@ class OutStream extends PositionedOutputStream {
         getNewInputBuffer();
       }
     }
-    ReaderWriterProfiler.end(ReaderWriterProfiler.Counter.COMPRESSION_TIME);
   }
 
   @Override

@@ -39,7 +39,6 @@ import org.apache.hadoop.fs.FSDataOutputStream;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.hive.common.io.RawDatasizeConst;
-import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.apache.hadoop.hive.serde2.objectinspector.ListObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.MapObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
@@ -2206,13 +2205,11 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
   private void flushStripe() throws IOException {
     ensureWriter();
 
-    ReaderWriterProfiler.start(ReaderWriterProfiler.Counter.ENCODING_TIME);
     treeWriter.flush();
 
     if (buildIndex && rowsInIndex != 0) {
       createRowIndexEntry();
     }
-    ReaderWriterProfiler.end(ReaderWriterProfiler.Counter.ENCODING_TIME);
     if (rowsInStripe != 0) {
       int requiredIndexEntries = rowIndexStride == 0 ? 0 :
           (int) ((rowsInStripe + rowIndexStride - 1) / rowIndexStride);
@@ -2220,9 +2217,7 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
           OrcProto.StripeFooter.newBuilder();
       long stripeRawDataSize = treeWriter.getStripeRawDataSize();
 
-      ReaderWriterProfiler.start(ReaderWriterProfiler.Counter.SERIALIZATION_TIME);
       treeWriter.writeStripe(builder, requiredIndexEntries);
-      ReaderWriterProfiler.end(ReaderWriterProfiler.Counter.SERIALIZATION_TIME);
 
       long start = rawWriter.getPos();
       long section = start;
@@ -2394,7 +2389,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
   @Override
   public void addRow(Object row) throws IOException {
 
-    ReaderWriterProfiler.start(ReaderWriterProfiler.Counter.ENCODING_TIME);
     synchronized (this) {
       treeWriter.write(row);
       rowsInStripe += 1;
@@ -2407,7 +2401,6 @@ public class WriterImpl implements Writer, MemoryManager.Callback {
       }
     }
     memoryManager.addedRow();
-    ReaderWriterProfiler.end(ReaderWriterProfiler.Counter.ENCODING_TIME);
   }
 
   @Override

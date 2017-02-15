@@ -31,7 +31,6 @@ import junit.framework.Assert;
 import org.apache.hadoop.fs.FSDataInputStream;
 import org.apache.hadoop.fs.PositionedReadable;
 import org.apache.hadoop.fs.Seekable;
-import org.apache.hadoop.hive.serde2.ReaderWriterProfiler;
 import org.junit.Test;
 
 import com.facebook.hive.orc.OrcProto.RowIndex;
@@ -52,7 +51,6 @@ public class TestInStream {
 
   @Test
   public void testUncompressed() throws Exception {
-    ReaderWriterProfiler.setProfilerOptions(null);
     OutputCollector collect = new OutputCollector();
     OutStream out = new OutStream("test", 100, null, collect);
     RowIndex.Builder rowIndex = OrcProto.RowIndex.newBuilder();
@@ -88,7 +86,6 @@ public class TestInStream {
 
   @Test
   public void testCompressed() throws Exception {
-    ReaderWriterProfiler.setProfilerOptions(null);
     OutputCollector collect = new OutputCollector();
     CompressionCodec codec = new ZlibCodec();
     OutStream out = new OutStream("test", 300, codec, collect);
@@ -124,7 +121,6 @@ public class TestInStream {
 
   @Test
   public void testCorruptStream() throws Exception {
-    ReaderWriterProfiler.setProfilerOptions(null);
     OutputCollector collect = new OutputCollector();
     CompressionCodec codec = new ZlibCodec();
     OutStream out = new OutStream("test", 500, codec, collect);
