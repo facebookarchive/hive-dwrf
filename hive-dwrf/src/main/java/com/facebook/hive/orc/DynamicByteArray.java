@@ -135,17 +135,12 @@ public final class DynamicByteArray {
 
   /**
    * Byte compare a set of bytes against the bytes in this dynamic array.
-   * @param other source of the other bytes
    * @param otherOffset start offset in the other array
    * @param otherLength number of bytes in the other array
    * @param ourOffset the offset in our array
    * @param ourLength the number of bytes in our array
    * @return negative for less, 0 for equal, positive for greater
    */
- public int compare(byte[] other, int otherOffset, int otherLength, int ourOffset, int ourLength) {
-   return 0 - data.compareTo(ourOffset, ourLength, other, otherOffset, otherLength);
- }
-
  public int compare(int otherOffset, int otherLength, int ourOffset, int ourLength) {
    return 0 - data.compareTo(ourOffset, ourLength, data, otherOffset, otherLength);
  }

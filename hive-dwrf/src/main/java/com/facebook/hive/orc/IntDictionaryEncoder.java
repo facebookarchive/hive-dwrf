@@ -124,12 +124,6 @@ class IntDictionaryEncoder extends DictionaryEncoder {
     return 0;
   }
 
-  @Override
-  protected int compareValue(int position) {
-    long cmpKey = keys.get(position);
-    return compareValue(newKey, cmpKey);
-  }
-
   public int add (long value) {
     newKey = value;
     if (dictionary.containsKey(value)) {

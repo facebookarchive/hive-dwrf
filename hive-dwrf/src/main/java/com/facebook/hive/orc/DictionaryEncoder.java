@@ -44,13 +44,6 @@ abstract class DictionaryEncoder {
   }
 
   /**
-   * Compare the value at the given position to the new value.
-   * @return 0 if the values are the same, -1 if the new value is smaller and
-   *         1 if the new value is larger.
-   */
-  protected abstract int compareValue(int position);
-
-  /**
    * Get the number of elements in the set.
    */
   public abstract int size();

@@ -82,21 +82,6 @@ class StringDictionaryEncoder extends DictionaryEncoder {
       this.key = new int[length];
     }
 
-    public int get(int k) {
-      // Compute the bucket the value at k is in
-      int pos = it.unimi.dsi.fastutil.HashCommon.murmurHash3(hashcodes[k]) & mask;
-      // Iterate over the chain in that bucket
-      int other = key[pos];
-      while(other != 0) {
-        // Compare the hashcodes as a quick way to rule out some results
-        if (hashcodes[k] == hashcodes[other] && equalsValue(offsets[other], getEnd(other) - offsets[other])) {
-          return other;
-        }
-        other = nexts[other];
-      }
-      return 0;
-    }
-
     public int add(final int k) {
       // Compute the bucket the value at k is in
       int pos = it.unimi.dsi.fastutil.HashCommon.murmurHash3(hashcodes[k]) & mask;
@@ -256,12 +241,6 @@ class StringDictionaryEncoder extends DictionaryEncoder {
     }
 
     return offsets[pos + 1];
-  }
-
-  @Override
-  protected int compareValue(int position) {
-    return byteArray.compare(newKey.getBytes(), 0, newKey.getLength(),
-        offsets[position], getEnd(position) - offsets[position]);
   }
 
   protected boolean equalsValue(int offset, int length) {
