@@ -24,8 +24,8 @@ import java.util.List;
 
 import com.facebook.hive.orc.lazy.OrcLazyObjectInspectorUtils;
 import org.apache.hadoop.hive.serde2.objectinspector.ObjectInspector;
-import org.apache.hadoop.hive.serde2.objectinspector.FBSettableUnionObjectInspector;
 import org.apache.hadoop.hive.serde2.objectinspector.UnionObject;
+import org.apache.hadoop.hive.serde2.objectinspector.UnionObjectInspector;
 import org.apache.hadoop.hive.serde2.typeinfo.TypeInfo;
 import org.apache.hadoop.hive.serde2.typeinfo.UnionTypeInfo;
 
@@ -81,7 +81,7 @@ public final class OrcUnion implements UnionObject {
         ")";
   }
 
-  public static class OrcUnionObjectInspector implements FBSettableUnionObjectInspector {
+  public static class OrcUnionObjectInspector implements UnionObjectInspector {
     private final List<ObjectInspector> children;
 
     public OrcUnionObjectInspector(int columnId,
@@ -158,14 +158,5 @@ public final class OrcUnion implements UnionObject {
       }
     }
 
-    @Override
-    public Object create() {
-      return new OrcUnion();
-    }
-
-    @Override
-    public void setField(Object union, byte tag, Object object) {
-      ((OrcUnion) union).set(tag, object);
-    }
   }
 }
