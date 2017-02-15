@@ -18,7 +18,7 @@
  * limitations under the License.
  */
 
-package org.apache.hadoop.hive.common.io;
+package com.facebook.hive.orc;
 
 /**
  * A class that defines the constant strings used by the raw datasize calculation.
@@ -56,34 +56,4 @@ public final class RawDatasizeConst {
    * UNION raw data size is size of tag (1) + size of value
    */
   public final static short UNION_TAG_SIZE = 1;
-
-  /**
-   * For string type: Raw data size is length - no. of bytes
-   *
-   * For binary type: Raw data size is the length of the BytesWritable, i.e. the number of bytes
-   */
-
-  /**
-   *  ORC calcuate decimal in HIVE-4120 in such way
-   *  <code>
-   *  @Override
-   * void write(Object obj) throws IOException {
-   * super.write(obj);
-   * if (obj != null) {
-   * BigDecimal decimal = ((BigDecimalObjectInspector) inspector).
-   * getPrimitiveJavaObject(obj);
-   * SerializationUtils.writeBigInteger(valueStream,
-   * decimal.unscaledValue());
-   * scaleStream.write(decimal.scale());
-   * indexStatistics.updateDecimal(decimal);
-   * }
-   * }
-   * </code>
-   *  we can simulate it while calculating rawdatasize:
-   *  4 + ceiling(log2(n)/8.0) bytes
-   *  1. scale - int - 4 byes
-   *  2. BigInteger size: ceiling(log2(n)/8.0) bytes
-   */
-  public final static short BIGDECIMAL_SCALE_SIZE = 4;
-
 }
