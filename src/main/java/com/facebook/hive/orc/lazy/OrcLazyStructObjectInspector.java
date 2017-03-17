@@ -72,7 +72,7 @@ public class OrcLazyStructObjectInspector extends StructObjectInspector {
       return null;
     }
 
-    int offset = ((Field) fieldRef).getOffset();
+    int offset = fieldRef.getFieldID();
     OrcStruct struct;
     try {
       struct = (OrcStruct) ((OrcLazyStruct) data).materialize();
